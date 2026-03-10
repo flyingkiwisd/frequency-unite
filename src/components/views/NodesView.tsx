@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import {
   Globe,
   TreePine,
@@ -15,8 +15,9 @@ import {
   Signal,
   FlaskConical,
   Clock,
+  Download,
 } from 'lucide-react';
-import { nodes, teamMembers } from '@/lib/data';
+import { nodes, teamMembers, exportPdf } from '@/lib/data';
 import type { Node } from '@/lib/data';
 
 // ─── Icon mapping ───
@@ -67,10 +68,30 @@ function statusIcon(status: Node['status']): React.ElementType {
   }
 }
 
+// ─── Node Maturity Data ───
+const nodeMaturity: Record<string, { level: number; label: string }> = {
+  'map-node': { level: 3, label: 'Active work, regular updates' },
+  'bioregions-node': { level: 2, label: 'OKRs set, team identified' },
+  'capital-node': { level: 3, label: 'Active work, regular updates' },
+  'megaphone-node': { level: 2, label: 'OKRs set, team identified' },
+  'cap2-node': { level: 1, label: 'Lead assigned, purpose defined' },
+  'thesis-node': { level: 3, label: 'Active work, regular updates' },
+};
+
+// ─── Cross-Node Dependencies ───
+const crossDeps: { from: string; to: string; label: string }[] = [
+  { from: 'Thesis of Change', to: 'Capital Node', label: 'Scoring rubric feeds deal evaluation' },
+  { from: 'Capital Node', to: 'Map Node', label: 'Funded projects need coordination' },
+  { from: 'Map Node', to: 'Bioregions Node', label: 'Geographic mapping informs pilots' },
+  { from: 'Megaphone Node', to: 'Capital Node', label: 'Distribution amplifies funded projects' },
+  { from: 'Capitalism 2.0', to: 'Thesis of Change', label: 'Theory informs investment thesis' },
+];
+
 // ─── Component ───
 
 export function NodesView() {
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
 
   // Summary stats
   const activeCount = nodes.filter((n) => n.status === 'active').length;
@@ -83,7 +104,7 @@ export function NodesView() {
   };
 
   return (
-    <div style={{ padding: '32px 24px', maxWidth: 1200, margin: '0 auto' }}>
+    <div ref={containerRef} style={{ padding: '32px 24px', maxWidth: 1200, margin: '0 auto' }}>
       {/* ── Header ── */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 32, flexWrap: 'wrap', gap: 16 }}>
         <div>
@@ -96,8 +117,29 @@ export function NodesView() {
           </p>
         </div>
 
-        {/* Overall progress ring */}
+        {/* Overall progress ring + Export */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <button
+            onClick={() => { if (containerRef.current) exportPdf(containerRef.current, 'Nodes'); }}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 6,
+              padding: '8px 14px',
+              borderRadius: 8,
+              border: '1px solid #1e2638',
+              backgroundColor: '#131720',
+              color: '#a09888',
+              fontSize: 12,
+              fontWeight: 500,
+              cursor: 'pointer',
+              transition: 'border-color 0.15s, color 0.15s',
+              fontFamily: 'inherit',
+            }}
+          >
+            <Download size={14} />
+            Export PDF
+          </button>
           <div style={{ position: 'relative', width: 56, height: 56 }}>
             <svg width="56" height="56" viewBox="0 0 56 56">
               <circle cx="28" cy="28" r="24" fill="none" stroke="#1e2638" strokeWidth="4" />
@@ -300,6 +342,34 @@ export function NodesView() {
                   </div>
                 </div>
 
+                {/* Maturity Indicator */}
+                {nodeMaturity[node.id] && (
+                  <div style={{ marginBottom: 16 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+                      <span style={{ fontSize: 11, fontWeight: 600, color: '#a09888' }}>
+                        Maturity Level {nodeMaturity[node.id].level}/5
+                      </span>
+                      <span style={{ fontSize: 10, color: '#6b6358' }}>
+                        {nodeMaturity[node.id].label}
+                      </span>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                      {[1, 2, 3, 4, 5].map((lvl) => (
+                        <div
+                          key={lvl}
+                          style={{
+                            width: 8,
+                            height: 8,
+                            borderRadius: '50%',
+                            backgroundColor: lvl <= nodeMaturity[node.id].level ? sts.text : '#1e2638',
+                            transition: 'background-color 0.3s ease',
+                          }}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                )}
+
                 {/* Leads */}
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -403,6 +473,45 @@ export function NodesView() {
             </div>
           );
         })}
+      </div>
+
+      {/* ── Cross-Node Dependencies ── */}
+      <div style={{ marginTop: 32 }}>
+        <h2 style={{ fontSize: 18, fontWeight: 700, color: '#f0ebe4', marginBottom: 16 }}>
+          Cross-Node Dependencies
+        </h2>
+        <div
+          style={{
+            backgroundColor: '#131720',
+            border: '1px solid #1e2638',
+            borderRadius: 14,
+            padding: '20px 24px',
+          }}
+        >
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+            {crossDeps.map((dep, idx) => (
+              <div
+                key={idx}
+                style={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: 4,
+                  paddingBottom: idx < crossDeps.length - 1 ? 16 : 0,
+                  borderBottom: idx < crossDeps.length - 1 ? '1px solid #1e2638' : 'none',
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 14, fontWeight: 600 }}>
+                  <span style={{ color: '#d4a574' }}>{dep.from}</span>
+                  <span style={{ color: '#6b6358', fontSize: 13 }}>&rarr;</span>
+                  <span style={{ color: '#f0ebe4' }}>{dep.to}</span>
+                </div>
+                <span style={{ fontSize: 12, color: '#6b6358', paddingLeft: 2 }}>
+                  {dep.label}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
       </div>
     </div>
   );

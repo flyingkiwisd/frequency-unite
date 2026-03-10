@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { useRef } from 'react';
 import {
   Scale,
   BookOpen,
@@ -11,8 +11,13 @@ import {
   Eye,
   ArrowRight,
   CircleDot,
+  Target,
+  CheckCircle2,
+  Clock,
+  AlertTriangle,
+  Download,
 } from 'lucide-react';
-import { governanceDecisions, type GovernanceDecision } from '@/lib/data';
+import { governanceDecisions, exportPdf, type GovernanceDecision } from '@/lib/data';
 
 const impactConfig: Record<
   GovernanceDecision['impact'],
@@ -142,35 +147,86 @@ const governanceStructure = [
   },
 ];
 
+const implementationTracker: {
+  decision: string;
+  decidedDate: string;
+  owner: string;
+  deadline: string;
+  status: 'completed' | 'in-progress' | 'overdue' | 'pending';
+  progress: number;
+}[] = [
+  { decision: 'Adopt Teal governance model', decidedDate: 'Jan 15, 2026', owner: 'James', deadline: 'Mar 31, 2026', status: 'in-progress', progress: 65 },
+  { decision: 'Launch 6 pods by April', decidedDate: 'Jan 18, 2026', owner: 'Dave', deadline: 'Apr 15, 2026', status: 'in-progress', progress: 40 },
+  { decision: 'Establish DAF structure', decidedDate: 'Jan 18, 2026', owner: 'Colleen', deadline: 'Mar 1, 2026', status: 'completed', progress: 100 },
+  { decision: 'Hire fractional PM', decidedDate: 'Feb 5, 2026', owner: 'James', deadline: 'Mar 15, 2026', status: 'overdue', progress: 20 },
+  { decision: 'Set individual membership tiers', decidedDate: 'Feb 10, 2026', owner: 'Max', deadline: 'Feb 28, 2026', status: 'completed', progress: 100 },
+  { decision: 'Define CEO search criteria', decidedDate: 'Feb 20, 2026', owner: 'James', deadline: 'May 1, 2026', status: 'pending', progress: 10 },
+];
+
+const statusConfig: Record<
+  'completed' | 'in-progress' | 'overdue' | 'pending',
+  { label: string; color: string; icon: typeof CheckCircle2 }
+> = {
+  completed: { label: 'Completed', color: '#6b8f71', icon: CheckCircle2 },
+  'in-progress': { label: 'In Progress', color: '#e8b44c', icon: Clock },
+  overdue: { label: 'Overdue', color: '#e06060', icon: AlertTriangle },
+  pending: { label: 'Pending', color: '#a09888', icon: Clock },
+};
+
 export function GovernanceView() {
   const sorted = [...governanceDecisions].sort(
     (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
   );
+  const containerRef = useRef<HTMLDivElement>(null);
 
   return (
-    <div style={{ padding: '32px 40px', maxWidth: 1000, margin: '0 auto' }}>
+    <div ref={containerRef} style={{ padding: '32px 40px', maxWidth: 1000, margin: '0 auto' }}>
       {/* Header */}
       <div style={{ marginBottom: 40 }}>
         <div
           style={{
             display: 'flex',
             alignItems: 'center',
+            justifyContent: 'space-between',
             gap: 12,
             marginBottom: 8,
           }}
         >
-          <Scale size={28} style={{ color: '#8b5cf6' }} />
-          <h1
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <Scale size={28} style={{ color: '#8b5cf6' }} />
+            <h1
+              style={{
+                fontSize: 28,
+                fontWeight: 700,
+                color: '#f0ebe4',
+                margin: 0,
+                letterSpacing: '-0.01em',
+              }}
+            >
+              Governance & Decisions
+            </h1>
+          </div>
+          <button
+            onClick={() => { if (containerRef.current) exportPdf(containerRef.current, 'Governance'); }}
             style={{
-              fontSize: 28,
-              fontWeight: 700,
-              color: '#f0ebe4',
-              margin: 0,
-              letterSpacing: '-0.01em',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 6,
+              padding: '8px 14px',
+              borderRadius: 8,
+              border: '1px solid #1e2638',
+              backgroundColor: '#131720',
+              color: '#a09888',
+              fontSize: 12,
+              fontWeight: 500,
+              cursor: 'pointer',
+              transition: 'border-color 0.15s, color 0.15s',
+              fontFamily: 'inherit',
             }}
           >
-            Governance & Decisions
-          </h1>
+            <Download size={14} />
+            Export PDF
+          </button>
         </div>
         <p
           style={{
@@ -425,6 +481,236 @@ export function GovernanceView() {
                       }}
                     />
                   )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </section>
+
+      {/* Decision-to-Implementation Tracker */}
+      <section style={{ marginBottom: 48 }}>
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 8,
+            marginBottom: 20,
+          }}
+        >
+          <Target size={18} style={{ color: '#e8b44c' }} />
+          <h2
+            style={{
+              fontSize: 18,
+              fontWeight: 600,
+              color: '#e8c9a0',
+              margin: 0,
+            }}
+          >
+            Decision &rarr; Implementation
+          </h2>
+        </div>
+
+        {/* Summary row */}
+        <div
+          style={{
+            display: 'flex',
+            gap: 12,
+            marginBottom: 20,
+            flexWrap: 'wrap',
+          }}
+        >
+          {(
+            ['completed', 'in-progress', 'overdue', 'pending'] as const
+          ).map((s) => {
+            const cfg = statusConfig[s];
+            const count = implementationTracker.filter(
+              (t) => t.status === s
+            ).length;
+            const Icon = cfg.icon;
+            return (
+              <div
+                key={s}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 6,
+                  backgroundColor: `${cfg.color}12`,
+                  border: `1px solid ${cfg.color}30`,
+                  borderRadius: 10,
+                  padding: '6px 14px',
+                }}
+              >
+                <Icon size={14} style={{ color: cfg.color }} />
+                <span
+                  style={{
+                    fontSize: 13,
+                    fontWeight: 600,
+                    color: cfg.color,
+                  }}
+                >
+                  {count}
+                </span>
+                <span
+                  style={{
+                    fontSize: 12,
+                    color: '#a09888',
+                  }}
+                >
+                  {cfg.label}
+                </span>
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Tracker table header */}
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: '2fr 1fr 1fr 1fr 1.5fr',
+            gap: 12,
+            padding: '0 22px 10px',
+            borderBottom: '1px solid #1e2638',
+            marginBottom: 8,
+          }}
+        >
+          {['Decision', 'Owner', 'Deadline', 'Status', 'Progress'].map(
+            (header) => (
+              <span
+                key={header}
+                style={{
+                  fontSize: 10,
+                  fontWeight: 600,
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.08em',
+                  color: '#6b6358',
+                }}
+              >
+                {header}
+              </span>
+            )
+          )}
+        </div>
+
+        {/* Tracker rows */}
+        <div
+          style={{
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 8,
+          }}
+        >
+          {implementationTracker.map((item, idx) => {
+            const cfg = statusConfig[item.status];
+            const StatusIcon = cfg.icon;
+            return (
+              <div
+                key={idx}
+                style={{
+                  backgroundColor: '#131720',
+                  border: '1px solid #1e2638',
+                  borderRadius: 14,
+                  padding: '14px 22px',
+                  display: 'grid',
+                  gridTemplateColumns: '2fr 1fr 1fr 1fr 1.5fr',
+                  gap: 12,
+                  alignItems: 'center',
+                  transition: 'border-color 0.2s',
+                }}
+              >
+                {/* Decision name */}
+                <span
+                  style={{
+                    fontSize: 13,
+                    fontWeight: 500,
+                    color: '#f0ebe4',
+                  }}
+                >
+                  {item.decision}
+                </span>
+
+                {/* Owner */}
+                <span
+                  style={{
+                    fontSize: 13,
+                    color: '#a09888',
+                  }}
+                >
+                  {item.owner}
+                </span>
+
+                {/* Deadline */}
+                <span
+                  style={{
+                    fontSize: 12,
+                    color:
+                      item.status === 'overdue' ? '#e06060' : '#a09888',
+                    fontVariantNumeric: 'tabular-nums',
+                  }}
+                >
+                  {item.deadline}
+                </span>
+
+                {/* Status badge */}
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 5,
+                  }}
+                >
+                  <StatusIcon size={12} style={{ color: cfg.color }} />
+                  <span
+                    style={{
+                      fontSize: 11,
+                      fontWeight: 600,
+                      color: cfg.color,
+                    }}
+                  >
+                    {cfg.label}
+                  </span>
+                </div>
+
+                {/* Progress bar */}
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 10,
+                  }}
+                >
+                  <div
+                    style={{
+                      flex: 1,
+                      height: 6,
+                      backgroundColor: 'rgba(255,255,255,0.06)',
+                      borderRadius: 3,
+                      overflow: 'hidden',
+                    }}
+                  >
+                    <div
+                      style={{
+                        width: `${item.progress}%`,
+                        height: '100%',
+                        backgroundColor: cfg.color,
+                        borderRadius: 3,
+                        transition: 'width 0.3s ease',
+                      }}
+                    />
+                  </div>
+                  <span
+                    style={{
+                      fontSize: 11,
+                      fontWeight: 600,
+                      color: cfg.color,
+                      minWidth: 32,
+                      textAlign: 'right',
+                      fontVariantNumeric: 'tabular-nums',
+                    }}
+                  >
+                    {item.progress}%
+                  </span>
                 </div>
               </div>
             );

@@ -9,6 +9,12 @@ import {
   Clock,
   Sparkles,
   Star,
+  Ticket,
+  DollarSign,
+  Mic2,
+  BookOpen,
+  Circle,
+  Loader,
 } from 'lucide-react';
 import { events, type FrequencyEvent } from '@/lib/data';
 
@@ -84,6 +90,511 @@ export function EventsView() {
           Frequency gatherings are where coherence meets action. Each event
           deepens our bond and accelerates our mission.
         </p>
+      </div>
+
+      {/* ── Blue Spirit 6.0 War Room ── */}
+      <div
+        style={{
+          marginBottom: 40,
+          backgroundColor: 'rgba(212, 165, 116, 0.06)',
+          border: '1px solid rgba(212, 165, 116, 0.25)',
+          borderRadius: 16,
+          padding: 28,
+          boxShadow:
+            '0 0 40px rgba(212, 165, 116, 0.08), inset 0 0 40px rgba(212, 165, 116, 0.02)',
+        }}
+      >
+        {/* War Room Header */}
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 12,
+            marginBottom: 24,
+            paddingBottom: 16,
+            borderBottom: '1px solid rgba(212, 165, 116, 0.15)',
+          }}
+        >
+          <div
+            style={{
+              width: 40,
+              height: 40,
+              borderRadius: 10,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              backgroundColor: 'rgba(212, 165, 116, 0.15)',
+              border: '1px solid rgba(212, 165, 116, 0.3)',
+              boxShadow: '0 0 16px rgba(212, 165, 116, 0.25)',
+            }}
+          >
+            <Sparkles size={20} style={{ color: '#d4a574' }} />
+          </div>
+          <div>
+            <h2
+              style={{
+                fontSize: 22,
+                fontWeight: 700,
+                color: '#f0ebe4',
+                margin: 0,
+                letterSpacing: '-0.01em',
+              }}
+            >
+              Blue Spirit 6.0 War Room
+            </h2>
+            <p
+              style={{
+                fontSize: 12,
+                color: '#a09888',
+                margin: '2px 0 0 0',
+                textTransform: 'uppercase',
+                letterSpacing: '0.08em',
+                fontWeight: 600,
+              }}
+            >
+              Command Center
+            </p>
+          </div>
+        </div>
+
+        {/* Key Metrics Grid */}
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(4, 1fr)',
+            gap: 16,
+            marginBottom: 24,
+          }}
+        >
+          {/* Tickets Sold */}
+          <div
+            style={{
+              backgroundColor: 'rgba(255,255,255,0.02)',
+              borderRadius: 10,
+              padding: '16px 18px',
+              border: '1px solid rgba(255,255,255,0.04)',
+            }}
+          >
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6,
+                marginBottom: 8,
+              }}
+            >
+              <Ticket size={14} style={{ color: '#d4a574' }} />
+              <span
+                style={{
+                  fontSize: 11,
+                  fontWeight: 600,
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.08em',
+                  color: '#6b6358',
+                }}
+              >
+                Tickets Sold
+              </span>
+            </div>
+            <div
+              style={{
+                fontSize: 24,
+                fontWeight: 700,
+                color: '#f0ebe4',
+                marginBottom: 4,
+              }}
+            >
+              32{' '}
+              <span style={{ fontSize: 14, color: '#6b6358', fontWeight: 500 }}>
+                / 70
+              </span>
+            </div>
+            <div
+              style={{
+                width: '100%',
+                height: 4,
+                backgroundColor: 'rgba(255,255,255,0.06)',
+                borderRadius: 2,
+                overflow: 'hidden',
+              }}
+            >
+              <div
+                style={{
+                  width: `${Math.round((32 / 70) * 100)}%`,
+                  height: '100%',
+                  backgroundColor: '#d4a574',
+                  borderRadius: 2,
+                  boxShadow: '0 0 8px rgba(212, 165, 116, 0.4)',
+                }}
+              />
+            </div>
+          </div>
+
+          {/* Revenue */}
+          <div
+            style={{
+              backgroundColor: 'rgba(255,255,255,0.02)',
+              borderRadius: 10,
+              padding: '16px 18px',
+              border: '1px solid rgba(255,255,255,0.04)',
+            }}
+          >
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6,
+                marginBottom: 8,
+              }}
+            >
+              <DollarSign size={14} style={{ color: '#d4a574' }} />
+              <span
+                style={{
+                  fontSize: 11,
+                  fontWeight: 600,
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.08em',
+                  color: '#6b6358',
+                }}
+              >
+                Revenue
+              </span>
+            </div>
+            <div
+              style={{
+                fontSize: 24,
+                fontWeight: 700,
+                color: '#f0ebe4',
+              }}
+            >
+              $38K{' '}
+              <span style={{ fontSize: 14, color: '#6b6358', fontWeight: 500 }}>
+                / $85K target
+              </span>
+            </div>
+          </div>
+
+          {/* Days Until Event */}
+          <div
+            style={{
+              backgroundColor: 'rgba(255,255,255,0.02)',
+              borderRadius: 10,
+              padding: '16px 18px',
+              border: '1px solid rgba(255,255,255,0.04)',
+            }}
+          >
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6,
+                marginBottom: 8,
+              }}
+            >
+              <Clock size={14} style={{ color: '#d4a574' }} />
+              <span
+                style={{
+                  fontSize: 11,
+                  fontWeight: 600,
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.08em',
+                  color: '#6b6358',
+                }}
+              >
+                Days Until Event
+              </span>
+            </div>
+            <div
+              style={{
+                fontSize: 24,
+                fontWeight: 700,
+                color: '#f0ebe4',
+              }}
+            >
+              130
+            </div>
+          </div>
+
+          {/* Waitlist */}
+          <div
+            style={{
+              backgroundColor: 'rgba(255,255,255,0.02)',
+              borderRadius: 10,
+              padding: '16px 18px',
+              border: '1px solid rgba(255,255,255,0.04)',
+            }}
+          >
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6,
+                marginBottom: 8,
+              }}
+            >
+              <Users size={14} style={{ color: '#d4a574' }} />
+              <span
+                style={{
+                  fontSize: 11,
+                  fontWeight: 600,
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.08em',
+                  color: '#6b6358',
+                }}
+              >
+                Waitlist
+              </span>
+            </div>
+            <div
+              style={{
+                fontSize: 24,
+                fontWeight: 700,
+                color: '#f0ebe4',
+              }}
+            >
+              0
+            </div>
+          </div>
+        </div>
+
+        {/* Programming Status + Logistics — two-column layout */}
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: '1fr 1fr',
+            gap: 16,
+          }}
+        >
+          {/* Programming Status */}
+          <div
+            style={{
+              backgroundColor: 'rgba(255,255,255,0.02)',
+              borderRadius: 10,
+              padding: '16px 18px',
+              border: '1px solid rgba(255,255,255,0.04)',
+            }}
+          >
+            <div
+              style={{
+                fontSize: 11,
+                fontWeight: 600,
+                textTransform: 'uppercase',
+                letterSpacing: '0.08em',
+                color: '#6b6358',
+                marginBottom: 14,
+              }}
+            >
+              Programming Status
+            </div>
+            <ul
+              style={{
+                margin: 0,
+                padding: 0,
+                listStyle: 'none',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 10,
+              }}
+            >
+              <li
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 8,
+                  fontSize: 13,
+                  color: '#b0a898',
+                }}
+              >
+                <Mic2 size={14} style={{ color: '#d4a574', flexShrink: 0 }} />
+                <span>Sessions Designed</span>
+                <span
+                  style={{
+                    marginLeft: 'auto',
+                    fontWeight: 600,
+                    color: '#f0ebe4',
+                  }}
+                >
+                  8 / 12
+                </span>
+              </li>
+              <li
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 8,
+                  fontSize: 13,
+                  color: '#b0a898',
+                }}
+              >
+                <Users size={14} style={{ color: '#d4a574', flexShrink: 0 }} />
+                <span>Facilitators Confirmed</span>
+                <span
+                  style={{
+                    marginLeft: 'auto',
+                    fontWeight: 600,
+                    color: '#f0ebe4',
+                  }}
+                >
+                  6 / 10
+                </span>
+              </li>
+              <li
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 8,
+                  fontSize: 13,
+                  color: '#b0a898',
+                }}
+              >
+                <BookOpen
+                  size={14}
+                  style={{ color: '#d4a574', flexShrink: 0 }}
+                />
+                <span>Pre-reads Distributed</span>
+                <span
+                  style={{
+                    marginLeft: 'auto',
+                    fontWeight: 600,
+                    color: '#f0ebe4',
+                  }}
+                >
+                  3 / 8
+                </span>
+              </li>
+            </ul>
+          </div>
+
+          {/* Logistics Checklist */}
+          <div
+            style={{
+              backgroundColor: 'rgba(255,255,255,0.02)',
+              borderRadius: 10,
+              padding: '16px 18px',
+              border: '1px solid rgba(255,255,255,0.04)',
+            }}
+          >
+            <div
+              style={{
+                fontSize: 11,
+                fontWeight: 600,
+                textTransform: 'uppercase',
+                letterSpacing: '0.08em',
+                color: '#6b6358',
+                marginBottom: 14,
+              }}
+            >
+              Logistics Checklist
+            </div>
+            <ul
+              style={{
+                margin: 0,
+                padding: 0,
+                listStyle: 'none',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 10,
+              }}
+            >
+              <li
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 8,
+                  fontSize: 13,
+                  color: '#b0a898',
+                }}
+              >
+                <CheckCircle2
+                  size={14}
+                  style={{ color: '#6b8f71', flexShrink: 0 }}
+                />
+                <span>Venue confirmed</span>
+              </li>
+              <li
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 8,
+                  fontSize: 13,
+                  color: '#b0a898',
+                }}
+              >
+                <Loader
+                  size={14}
+                  style={{ color: '#d4a574', flexShrink: 0 }}
+                />
+                <span>Travel coordination</span>
+                <span
+                  style={{
+                    marginLeft: 'auto',
+                    fontSize: 11,
+                    fontWeight: 600,
+                    color: '#d4a574',
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.06em',
+                  }}
+                >
+                  In Progress
+                </span>
+              </li>
+              <li
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 8,
+                  fontSize: 13,
+                  color: '#b0a898',
+                }}
+              >
+                <Circle
+                  size={14}
+                  style={{ color: '#6b6358', flexShrink: 0 }}
+                />
+                <span>Rooming assignments</span>
+                <span
+                  style={{
+                    marginLeft: 'auto',
+                    fontSize: 11,
+                    fontWeight: 600,
+                    color: '#6b6358',
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.06em',
+                  }}
+                >
+                  Pending
+                </span>
+              </li>
+              <li
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 8,
+                  fontSize: 13,
+                  color: '#b0a898',
+                }}
+              >
+                <Loader
+                  size={14}
+                  style={{ color: '#d4a574', flexShrink: 0 }}
+                />
+                <span>Pre-event materials</span>
+                <span
+                  style={{
+                    marginLeft: 'auto',
+                    fontSize: 11,
+                    fontWeight: 600,
+                    color: '#d4a574',
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.06em',
+                  }}
+                >
+                  In Progress
+                </span>
+              </li>
+            </ul>
+          </div>
+        </div>
       </div>
 
       {/* Timeline */}

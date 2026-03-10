@@ -976,10 +976,8 @@ export const roadmapPhases = [
 
 // ─── Export PDF helper ───
 
-export const exportPdf = async (elementId: string, filename: string) => {
+export const exportPdf = async (element: HTMLElement, filename: string) => {
   const { default: html2canvas } = await import('html2canvas-pro');
-  const element = document.getElementById(elementId);
-  if (!element) return;
   const canvas = await html2canvas(element, {
     backgroundColor: '#0b0d14',
     scale: 2,

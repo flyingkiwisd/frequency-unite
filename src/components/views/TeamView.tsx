@@ -13,6 +13,7 @@ import {
   Briefcase,
   Target,
   AlertCircle,
+  AlertTriangle,
 } from 'lucide-react';
 import { teamMembers, type MemberTier, type TeamMember } from '@/lib/data';
 
@@ -101,6 +102,32 @@ const filterTabs: { key: TierFilter; label: string; count?: (members: TeamMember
   { key: 'member', label: 'Members' },
 ];
 
+/* ─── Capacity Data ─── */
+
+const capacityData: Record<string, { currentLoad: number; maxCapacity: number; trend: 'overloaded' | 'high' | 'balanced' | 'available' }> = {
+  'james': { currentLoad: 35, maxCapacity: 40, trend: 'high' },
+  'sian': { currentLoad: 52, maxCapacity: 40, trend: 'overloaded' },
+  'alex': { currentLoad: 20, maxCapacity: 30, trend: 'balanced' },
+  'max': { currentLoad: 28, maxCapacity: 30, trend: 'high' },
+  'dave': { currentLoad: 18, maxCapacity: 25, trend: 'balanced' },
+  'andrew': { currentLoad: 12, maxCapacity: 20, trend: 'balanced' },
+  'felicia': { currentLoad: 10, maxCapacity: 15, trend: 'balanced' },
+  'mafe': { currentLoad: 22, maxCapacity: 25, trend: 'high' },
+  'colleen': { currentLoad: 8, maxCapacity: 15, trend: 'available' },
+  'greg': { currentLoad: 15, maxCapacity: 20, trend: 'balanced' },
+  'raamayan': { currentLoad: 18, maxCapacity: 20, trend: 'high' },
+  'gareth': { currentLoad: 12, maxCapacity: 15, trend: 'balanced' },
+  'sarah': { currentLoad: 6, maxCapacity: 10, trend: 'available' },
+  'nick': { currentLoad: 4, maxCapacity: 8, trend: 'available' },
+};
+
+const trendConfig: Record<string, { label: string; color: string; bg: string }> = {
+  overloaded: { label: 'Overloaded', color: '#e06060', bg: 'rgba(224, 96, 96, 0.12)' },
+  high: { label: 'High Load', color: '#e8b44c', bg: 'rgba(232, 180, 76, 0.12)' },
+  balanced: { label: 'Balanced', color: '#6b8f71', bg: 'rgba(107, 143, 113, 0.12)' },
+  available: { label: 'Available', color: '#60a5fa', bg: 'rgba(96, 165, 250, 0.12)' },
+};
+
 /* ─── Component ─── */
 
 export function TeamView() {
@@ -134,6 +161,45 @@ export function TeamView() {
         <p className="text-text-secondary text-sm">
           The stewards powering Frequency&apos;s mission across all nodes and functions.
         </p>
+      </div>
+
+      {/* ── Team Capacity Overview ── */}
+      <div
+        className="animate-fade-in"
+        style={{ animationDelay: '0.03s', opacity: 0 }}
+      >
+        <div className="flex items-center gap-2 mb-3">
+          <Users size={14} className="text-text-muted" />
+          <span className="text-xs font-semibold text-text-muted uppercase tracking-wider">
+            Team Capacity Overview
+          </span>
+        </div>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          {(['overloaded', 'high', 'balanced', 'available'] as const).map((trendKey) => {
+            const cfg = trendConfig[trendKey];
+            const count = Object.values(capacityData).filter((c) => c.trend === trendKey).length;
+            return (
+              <div
+                key={trendKey}
+                className="rounded-lg border px-4 py-3"
+                style={{
+                  backgroundColor: cfg.bg,
+                  borderColor: `${cfg.color}22`,
+                }}
+              >
+                <div className="text-[10px] font-semibold uppercase tracking-wider mb-1" style={{ color: cfg.color }}>
+                  {cfg.label}
+                </div>
+                <div className="text-2xl font-bold" style={{ color: cfg.color }}>
+                  {count}
+                </div>
+                <div className="text-[10px] text-text-muted mt-0.5">
+                  {count === 1 ? 'member' : 'members'}
+                </div>
+              </div>
+            );
+          })}
+        </div>
       </div>
 
       {/* ── Tier Filter Tabs ── */}
@@ -239,6 +305,64 @@ export function TeamView() {
                   )}
                 </div>
               </div>
+
+              {/* ── Capacity Bar ── */}
+              {(() => {
+                const cap = capacityData[member.id];
+                if (!cap) return null;
+                const trend = trendConfig[cap.trend];
+                const pct = Math.min((cap.currentLoad / cap.maxCapacity) * 100, 100);
+                const isOverloaded = cap.trend === 'overloaded';
+                const overflowPct = isOverloaded ? (cap.currentLoad / cap.maxCapacity) * 100 : 0;
+                return (
+                  <div className="px-5 pt-3">
+                    <div className="flex items-center justify-between mb-1.5">
+                      <div className="flex items-center gap-2">
+                        <span className="text-[11px] text-text-muted font-medium">
+                          {cap.currentLoad}/{cap.maxCapacity} hrs
+                        </span>
+                        <span
+                          className="text-[9px] font-semibold px-1.5 py-0.5 rounded-full"
+                          style={{ backgroundColor: trend.bg, color: trend.color }}
+                        >
+                          {trend.label}
+                        </span>
+                      </div>
+                      {isOverloaded && (
+                        <div className="flex items-center gap-1">
+                          <AlertTriangle size={11} style={{ color: '#e06060' }} />
+                          <span className="text-[9px] font-semibold" style={{ color: '#e06060' }}>
+                            Over capacity
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                    <div
+                      className="w-full h-1.5 rounded-full overflow-hidden"
+                      style={{ backgroundColor: '#1c2230' }}
+                    >
+                      <div
+                        className="h-full rounded-full transition-all"
+                        style={{
+                          width: `${isOverloaded ? 100 : pct}%`,
+                          backgroundColor: trend.color,
+                          boxShadow: isOverloaded
+                            ? `0 0 8px ${trend.color}, 0 0 16px rgba(224, 96, 96, 0.4)`
+                            : 'none',
+                          background: isOverloaded
+                            ? `linear-gradient(90deg, ${trend.color} ${(100 / overflowPct) * 100}%, #ff4040)`
+                            : trend.color,
+                        }}
+                      />
+                    </div>
+                    {isOverloaded && (
+                      <div className="text-[9px] mt-1" style={{ color: '#e06060' }}>
+                        {Math.round(overflowPct)}% of capacity used
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
 
               {/* ── Card Body ── */}
               <div className="px-5 pt-3 pb-4">

@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { useRef } from 'react';
 import {
   DollarSign,
   TrendingUp,
@@ -15,7 +15,9 @@ import {
   Clock,
   ArrowUpRight,
   Minus,
+  Download,
 } from 'lucide-react';
+import { exportPdf } from '@/lib/data';
 
 /* ─── Constants & Data ─── */
 
@@ -165,42 +167,66 @@ export function BudgetView() {
   const totalBudget = budgetLines.reduce((s, l) => s + l.budget, 0);
   const totalActual = budgetLines.reduce((s, l) => s + l.actual, 0);
   const totalVariance = totalBudget - totalActual;
+  const containerRef = useRef<HTMLDivElement>(null);
 
   return (
-    <div style={{ padding: '32px 40px', maxWidth: 1100, margin: '0 auto' }}>
+    <div ref={containerRef} style={{ padding: '32px 40px', maxWidth: 1100, margin: '0 auto' }}>
       {/* ── Header ── */}
       <div className="animate-fade-in" style={{ marginBottom: 36 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 8 }}>
-          <div
-            style={{
-              width: 42,
-              height: 42,
-              borderRadius: 12,
-              backgroundColor: 'rgba(212, 165, 116, 0.12)',
-              border: '1px solid rgba(212, 165, 116, 0.25)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-            }}
-          >
-            <DollarSign size={22} style={{ color: '#d4a574' }} />
-          </div>
-          <div>
-            <h1
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: 8 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <div
               style={{
-                fontSize: 28,
-                fontWeight: 700,
-                color: '#f0ebe4',
-                margin: 0,
-                letterSpacing: '-0.01em',
+                width: 42,
+                height: 42,
+                borderRadius: 12,
+                backgroundColor: 'rgba(212, 165, 116, 0.12)',
+                border: '1px solid rgba(212, 165, 116, 0.25)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
               }}
             >
-              Mothership OS
-            </h1>
-            <p style={{ fontSize: 13, color: '#a09888', margin: 0, marginTop: 2 }}>
-              Financial clarity above all. No surprises.
-            </p>
+              <DollarSign size={22} style={{ color: '#d4a574' }} />
+            </div>
+            <div>
+              <h1
+                style={{
+                  fontSize: 28,
+                  fontWeight: 700,
+                  color: '#f0ebe4',
+                  margin: 0,
+                  letterSpacing: '-0.01em',
+                }}
+              >
+                Mothership OS
+              </h1>
+              <p style={{ fontSize: 13, color: '#a09888', margin: 0, marginTop: 2 }}>
+                Financial clarity above all. No surprises.
+              </p>
+            </div>
           </div>
+          <button
+            onClick={() => { if (containerRef.current) exportPdf(containerRef.current, 'Mothership-OS'); }}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 6,
+              padding: '8px 14px',
+              borderRadius: 8,
+              border: '1px solid #1e2638',
+              backgroundColor: '#131720',
+              color: '#a09888',
+              fontSize: 12,
+              fontWeight: 500,
+              cursor: 'pointer',
+              transition: 'border-color 0.15s, color 0.15s',
+              fontFamily: 'inherit',
+            }}
+          >
+            <Download size={14} />
+            Export PDF
+          </button>
         </div>
       </div>
 

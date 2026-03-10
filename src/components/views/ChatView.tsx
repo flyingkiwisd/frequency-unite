@@ -17,6 +17,8 @@ import {
   Smile,
   AtSign,
   ChevronDown,
+  Pin,
+  Users,
 } from 'lucide-react';
 import { chatChannels, chatMessages, type ChatChannel } from '@/lib/data';
 
@@ -57,6 +59,30 @@ const avatarColors: Record<string, string> = {
   NP: '#94a3b8',
 };
 
+const pinnedMessages: Record<string, { text: string; author: string }> = {
+  'core-team': {
+    text: 'Reminder: Blue Spirit 6.0 planning deck due by March 15. All node leads please submit updates.',
+    author: 'James',
+  },
+  general: {
+    text: 'Welcome to Frequency Unite! This is our shared operating system. Explore the sidebar to navigate.',
+    author: 'Sian',
+  },
+};
+
+const channelMembers: Record<string, number> = {
+  'core-team': 6,
+  board: 3,
+  general: 14,
+  random: 14,
+  'node-map': 4,
+  'node-bioregions': 3,
+  'node-capital': 4,
+  'node-megaphone': 3,
+  events: 8,
+  coherence: 6,
+};
+
 function getInitials(name: string): string {
   return name
     .split(' ')
@@ -82,6 +108,23 @@ export function ChatView() {
 
   return (
     <div style={{ display: 'flex', height: '100%', overflow: 'hidden' }}>
+      {/* CSS Animation for typing indicator */}
+      <style>{`
+        @keyframes typingDot {
+          0%, 60%, 100% { opacity: 0.3; transform: translateY(0); }
+          30% { opacity: 1; transform: translateY(-2px); }
+        }
+        .typing-dot {
+          display: inline-block;
+          width: 4px;
+          height: 4px;
+          border-radius: 50%;
+          background-color: #d4a574;
+          animation: typingDot 1.4s infinite;
+        }
+        .typing-dot:nth-child(2) { animation-delay: 0.2s; }
+        .typing-dot:nth-child(3) { animation-delay: 0.4s; }
+      `}</style>
       {/* ── Channel Sidebar ── */}
       <div
         style={{
@@ -236,7 +279,7 @@ export function ChatView() {
           }}
         >
           <ChannelIcon size={20} style={{ color: '#d4a574' }} />
-          <div>
+          <div style={{ flex: 1 }}>
             <h3
               style={{
                 fontSize: 15,
@@ -247,9 +290,27 @@ export function ChatView() {
             >
               {currentChannel?.name ?? 'Channel'}
             </h3>
-            <p style={{ fontSize: 11, color: '#6b6358', margin: '2px 0 0' }}>
-              {currentChannel?.description ?? ''}
-            </p>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 2 }}>
+              <p style={{ fontSize: 11, color: '#6b6358', margin: 0 }}>
+                {currentChannel?.description ?? ''}
+              </p>
+              {currentChannel && channelMembers[currentChannel.id] && (
+                <span
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 4,
+                    fontSize: 11,
+                    color: '#6b6358',
+                    borderLeft: '1px solid #1e2638',
+                    paddingLeft: 10,
+                  }}
+                >
+                  <Users size={11} style={{ opacity: 0.7 }} />
+                  {channelMembers[currentChannel.id]} members
+                </span>
+              )}
+            </div>
           </div>
         </div>
 
@@ -261,6 +322,47 @@ export function ChatView() {
             padding: '16px 24px',
           }}
         >
+          {/* Pinned Message Banner */}
+          {pinnedMessages[selectedChannel] && (
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'flex-start',
+                gap: 10,
+                padding: '10px 14px',
+                marginBottom: 16,
+                backgroundColor: 'rgba(212, 165, 116, 0.06)',
+                borderLeft: '3px solid #d4a574',
+                borderRadius: '0 8px 8px 0',
+              }}
+            >
+              <Pin
+                size={14}
+                style={{
+                  color: '#d4a574',
+                  flexShrink: 0,
+                  marginTop: 2,
+                  transform: 'rotate(45deg)',
+                }}
+              />
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <p
+                  style={{
+                    fontSize: 12,
+                    color: '#c8bfb4',
+                    margin: 0,
+                    lineHeight: 1.5,
+                  }}
+                >
+                  {pinnedMessages[selectedChannel].text}
+                </p>
+                <span style={{ fontSize: 10, color: '#6b6358', marginTop: 2, display: 'block' }}>
+                  Pinned by {pinnedMessages[selectedChannel].author}
+                </span>
+              </div>
+            </div>
+          )}
+
           {channelMsgs.length === 0 ? (
             <div
               style={{
@@ -272,10 +374,28 @@ export function ChatView() {
                 color: '#6b6358',
               }}
             >
-              <ChannelIcon size={40} style={{ marginBottom: 12, opacity: 0.4 }} />
-              <p style={{ fontSize: 14, margin: 0 }}>No messages in #{currentChannel?.name} yet</p>
-              <p style={{ fontSize: 12, margin: '4px 0 0', opacity: 0.6 }}>
-                Start the conversation
+              <div
+                style={{
+                  width: 64,
+                  height: 64,
+                  borderRadius: '50%',
+                  backgroundColor: 'rgba(212, 165, 116, 0.08)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  marginBottom: 16,
+                }}
+              >
+                <ChannelIcon size={28} style={{ opacity: 0.5, color: '#d4a574' }} />
+              </div>
+              <p style={{ fontSize: 16, fontWeight: 600, color: '#f0ebe4', margin: 0 }}>
+                Welcome to #{currentChannel?.name}
+              </p>
+              <p style={{ fontSize: 13, margin: '8px 0 0', opacity: 0.7, lineHeight: 1.5 }}>
+                This is the very beginning of the <strong style={{ color: '#d4a574', fontWeight: 600 }}>#{currentChannel?.name}</strong> channel.
+              </p>
+              <p style={{ fontSize: 12, margin: '12px 0 0', opacity: 0.5, maxWidth: 320, textAlign: 'center', lineHeight: 1.5 }}>
+                Start the conversation by sharing an update or asking a question.
               </p>
             </div>
           ) : (
@@ -404,6 +524,35 @@ export function ChatView() {
                         ))}
                       </div>
                     )}
+
+                    {/* Thread indicator for messages with 2+ reactions */}
+                    {msg.reactions && msg.reactions.length >= 2 && (
+                      <button
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: 4,
+                          marginTop: 4,
+                          padding: '2px 0',
+                          background: 'none',
+                          border: 'none',
+                          cursor: 'pointer',
+                          fontSize: 11,
+                          fontWeight: 600,
+                          color: '#d4a574',
+                          fontFamily: 'inherit',
+                          transition: 'opacity 0.15s',
+                        }}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.textDecoration = 'underline';
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.textDecoration = 'none';
+                        }}
+                      >
+                        {msg.reactions.reduce((sum, r) => sum + r.count, 0)} replies
+                      </button>
+                    )}
                   </div>
                 </div>
               );
@@ -411,6 +560,34 @@ export function ChatView() {
           )}
           <div ref={messagesEndRef} />
         </div>
+
+        {/* Typing Indicator */}
+        {selectedChannel === 'core-team' && (
+          <div
+            style={{
+              padding: '4px 24px 8px',
+              flexShrink: 0,
+            }}
+          >
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6,
+                fontSize: 12,
+                color: '#6b6358',
+              }}
+            >
+              <span style={{ fontWeight: 600, color: '#a09888' }}>Sian</span>
+              <span>is typing</span>
+              <span style={{ display: 'inline-flex', gap: 3, marginLeft: 1, alignItems: 'center' }}>
+                <span className="typing-dot" />
+                <span className="typing-dot" />
+                <span className="typing-dot" />
+              </span>
+            </div>
+          </div>
+        )}
 
         {/* Message Input */}
         <div

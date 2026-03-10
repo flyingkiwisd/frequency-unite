@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { useRef } from 'react';
 import {
   Users,
   TrendingUp,
@@ -13,8 +13,9 @@ import {
   ChevronRight,
   ArrowDown,
   Zap,
+  Download,
 } from 'lucide-react';
-import { teamMembers } from '@/lib/data';
+import { teamMembers, exportPdf } from '@/lib/data';
 
 /* ─── Color Palette ─── */
 const AMBER = '#d4a574';
@@ -288,9 +289,10 @@ function SectionHeader({
 export function EnrollmentView() {
   /* ── Compute funnel max for bar widths ── */
   const funnelMax = pipelineStages[0].count;
+  const containerRef = useRef<HTMLDivElement>(null);
 
   return (
-    <div style={{ padding: '32px 40px', maxWidth: 1080, margin: '0 auto' }}>
+    <div ref={containerRef} style={{ padding: '32px 40px', maxWidth: 1080, margin: '0 auto' }}>
       {/* ═══ 1. HEADER ═══ */}
       <div
         className="animate-fade-in"
@@ -326,6 +328,27 @@ export function EnrollmentView() {
               >
                 Enrollment Pipeline
               </h1>
+              <button
+                onClick={() => { if (containerRef.current) exportPdf(containerRef.current, 'Enrollment'); }}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 6,
+                  padding: '8px 14px',
+                  borderRadius: 8,
+                  border: '1px solid #1e2638',
+                  backgroundColor: '#131720',
+                  color: '#a09888',
+                  fontSize: 12,
+                  fontWeight: 500,
+                  cursor: 'pointer',
+                  transition: 'border-color 0.15s, color 0.15s',
+                  fontFamily: 'inherit',
+                }}
+              >
+                <Download size={14} />
+                Export PDF
+              </button>
             </div>
             <p
               style={{

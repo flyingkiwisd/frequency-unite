@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { useRef } from 'react';
 import {
   Users,
   DollarSign,
@@ -24,8 +24,10 @@ import {
   CheckCircle2,
   Clock,
   AlertTriangle,
+  Radio,
+  Download,
 } from 'lucide-react';
-import { okrs, nodes, kpis, roadmapPhases, events, teamMembers } from '@/lib/data';
+import { okrs, nodes, kpis, roadmapPhases, events, teamMembers, exportPdf } from '@/lib/data';
 
 /* ─── Icon Lookup (for node icons stored as strings) ─── */
 const iconMap: Record<string, React.ElementType> = {
@@ -45,7 +47,23 @@ const heroKpis = [
   { label: 'Member Retention', value: '78%', target: '85%+', icon: TrendingUp, trend: 'up' as const, color: '#6b8f71' },
   { label: 'Event NPS', value: '9.3', target: '9.5', icon: Star, trend: 'flat' as const, color: '#e879a0' },
   { label: 'Active Nodes', value: '4', target: '6', icon: Network, trend: 'up' as const, color: '#5eaed4' },
+  { label: 'Blue Spirit 6.0', value: '130', target: 'Jul 18, 2026', icon: Calendar, trend: 'flat' as const, color: '#e879a0' },
 ];
+
+/* ─── Agent Signals (8-agent advisory board) ─── */
+const agentSignals: { agent: string; level: 'warning' | 'info' | 'critical'; message: string; icon: React.ElementType }[] = [
+  { agent: 'Mothership', level: 'info', message: 'Cash runway at 8.4 months — healthy. Burn rate stable at $25K/mo.', icon: DollarSign },
+  { agent: 'Membership', level: 'warning', message: 'Retention at 78%, below 85% target. 4 members flagged at-risk of churn.', icon: Users },
+  { agent: 'Node Intel', level: 'warning', message: 'Capitalism 2.0 and Thesis of Change nodes have no monthly update for 30+ days.', icon: Network },
+  { agent: 'Events', level: 'info', message: 'Blue Spirit 6.0: 130 days out. 32/70 tickets sold (46%). Registration pace on track.', icon: Calendar },
+  { agent: 'People', level: 'critical', message: 'Sian capacity at risk — 50+ hrs/week for 3 consecutive weeks. Fractional PM hire urgent.', icon: AlertTriangle },
+];
+
+const signalLevelColor: Record<string, string> = {
+  critical: '#e06060',
+  warning: '#e8b44c',
+  info: '#6b8f71',
+};
 
 const TrendIcon = ({ trend }: { trend: 'up' | 'down' | 'flat' }) => {
   if (trend === 'up') return <TrendingUp size={14} />;
@@ -102,20 +120,44 @@ const quickLinks = [
 export function DashboardView({ onNavigate }: { onNavigate: (view: string) => void }) {
   const topOkrs = okrs.slice(0, 3);
   const upcomingEvents = events.filter((e) => e.status === 'upcoming' || e.status === 'planning');
+  const containerRef = useRef<HTMLDivElement>(null);
 
   return (
-    <div className="space-y-8">
+    <div ref={containerRef} className="space-y-8">
       {/* ── Header ── */}
-      <div className="animate-fade-in">
-        <h1 className="text-3xl font-bold tracking-tight mb-1">
-          <span className="gradient-text">Frequency Command Center</span>
-        </h1>
-        <p className="text-text-secondary text-sm leading-relaxed max-w-2xl">
-          North Star: <span className="text-accent font-medium">144 well-stewards</span> &middot;{' '}
-          <span className="text-accent font-medium">$2M revenue</span> &middot;{' '}
-          <span className="text-accent font-medium">Systems change</span> &mdash; building the root
-          system for a regenerative world.
-        </p>
+      <div className="animate-fade-in" style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16 }}>
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight mb-1">
+            <span className="gradient-text">Frequency Command Center</span>
+          </h1>
+          <p className="text-text-secondary text-sm leading-relaxed max-w-2xl">
+            North Star: <span className="text-accent font-medium">144 well-stewards</span> &middot;{' '}
+            <span className="text-accent font-medium">$2M revenue</span> &middot;{' '}
+            <span className="text-accent font-medium">Systems change</span> &mdash; building the root
+            system for a regenerative world.
+          </p>
+        </div>
+        <button
+          onClick={() => { if (containerRef.current) exportPdf(containerRef.current, 'Dashboard'); }}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 6,
+            padding: '8px 14px',
+            borderRadius: 8,
+            border: '1px solid #1e2638',
+            backgroundColor: '#131720',
+            color: '#a09888',
+            fontSize: 12,
+            fontWeight: 500,
+            cursor: 'pointer',
+            transition: 'border-color 0.15s, color 0.15s',
+            fontFamily: 'inherit',
+          }}
+        >
+          <Download size={14} />
+          Export PDF
+        </button>
       </div>
 
       {/* ── Hero KPI Cards ── */}
@@ -153,7 +195,10 @@ export function DashboardView({ onNavigate }: { onNavigate: (view: string) => vo
                   <TrendIcon trend={kpi.trend} />
                 </div>
               </div>
-              <div className="text-2xl font-bold text-text-primary tracking-tight">{kpi.value}</div>
+              <div className="text-2xl font-bold text-text-primary tracking-tight">
+                {kpi.value}
+                {kpi.label === 'Blue Spirit 6.0' && <span className="text-sm font-medium text-text-muted ml-1">days</span>}
+              </div>
               <div className="text-xs text-text-muted mt-0.5">{kpi.label}</div>
               <div className="text-[11px] text-text-muted mt-1">
                 Target: <span className="text-text-secondary">{kpi.target}</span>
@@ -161,6 +206,66 @@ export function DashboardView({ onNavigate }: { onNavigate: (view: string) => vo
             </div>
           );
         })}
+      </div>
+
+      {/* ── Agent Signals ── */}
+      <div className="animate-fade-in" style={{ animationDelay: '0.1s', opacity: 0 }}>
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-lg font-semibold text-text-primary flex items-center gap-2">
+            <Radio size={18} className="text-accent" />
+            Agent Signals
+            <span
+              className="text-[11px] font-semibold px-2 py-0.5 rounded-full ml-1"
+              style={{ backgroundColor: 'rgba(232, 180, 76, 0.15)', color: '#e8b44c' }}
+            >
+              {agentSignals.length}
+            </span>
+          </h2>
+        </div>
+        <div className="space-y-3">
+          {agentSignals.map((signal, i) => {
+            const SigIcon = signal.icon;
+            const borderColor = signalLevelColor[signal.level];
+            return (
+              <div
+                key={i}
+                className="rounded-xl p-4 border flex items-start gap-3 animate-fade-in"
+                style={{
+                  backgroundColor: '#131720',
+                  borderColor: '#1e2638',
+                  borderLeftWidth: 3,
+                  borderLeftColor: borderColor,
+                  animationDelay: `${0.12 + i * 0.04}s`,
+                  opacity: 0,
+                }}
+              >
+                <div
+                  className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5"
+                  style={{ backgroundColor: `${borderColor}15` }}
+                >
+                  <SigIcon size={16} style={{ color: borderColor }} />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 mb-1">
+                    <span
+                      className="text-[10px] font-semibold px-2 py-0.5 rounded-full"
+                      style={{ backgroundColor: `${borderColor}20`, color: borderColor }}
+                    >
+                      {signal.agent}
+                    </span>
+                    <span
+                      className="text-[10px] font-medium uppercase tracking-wider"
+                      style={{ color: borderColor }}
+                    >
+                      {signal.level}
+                    </span>
+                  </div>
+                  <p className="text-xs text-text-secondary leading-relaxed">{signal.message}</p>
+                </div>
+              </div>
+            );
+          })}
+        </div>
       </div>
 
       {/* ── Top 3 OKRs ── */}
