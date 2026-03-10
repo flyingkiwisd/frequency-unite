@@ -1,0 +1,97 @@
+@import "tailwindcss";
+
+@theme inline {
+  --color-background: #0b0d14;
+  --color-foreground: #e8e0d6;
+  --color-surface: #131720;
+  --color-surface-2: #1c2230;
+  --color-surface-3: #262e3e;
+  --color-border: #1e2638;
+  --color-border-2: #2e3a4e;
+  --color-accent: #d4a574;
+  --color-accent-2: #c4925a;
+  --color-accent-glow: rgba(212, 165, 116, 0.15);
+  --color-accent-violet: #8b5cf6;
+  --color-accent-sage: #6b8f71;
+  --color-accent-rose: #e879a0;
+  --color-accent-sky: #5eaed4;
+  --color-accent-amber: #e8b44c;
+  --color-text-primary: #f0ebe4;
+  --color-text-secondary: #a09888;
+  --color-text-muted: #6b6358;
+  --color-success: #6b8f71;
+  --color-warning: #e8b44c;
+  --color-danger: #e06060;
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: #2e3a4e transparent;
+}
+
+body {
+  background: var(--color-background);
+  color: var(--color-foreground);
+  font-family: var(--font-sans), system-ui, sans-serif;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes slideIn {
+  from { opacity: 0; transform: translateX(-12px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes pulse-glow {
+  0%, 100% { box-shadow: 0 0 20px rgba(212, 165, 116, 0.1); }
+  50% { box-shadow: 0 0 40px rgba(212, 165, 116, 0.25); }
+}
+
+@keyframes gradient-shift {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.5s ease-out forwards;
+}
+
+.animate-slide-in {
+  animation: slideIn 0.4s ease-out forwards;
+}
+
+.glow-card {
+  position: relative;
+  overflow: hidden;
+}
+
+.glow-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--color-accent), transparent);
+  opacity: 0;
+  transition: opacity 0.3s;
+}
+
+.glow-card:hover::before {
+  opacity: 1;
+}
+
+.gradient-text {
+  background: linear-gradient(135deg, #d4a574, #8b5cf6, #6b8f71);
+  background-size: 200% 200%;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  animation: gradient-shift 6s ease infinite;
+}
