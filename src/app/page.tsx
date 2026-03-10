@@ -17,10 +17,22 @@ import { ActivityView } from '@/components/views/ActivityView';
 import { EnrollmentView } from '@/components/views/EnrollmentView';
 import { BudgetView } from '@/components/views/BudgetView';
 import { PodsView } from '@/components/views/PodsView';
+import { AccountabilityView } from '@/components/views/AccountabilityView';
+import { MeetingIntelView } from '@/components/views/MeetingIntelView';
+import { WhatChangedView } from '@/components/views/WhatChangedView';
+import { KnowledgeGraphView } from '@/components/views/KnowledgeGraphView';
+import { StewardAlignmentView } from '@/components/views/StewardAlignmentView';
+import { MemberHealthView } from '@/components/views/MemberHealthView';
+import { CashRunwayView } from '@/components/views/CashRunwayView';
+import { RoleDriftView } from '@/components/views/RoleDriftView';
+import { LeaderboardView } from '@/components/views/LeaderboardView';
+import { PeerFeedbackView } from '@/components/views/PeerFeedbackView';
+import { EcosystemIntelView } from '@/components/views/EcosystemIntelView';
+import { StewardOSView } from '@/components/views/StewardOSView';
 import { LoginScreen } from '@/components/LoginScreen';
 import { CommandPalette } from '@/components/CommandPalette';
 
-export type ViewType = 'dashboard' | 'nodes' | 'team' | 'okrs' | 'tasks' | 'roadmap' | 'governance' | 'events' | 'chat' | 'notes' | 'activity' | 'enrollment' | 'budget' | 'pods';
+export type ViewType = 'dashboard' | 'nodes' | 'team' | 'okrs' | 'tasks' | 'roadmap' | 'governance' | 'events' | 'chat' | 'notes' | 'activity' | 'enrollment' | 'budget' | 'pods' | 'accountability' | 'meeting-intel' | 'what-changed' | 'knowledge-graph' | 'steward-alignment' | 'member-health' | 'cash-runway' | 'role-drift' | 'leaderboard' | 'peer-feedback' | 'ecosystem-intel' | 'steward-os';
 
 export default function Home() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
@@ -66,6 +78,18 @@ export default function Home() {
       case 'enrollment': return <EnrollmentView />;
       case 'budget': return <BudgetView />;
       case 'pods': return <PodsView />;
+      case 'accountability': return <AccountabilityView />;
+      case 'meeting-intel': return <MeetingIntelView />;
+      case 'what-changed': return <WhatChangedView />;
+      case 'knowledge-graph': return <KnowledgeGraphView />;
+      case 'steward-alignment': return <StewardAlignmentView />;
+      case 'member-health': return <MemberHealthView />;
+      case 'cash-runway': return <CashRunwayView />;
+      case 'role-drift': return <RoleDriftView />;
+      case 'leaderboard': return <LeaderboardView />;
+      case 'peer-feedback': return <PeerFeedbackView />;
+      case 'ecosystem-intel': return <EcosystemIntelView />;
+      case 'steward-os': return <StewardOSView />;
       default: return <DashboardView onNavigate={handleNavigate} />;
     }
   };

@@ -17,10 +17,22 @@ import {
   UserPlus,
   Wallet,
   CircleDot,
+  Flame,
+  Brain,
+  Sparkles,
+  GitBranch,
+  Heart,
+  DollarSign,
+  Compass,
+  Trophy,
+  MessageSquare,
+  Globe,
+  UserCog,
+  HandshakeIcon,
 } from 'lucide-react';
 import { useState } from 'react';
 
-type ViewType = 'dashboard' | 'nodes' | 'team' | 'okrs' | 'tasks' | 'roadmap' | 'governance' | 'events' | 'chat' | 'notes' | 'activity' | 'enrollment' | 'budget' | 'pods';
+type ViewType = 'dashboard' | 'nodes' | 'team' | 'okrs' | 'tasks' | 'roadmap' | 'governance' | 'events' | 'chat' | 'notes' | 'activity' | 'enrollment' | 'budget' | 'pods' | 'accountability' | 'meeting-intel' | 'what-changed' | 'knowledge-graph' | 'steward-alignment' | 'member-health' | 'cash-runway' | 'role-drift' | 'leaderboard' | 'peer-feedback' | 'ecosystem-intel' | 'steward-os';
 
 interface MobileNavProps {
   currentView: string;
@@ -37,12 +49,24 @@ const primaryTabs: { label: string; icon: React.ElementType; view: ViewType }[] 
 
 const moreTabs: { label: string; icon: React.ElementType; view: ViewType }[] = [
   { label: 'Team', icon: Users, view: 'team' },
+  { label: 'Steward OS', icon: UserCog, view: 'steward-os' },
   { label: 'Enrollment', icon: UserPlus, view: 'enrollment' },
+  { label: 'Member Health', icon: Heart, view: 'member-health' },
   { label: 'Mothership', icon: Wallet, view: 'budget' },
   { label: 'Pods', icon: CircleDot, view: 'pods' },
   { label: 'Tasks', icon: CheckSquare, view: 'tasks' },
   { label: 'Governance', icon: Scale, view: 'governance' },
   { label: 'Events', icon: Calendar, view: 'events' },
+  { label: 'Accountability', icon: Flame, view: 'accountability' },
+  { label: 'Meeting Intel', icon: Brain, view: 'meeting-intel' },
+  { label: 'What Changed', icon: Sparkles, view: 'what-changed' },
+  { label: 'Knowledge', icon: GitBranch, view: 'knowledge-graph' },
+  { label: 'Cash Runway', icon: DollarSign, view: 'cash-runway' },
+  { label: 'Ecosystem', icon: Globe, view: 'ecosystem-intel' },
+  { label: 'Leaderboard', icon: Trophy, view: 'leaderboard' },
+  { label: 'Feedback', icon: MessageSquare, view: 'peer-feedback' },
+  { label: 'Alignment', icon: HandshakeIcon, view: 'steward-alignment' },
+  { label: 'Role Drift', icon: Compass, view: 'role-drift' },
   { label: 'Roadmap', icon: Map, view: 'roadmap' },
   { label: 'Notes', icon: StickyNote, view: 'notes' },
   { label: 'Activity', icon: Activity, view: 'activity' },
@@ -58,7 +82,7 @@ export function MobileNav({ currentView, onViewChange, onOpenSearch }: MobileNav
       {showMore && (
         <div className="fixed inset-0 z-40 md:hidden" onClick={() => setShowMore(false)}>
           <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" />
-          <div className="absolute bottom-[72px] left-0 right-0 bg-surface border-t border-border rounded-t-2xl p-4 animate-fade-in z-50">
+          <div className="absolute bottom-[72px] left-0 right-0 bg-surface border-t border-border rounded-t-2xl p-4 animate-fade-in z-50 max-h-[70vh] overflow-y-auto">
             <div className="flex items-center justify-between mb-3 px-1">
               <span className="text-xs font-semibold text-text-muted uppercase tracking-wider">More Views</span>
               <button

@@ -19,10 +19,23 @@ import {
   UserPlus,
   Wallet,
   CircleDot,
+  Flame,
+  Brain,
+  Sparkles,
+  GitBranch,
+  Heart,
+  DollarSign,
+  Compass,
+  Trophy,
+  MessageSquare,
+  Globe,
+  UserCog,
+  HandshakeIcon,
+  BarChart3,
 } from 'lucide-react';
 import { teamMembers } from '@/lib/data';
 
-type ViewType = 'dashboard' | 'nodes' | 'team' | 'okrs' | 'tasks' | 'roadmap' | 'governance' | 'events' | 'chat' | 'notes' | 'activity' | 'enrollment' | 'budget' | 'pods';
+type ViewType = 'dashboard' | 'nodes' | 'team' | 'okrs' | 'tasks' | 'roadmap' | 'governance' | 'events' | 'chat' | 'notes' | 'activity' | 'enrollment' | 'budget' | 'pods' | 'accountability' | 'meeting-intel' | 'what-changed' | 'knowledge-graph' | 'steward-alignment' | 'member-health' | 'cash-runway' | 'role-drift' | 'leaderboard' | 'peer-feedback' | 'ecosystem-intel' | 'steward-os';
 
 interface SidebarProps {
   currentView: string;
@@ -34,20 +47,38 @@ interface SidebarProps {
 }
 
 const navItems: { label: string; icon: React.ElementType; view: ViewType; group: number }[] = [
+  // Core
   { label: 'Dashboard', icon: LayoutDashboard, view: 'dashboard', group: 1 },
   { label: 'Nodes', icon: Network, view: 'nodes', group: 1 },
   { label: 'Team', icon: Users, view: 'team', group: 1 },
   { label: 'Chat', icon: MessageCircle, view: 'chat', group: 1 },
+  { label: 'Steward OS', icon: UserCog, view: 'steward-os', group: 1 },
+  // Membership & Ops
   { label: 'Enrollment', icon: UserPlus, view: 'enrollment', group: 2 },
+  { label: 'Member Health', icon: Heart, view: 'member-health', group: 2 },
   { label: 'Mothership OS', icon: Wallet, view: 'budget', group: 2 },
   { label: 'Pods', icon: CircleDot, view: 'pods', group: 2 },
+  // Strategy & Execution
   { label: 'OKRs & KPIs', icon: Target, view: 'okrs', group: 3 },
   { label: 'Tasks', icon: CheckSquare, view: 'tasks', group: 3 },
   { label: 'Governance', icon: Scale, view: 'governance', group: 3 },
   { label: 'Events', icon: Calendar, view: 'events', group: 3 },
-  { label: 'Roadmap', icon: Map, view: 'roadmap', group: 4 },
-  { label: 'Notes', icon: StickyNote, view: 'notes', group: 4 },
-  { label: 'Activity', icon: Activity, view: 'activity', group: 4 },
+  { label: 'Accountability', icon: Flame, view: 'accountability', group: 3 },
+  // Intelligence
+  { label: 'Meeting Intel', icon: Brain, view: 'meeting-intel', group: 4 },
+  { label: 'What Changed', icon: Sparkles, view: 'what-changed', group: 4 },
+  { label: 'Knowledge Graph', icon: GitBranch, view: 'knowledge-graph', group: 4 },
+  { label: 'Cash Runway', icon: DollarSign, view: 'cash-runway', group: 4 },
+  { label: 'Ecosystem Intel', icon: Globe, view: 'ecosystem-intel', group: 4 },
+  // Performance
+  { label: 'Leaderboard', icon: Trophy, view: 'leaderboard', group: 5 },
+  { label: 'Peer Feedback', icon: MessageSquare, view: 'peer-feedback', group: 5 },
+  { label: 'Alignment', icon: HandshakeIcon, view: 'steward-alignment', group: 5 },
+  { label: 'Role Drift', icon: Compass, view: 'role-drift', group: 5 },
+  // More
+  { label: 'Roadmap', icon: Map, view: 'roadmap', group: 6 },
+  { label: 'Notes', icon: StickyNote, view: 'notes', group: 6 },
+  { label: 'Activity', icon: Activity, view: 'activity', group: 6 },
 ];
 
 export function Sidebar({
@@ -62,7 +93,7 @@ export function Sidebar({
   const initials = user?.avatar ?? '??';
   const userName = user?.name ?? 'Unknown';
 
-  const groups = [1, 2, 3, 4];
+  const groups = [1, 2, 3, 4, 5, 6];
 
   return (
     <aside
@@ -94,7 +125,6 @@ export function Sidebar({
         }}
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, overflow: 'hidden', whiteSpace: 'nowrap' }}>
-          {/* Frequency wave logo */}
           <svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ flexShrink: 0 }}>
             <circle cx="16" cy="16" r="14" fill="url(#freqGrad)" opacity="0.15" />
             <path d="M6 16 Q10 8 16 16 Q22 24 26 16" stroke="#d4a574" strokeWidth="2.5" fill="none" strokeLinecap="round" />
