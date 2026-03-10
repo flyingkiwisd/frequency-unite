@@ -1,394 +1,764 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
-  StickyNote,
+  FileText,
+  Search,
   Plus,
   Trash2,
-  Search,
-  FileText,
-  Clock,
+  Pin,
+  PinOff,
+  Tag,
+  Eye,
   Edit3,
+  Copy,
+  Check,
+  FolderOpen,
+  Clock,
+  BookOpen,
+  X,
+  ChevronDown,
+  Sparkles,
 } from 'lucide-react';
+
+// ─── Types ───────────────────────────────────────────────────────────────────
+
+type Category = 'All' | 'General' | 'Blue Spirit' | 'Governance' | 'Nodes' | 'Finance' | 'Personal';
 
 interface Note {
   id: string;
   title: string;
   content: string;
-  timestamp: number;
+  category: Exclude<Category, 'All'>;
+  tags: string[];
+  pinned: boolean;
+  createdAt: string;
+  updatedAt: string;
 }
 
-const defaultNotes: Note[] = [
+// ─── Constants ───────────────────────────────────────────────────────────────
+
+const STORAGE_KEY = 'frequency-notes';
+
+const CATEGORIES: Category[] = ['All', 'General', 'Blue Spirit', 'Governance', 'Nodes', 'Finance', 'Personal'];
+const EDITABLE_CATEGORIES: Exclude<Category, 'All'>[] = ['General', 'Blue Spirit', 'Governance', 'Nodes', 'Finance', 'Personal'];
+
+const TAG_SUGGESTIONS = [
+  'event', 'logistics', 'daf', 'compliance', 'teal', 'culture',
+  'strategy', 'vision', 'meeting', 'action-item', 'research',
+  'draft', 'important', 'follow-up', 'idea', 'reference',
+];
+
+const CATEGORY_COLORS: Record<string, string> = {
+  'General': '#a09888',
+  'Blue Spirit': '#5b9bd5',
+  'Governance': '#8b5cf6',
+  'Nodes': '#6b8f71',
+  'Finance': '#d4a574',
+  'Personal': '#e07a5f',
+};
+
+const DEFAULT_NOTES: Note[] = [
   {
     id: 'note-1',
     title: 'Blue Spirit Planning Notes',
-    content:
-      'Key considerations for Blue Spirit 6.0:\n\n- Venue: Blue Spirit Retreat Center, Nosara\n- Date: July 18, 2026\n- Capacity: 50-80 participants\n- Programming needs: node showcases, deal presentations, coherence practices\n- Must coordinate with Sian on logistics and budget\n- Registration opens April 15th\n\nAction items:\n- Finalize speaker list by May\n- Coordinate with Gareth on Nicoya site visit\n- Plan CEO candidate casual conversations',
-    timestamp: Date.now() - 86400000 * 2,
+    content: '# Blue Spirit Planning\n\nKey areas to address for the upcoming Blue Spirit gathering:\n\n## Logistics\n- Venue confirmation and capacity check\n- Catering arrangements for 50+ attendees\n- AV equipment and presentation setup\n\n## Agenda Items\n1. Opening ceremony and intention setting\n2. Breakout sessions on community governance\n3. Financial transparency workshop\n4. Closing circle and commitments\n\n## Action Items\n- **Send invitations** by end of week\n- *Confirm speakers* for each session\n- Prepare welcome packets\n\nNotes from last planning call: focus on creating space for authentic dialogue rather than rigid structure.',
+    category: 'Blue Spirit',
+    tags: ['event', 'logistics'],
+    pinned: true,
+    createdAt: '2025-12-15T10:00:00Z',
+    updatedAt: '2026-01-20T14:30:00Z',
   },
   {
     id: 'note-2',
     title: 'DAF Structure Thoughts',
-    content:
-      'Notes from conversation with Colleen:\n\n- 501(c)(3) structure allows tax-deductible contributions\n- DECO framework: Donor Equity Conversion Option\n- Need holdco (Delaware LLC) for equity management\n- Compliance checklist must be complete by end of March\n- Family office outreach strategy for $500K+ goal\n\nKey question: How do we balance donor acknowledgment with compliance requirements?',
-    timestamp: Date.now() - 86400000 * 5,
+    content: '# DAF Structure\n\nExploring the optimal structure for our Donor-Advised Fund:\n\n## Current Considerations\n- **Compliance requirements** vary by jurisdiction\n- Need to establish clear grant-making guidelines\n- Minimum distribution thresholds\n\n## Proposed Framework\n1. Set annual distribution target at 7%\n2. Create advisory committee with rotating membership\n3. Quarterly review of investment allocations\n4. Transparent reporting to all stakeholders\n\n## Open Questions\n- How to handle *restricted vs unrestricted* contributions?\n- Timeline for first major grant cycle\n- Integration with existing financial systems',
+    category: 'Finance',
+    tags: ['daf', 'compliance'],
+    pinned: false,
+    createdAt: '2025-11-20T09:00:00Z',
+    updatedAt: '2026-01-18T11:00:00Z',
   },
   {
     id: 'note-3',
     title: 'Teal Governance Reflections',
-    content:
-      'After Cabo, the Teal governance model is really landing.\n\nCore principles:\n1. Responsibility-weighted voice (not equal vote)\n2. Decision logs for every meeting\n3. Subsidiarity - decisions at the lowest competent level\n4. Coherence before action\n5. Integration of being and doing\n\nThis feels right. The Green-stage consensus was holding us back. Teal allows both structure and flow.',
-    timestamp: Date.now() - 86400000 * 8,
+    content: '# Teal Governance\n\nReflections on implementing teal organizational principles:\n\n## Core Principles\n- **Self-management** over hierarchical control\n- *Wholeness* — bringing full selves to work\n- Evolutionary purpose guiding decisions\n\n## What We Have Learned\n- Consent-based decision making works well for policy\n- Advice process accelerates operational decisions\n- Role clarity matters more than title clarity\n\n## Cultural Shifts Needed\n1. Move from permission-seeking to initiative-taking\n2. Embrace productive conflict as growth\n3. Build feedback loops into daily practice\n\nThe journey toward teal is not a destination but a continuous evolution of consciousness and practice.',
+    category: 'Governance',
+    tags: ['teal', 'culture'],
+    pinned: false,
+    createdAt: '2025-10-05T08:00:00Z',
+    updatedAt: '2026-01-15T16:00:00Z',
   },
   {
     id: 'note-4',
     title: 'Node Ecosystem Vision',
-    content:
-      'The 6 nodes form an interconnected ecosystem:\n\nMap Node - coordination nervous system\nBioregions - place-based regeneration\nCapital - fuel for the engine\nMegaphone - cultural amplification\nCapitalism 2.0 - new economic models\nThesis of Change - intellectual backbone\n\nEach node needs: a lead, quarterly OKRs, monthly updates, and bi-weekly sync calls.\n\nThe Map Node is the connective tissue. Fairman is right that it needs to be the first to fully operationalize.',
-    timestamp: Date.now() - 86400000 * 12,
+    content: '# Node Ecosystem Vision\n\n## Strategic Overview\nBuilding a decentralized network of interconnected nodes that serve as:\n- Community hubs for local engagement\n- Resource sharing and mutual aid centers\n- Knowledge repositories and learning spaces\n\n## Phase 1: Foundation\n1. Establish 5 pilot nodes in diverse geographies\n2. Develop shared governance protocol\n3. Create inter-node communication infrastructure\n\n## Phase 2: Growth\n- **Scale to 20 nodes** within 18 months\n- Launch node-to-node resource sharing platform\n- Implement *collective intelligence* tools\n\n## Key Metrics\n- Active node participation rate\n- Inter-node collaboration frequency\n- Community impact measurements\n\nVision: A living network where each node strengthens the whole while maintaining its unique local character.',
+    category: 'Nodes',
+    tags: ['strategy', 'vision'],
+    pinned: false,
+    createdAt: '2025-09-12T07:00:00Z',
+    updatedAt: '2026-01-10T09:00:00Z',
   },
 ];
 
-function formatDate(timestamp: number): string {
-  const date = new Date(timestamp);
-  const now = new Date();
-  const diff = now.getTime() - date.getTime();
-  const days = Math.floor(diff / 86400000);
+// ─── Helpers ─────────────────────────────────────────────────────────────────
 
-  if (days === 0) return 'Today';
-  if (days === 1) return 'Yesterday';
-  if (days < 7) return `${days} days ago`;
-  return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+function generateId(): string {
+  return 'note-' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
 }
 
-function formatTimeFull(timestamp: number): string {
-  return new Date(timestamp).toLocaleDateString('en-US', {
-    weekday: 'long',
-    month: 'long',
-    day: 'numeric',
-    year: 'numeric',
-    hour: 'numeric',
-    minute: '2-digit',
-  });
+function formatDate(iso: string): string {
+  const d = new Date(iso);
+  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
 }
+
+function getWordCount(text: string): number {
+  return text.trim().split(/\s+/).filter(Boolean).length;
+}
+
+function getReadingTime(words: number): string {
+  const mins = Math.max(1, Math.ceil(words / 200));
+  return `${mins} min read`;
+}
+
+function renderMarkdown(text: string): string {
+  let html = text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+
+  // Headers (must come before bold/italic)
+  html = html.replace(/^### (.+)$/gm, '<h3 style="font-size:16px;font-weight:600;color:#f0ebe4;margin:16px 0 8px 0;">$1</h3>');
+  html = html.replace(/^## (.+)$/gm, '<h2 style="font-size:18px;font-weight:600;color:#f0ebe4;margin:20px 0 10px 0;">$1</h2>');
+  html = html.replace(/^# (.+)$/gm, '<h1 style="font-size:22px;font-weight:700;color:#f0ebe4;margin:24px 0 12px 0;">$1</h1>');
+
+  // Bold then italic
+  html = html.replace(/\*\*(.+?)\*\*/g, '<strong style="color:#f0ebe4;font-weight:600;">$1</strong>');
+  html = html.replace(/\*(.+?)\*/g, '<em style="color:#d4a574;font-style:italic;">$1</em>');
+
+  // Unordered list items
+  html = html.replace(/^- (.+)$/gm, '<li style="margin-left:20px;padding:2px 0;color:#a09888;list-style-type:disc;">$1</li>');
+
+  // Ordered list items
+  html = html.replace(/^\d+\.\s(.+)$/gm, '<li style="margin-left:20px;padding:2px 0;color:#a09888;list-style-type:decimal;">$1</li>');
+
+  // Wrap consecutive disc <li> in <ul>
+  html = html.replace(/((?:<li[^>]*list-style-type:disc[^>]*>.*?<\/li>\n?)+)/g, '<ul style="margin:8px 0;padding:0;">$1</ul>');
+
+  // Wrap consecutive decimal <li> in <ol>
+  html = html.replace(/((?:<li[^>]*list-style-type:decimal[^>]*>.*?<\/li>\n?)+)/g, '<ol style="margin:8px 0;padding:0;">$1</ol>');
+
+  // Remaining non-empty lines become paragraphs (skip lines that start with HTML tags)
+  html = html.replace(/^(?!<[hulo])(.*\S.*)$/gm, '<p style="margin:6px 0;color:#a09888;line-height:1.7;">$1</p>');
+
+  return html;
+}
+
+// ─── Persistence ─────────────────────────────────────────────────────────────
+
+function loadNotes(): Note[] {
+  if (typeof window === 'undefined') return DEFAULT_NOTES;
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+    }
+  } catch {
+    // fall through to defaults
+  }
+  return DEFAULT_NOTES;
+}
+
+function saveNotes(notes: Note[]) {
+  if (typeof window === 'undefined') return;
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(notes));
+  } catch {
+    // silently fail if storage is full
+  }
+}
+
+// ─── Component ───────────────────────────────────────────────────────────────
 
 export function NotesView() {
-  const [notes, setNotes] = useState<Note[]>(defaultNotes);
-  const [selectedNoteId, setSelectedNoteId] = useState<string | null>(defaultNotes[0]?.id ?? null);
+  const [notes, setNotes] = useState<Note[]>([]);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
+  const [activeCategory, setActiveCategory] = useState<Category>('All');
+  const [previewMode, setPreviewMode] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const [tagInput, setTagInput] = useState('');
+  const [showTagSuggestions, setShowTagSuggestions] = useState(false);
+  const [showCategoryDropdown, setShowCategoryDropdown] = useState(false);
+  const [mounted, setMounted] = useState(false);
 
-  const filteredNotes = useMemo(() => {
-    if (!searchQuery.trim()) return notes;
-    const q = searchQuery.toLowerCase();
-    return notes.filter(
-      (n) => n.title.toLowerCase().includes(q) || n.content.toLowerCase().includes(q)
-    );
-  }, [notes, searchQuery]);
+  // ── Load on mount ────────────────────────────────────────────────────────
+  useEffect(() => {
+    const loaded = loadNotes();
+    setNotes(loaded);
+    if (loaded.length > 0) setSelectedId(loaded[0].id);
+    setMounted(true);
+  }, []);
 
-  const selectedNote = notes.find((n) => n.id === selectedNoteId) ?? null;
+  // ── Auto-save whenever notes change ──────────────────────────────────────
+  useEffect(() => {
+    if (mounted) saveNotes(notes);
+  }, [notes, mounted]);
 
-  function addNote() {
-    const newNote: Note = {
-      id: `note-${Date.now()}`,
+  // ── Mutations ────────────────────────────────────────────────────────────
+
+  const updateNotes = useCallback((updater: (prev: Note[]) => Note[]) => {
+    setNotes(updater);
+  }, []);
+
+  const createNote = useCallback(() => {
+    const cat: Exclude<Category, 'All'> = activeCategory === 'All' ? 'General' : activeCategory;
+    const now = new Date().toISOString();
+    const note: Note = {
+      id: generateId(),
       title: 'Untitled Note',
       content: '',
-      timestamp: Date.now(),
+      category: cat,
+      tags: [],
+      pinned: false,
+      createdAt: now,
+      updatedAt: now,
     };
-    setNotes((prev) => [newNote, ...prev]);
-    setSelectedNoteId(newNote.id);
-  }
+    updateNotes((prev) => [note, ...prev]);
+    setSelectedId(note.id);
+    setPreviewMode(false);
+  }, [activeCategory, updateNotes]);
 
-  function deleteNote(id: string) {
-    setNotes((prev) => prev.filter((n) => n.id !== id));
-    if (selectedNoteId === id) {
-      const remaining = notes.filter((n) => n.id !== id);
-      setSelectedNoteId(remaining[0]?.id ?? null);
-    }
-  }
+  const deleteNote = useCallback((id: string) => {
+    updateNotes((prev) => prev.filter((n) => n.id !== id));
+    setSelectedId((curr) => (curr === id ? null : curr));
+  }, [updateNotes]);
 
-  function updateNoteTitle(id: string, title: string) {
-    setNotes((prev) =>
-      prev.map((n) => (n.id === id ? { ...n, title, timestamp: Date.now() } : n))
+  const updateField = useCallback(<K extends keyof Note>(id: string, field: K, value: Note[K]) => {
+    updateNotes((prev) =>
+      prev.map((n) =>
+        n.id === id ? { ...n, [field]: value, updatedAt: new Date().toISOString() } : n
+      )
     );
-  }
+  }, [updateNotes]);
 
-  function updateNoteContent(id: string, content: string) {
-    setNotes((prev) =>
-      prev.map((n) => (n.id === id ? { ...n, content, timestamp: Date.now() } : n))
+  const togglePin = useCallback((id: string) => {
+    updateNotes((prev) =>
+      prev.map((n) => (n.id === id ? { ...n, pinned: !n.pinned, updatedAt: new Date().toISOString() } : n))
+    );
+  }, [updateNotes]);
+
+  const addTag = useCallback((id: string, tag: string) => {
+    const trimmed = tag.trim().toLowerCase();
+    if (!trimmed) return;
+    updateNotes((prev) =>
+      prev.map((n) => {
+        if (n.id !== id || n.tags.includes(trimmed)) return n;
+        return { ...n, tags: [...n.tags, trimmed], updatedAt: new Date().toISOString() };
+      })
+    );
+    setTagInput('');
+    setShowTagSuggestions(false);
+  }, [updateNotes]);
+
+  const removeTag = useCallback((id: string, tag: string) => {
+    updateNotes((prev) =>
+      prev.map((n) => {
+        if (n.id !== id) return n;
+        return { ...n, tags: n.tags.filter((t) => t !== tag), updatedAt: new Date().toISOString() };
+      })
+    );
+  }, [updateNotes]);
+
+  const copyToClipboard = useCallback(async (text: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      // clipboard API may not be available
+    }
+  }, []);
+
+  // ── Derived State ────────────────────────────────────────────────────────
+
+  const filteredNotes = useMemo(() => {
+    let result = notes;
+    if (activeCategory !== 'All') {
+      result = result.filter((n) => n.category === activeCategory);
+    }
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase();
+      result = result.filter(
+        (n) =>
+          n.title.toLowerCase().includes(q) ||
+          n.content.toLowerCase().includes(q) ||
+          n.tags.some((t) => t.includes(q))
+      );
+    }
+    return [...result].sort((a, b) => {
+      if (a.pinned && !b.pinned) return -1;
+      if (!a.pinned && b.pinned) return 1;
+      return new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime();
+    });
+  }, [notes, activeCategory, searchQuery]);
+
+  const selectedNote = useMemo(() => notes.find((n) => n.id === selectedId) ?? null, [notes, selectedId]);
+
+  const filteredTagSuggestions = useMemo(() => {
+    if (!selectedNote) return [];
+    const existing = selectedNote.tags;
+    if (!tagInput.trim()) return TAG_SUGGESTIONS.filter((t) => !existing.includes(t)).slice(0, 8);
+    const q = tagInput.toLowerCase();
+    return TAG_SUGGESTIONS.filter((t) => t.includes(q) && !existing.includes(t)).slice(0, 8);
+  }, [tagInput, selectedNote]);
+
+  // ── Styles ───────────────────────────────────────────────────────────────
+
+  const iconBtn = (active?: boolean): React.CSSProperties => ({
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 6,
+    borderRadius: 6,
+    background: active ? 'rgba(212,165,116,0.12)' : 'transparent',
+    border: '1px solid transparent',
+    color: active ? '#d4a574' : '#6b6358',
+    cursor: 'pointer',
+    transition: 'all 0.15s',
+  });
+
+  const categoryBadge = (cat: string): React.CSSProperties => ({
+    fontSize: 11,
+    padding: '2px 8px',
+    borderRadius: 4,
+    background: `${CATEGORY_COLORS[cat] || '#a09888'}18`,
+    color: CATEGORY_COLORS[cat] || '#a09888',
+    fontWeight: 500,
+  });
+
+  // ── Render ───────────────────────────────────────────────────────────────
+
+  if (!mounted) {
+    return (
+      <div style={{
+        display: 'flex', height: '100%', background: '#0b0d14', color: '#f0ebe4',
+        fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+        alignItems: 'center', justifyContent: 'center',
+      }}>
+        <div style={{
+          display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12, color: '#4a443e',
+        }}>
+          <div style={{
+            width: 56, height: 56, borderRadius: 16, background: 'rgba(212,165,116,0.06)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+          }}>
+            <FileText size={24} color="#4a443e" />
+          </div>
+          <span style={{ fontSize: 14, color: '#6b6358' }}>Loading notes...</span>
+        </div>
+      </div>
     );
   }
 
   return (
-    <div style={{ display: 'flex', height: '100%', overflow: 'hidden' }}>
-      {/* ── Notes Sidebar ── */}
-      <div
-        style={{
-          width: 300,
-          minWidth: 300,
-          backgroundColor: '#0f1219',
-          borderRight: '1px solid #1e2638',
-          display: 'flex',
-          flexDirection: 'column',
-          overflow: 'hidden',
-        }}
-      >
+    <div style={{
+      display: 'flex', height: '100%', background: '#0b0d14', color: '#f0ebe4',
+      fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+      overflow: 'hidden',
+    }}>
+      {/* ════════════════════════════════════════════════════════════════════ */}
+      {/* SIDEBAR                                                            */}
+      {/* ════════════════════════════════════════════════════════════════════ */}
+      <div style={{
+        width: 320, minWidth: 320, background: '#0f1219',
+        borderRight: '1px solid #1e2638', display: 'flex', flexDirection: 'column', overflow: 'hidden',
+      }}>
         {/* Sidebar Header */}
-        <div style={{ padding: '16px 16px 12px', borderBottom: '1px solid #1e2638', flexShrink: 0 }}>
+        <div style={{ padding: '16px 16px 12px', borderBottom: '1px solid #1e2638' }}>
+          {/* Title row */}
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <StickyNote size={18} style={{ color: '#d4a574' }} />
-              <h2 style={{ fontSize: 15, fontWeight: 700, color: '#f0ebe4', margin: 0 }}>Notes</h2>
-            </div>
+            <span style={{ fontSize: 16, fontWeight: 600, color: '#f0ebe4', display: 'flex', alignItems: 'center', gap: 8 }}>
+              <FileText size={18} color="#d4a574" />
+              Notes
+            </span>
             <button
-              onClick={addNote}
+              onClick={createNote}
+              title="New Note"
               style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                width: 28,
-                height: 28,
-                borderRadius: 8,
-                border: 'none',
-                cursor: 'pointer',
-                backgroundColor: 'rgba(212, 165, 116, 0.12)',
-                color: '#d4a574',
-                transition: 'background 0.15s',
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.backgroundColor = 'rgba(212, 165, 116, 0.2)';
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.backgroundColor = 'rgba(212, 165, 116, 0.12)';
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                width: 30, height: 30, borderRadius: 6,
+                background: 'rgba(212,165,116,0.1)', border: '1px solid rgba(212,165,116,0.2)',
+                color: '#d4a574', cursor: 'pointer', flexShrink: 0,
               }}
             >
               <Plus size={16} />
             </button>
           </div>
 
+          {/* Category folder selector */}
+          <div style={{ position: 'relative', marginBottom: 10 }}>
+            <button
+              onClick={() => setShowCategoryDropdown(!showCategoryDropdown)}
+              style={{
+                width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                padding: '8px 12px', background: '#131720', border: '1px solid #1e2638',
+                borderRadius: 8, color: '#a09888', fontSize: 13, cursor: 'pointer',
+              }}
+            >
+              <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <FolderOpen size={14} />
+                {activeCategory}
+              </span>
+              <ChevronDown size={14} />
+            </button>
+            {showCategoryDropdown && (
+              <div style={{
+                position: 'absolute', top: '100%', left: 0, right: 0, marginTop: 4,
+                background: '#131720', border: '1px solid #1e2638', borderRadius: 8,
+                zIndex: 20, overflow: 'hidden', boxShadow: '0 8px 24px rgba(0,0,0,0.4)',
+              }}>
+                {CATEGORIES.map((cat) => (
+                  <div
+                    key={cat}
+                    onClick={() => { setActiveCategory(cat); setShowCategoryDropdown(false); }}
+                    style={{
+                      padding: '8px 12px', fontSize: 13,
+                      color: activeCategory === cat ? '#d4a574' : '#a09888',
+                      background: activeCategory === cat ? 'rgba(212,165,116,0.08)' : 'transparent',
+                      cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8,
+                    }}
+                    onMouseEnter={(e) => { (e.currentTarget as HTMLDivElement).style.background = 'rgba(212,165,116,0.06)'; }}
+                    onMouseLeave={(e) => {
+                      (e.currentTarget as HTMLDivElement).style.background =
+                        activeCategory === cat ? 'rgba(212,165,116,0.08)' : 'transparent';
+                    }}
+                  >
+                    {cat !== 'All' && (
+                      <span style={{
+                        width: 8, height: 8, borderRadius: '50%',
+                        background: CATEGORY_COLORS[cat] || '#a09888', flexShrink: 0,
+                      }} />
+                    )}
+                    {cat}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
           {/* Search */}
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 8,
-              backgroundColor: '#131720',
-              border: '1px solid #1e2638',
-              borderRadius: 8,
-              padding: '6px 10px',
-            }}
-          >
-            <Search size={14} style={{ color: '#6b6358', flexShrink: 0 }} />
+          <div style={{
+            display: 'flex', alignItems: 'center', background: '#131720',
+            border: '1px solid #1e2638', borderRadius: 8, padding: '7px 10px', gap: 8,
+          }}>
+            <Search size={14} color="#6b6358" />
             <input
-              type="text"
+              placeholder="Search notes..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search notes..."
               style={{
-                flex: 1,
-                background: 'transparent',
-                border: 'none',
-                outline: 'none',
-                color: '#f0ebe4',
-                fontSize: 12,
-                fontFamily: 'inherit',
+                flex: 1, background: 'transparent', border: 'none', outline: 'none',
+                color: '#f0ebe4', fontSize: 13, fontFamily: 'inherit',
               }}
             />
+            {searchQuery && (
+              <X size={14} color="#6b6358" style={{ cursor: 'pointer' }} onClick={() => setSearchQuery('')} />
+            )}
           </div>
-          <p style={{ fontSize: 11, color: '#6b6358', margin: '8px 0 0' }}>
-            {filteredNotes.length} note{filteredNotes.length !== 1 ? 's' : ''}
-          </p>
         </div>
 
-        {/* Notes List */}
-        <div style={{ flex: 1, overflowY: 'auto', padding: '4px 0' }}>
+        {/* Note count */}
+        <div style={{ fontSize: 11, color: '#4a443e', padding: '6px 16px 10px' }}>
+          {filteredNotes.length} note{filteredNotes.length !== 1 ? 's' : ''}
+          {activeCategory !== 'All' ? ` in ${activeCategory}` : ''}
+        </div>
+
+        {/* Note list */}
+        <div style={{ flex: 1, overflowY: 'auto', padding: '0 8px 8px' }}>
           {filteredNotes.length === 0 ? (
-            <div style={{ padding: 24, textAlign: 'center', color: '#6b6358', fontSize: 12 }}>
-              {searchQuery ? 'No matching notes' : 'No notes yet'}
+            <div style={{ textAlign: 'center', padding: 24, color: '#4a443e', fontSize: 13 }}>
+              No notes found.
             </div>
           ) : (
             filteredNotes.map((note) => {
-              const isActive = selectedNoteId === note.id;
-              const preview = note.content.split('\n').find((l) => l.trim()) || 'Empty note';
-
+              const isActive = selectedId === note.id;
               return (
-                <button
+                <div
                   key={note.id}
-                  onClick={() => setSelectedNoteId(note.id)}
+                  onClick={() => { setSelectedId(note.id); setPreviewMode(false); }}
                   style={{
-                    display: 'block',
-                    width: '100%',
-                    textAlign: 'left',
-                    padding: '12px 16px',
-                    border: 'none',
+                    padding: '10px 12px', borderRadius: 8, cursor: 'pointer',
+                    background: isActive ? 'rgba(212,165,116,0.08)' : 'transparent',
                     borderLeft: isActive ? '3px solid #d4a574' : '3px solid transparent',
-                    cursor: 'pointer',
-                    backgroundColor: isActive ? 'rgba(212, 165, 116, 0.08)' : 'transparent',
-                    transition: 'background 0.12s',
-                    fontFamily: 'inherit',
+                    marginBottom: 2, transition: 'background 0.15s',
                   }}
                   onMouseEnter={(e) => {
-                    if (!isActive) e.currentTarget.style.backgroundColor = '#1a1f2e';
+                    if (!isActive) (e.currentTarget as HTMLDivElement).style.background = 'rgba(212,165,116,0.04)';
                   }}
                   onMouseLeave={(e) => {
-                    if (!isActive) e.currentTarget.style.backgroundColor = 'transparent';
+                    if (!isActive) (e.currentTarget as HTMLDivElement).style.background = 'transparent';
                   }}
                 >
-                  <div style={{ fontSize: 13, fontWeight: 600, color: isActive ? '#e8c9a0' : '#f0ebe4', marginBottom: 4, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                    {note.title}
+                  <div style={{
+                    fontSize: 13, fontWeight: 500, color: '#f0ebe4', marginBottom: 3,
+                    display: 'flex', alignItems: 'center', gap: 6,
+                    overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                  }}>
+                    {note.pinned && <Pin size={12} style={{ color: '#d4a574', flexShrink: 0 }} />}
+                    <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {note.title || 'Untitled'}
+                    </span>
                   </div>
-                  <div style={{ fontSize: 11, color: '#6b6358', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginBottom: 4 }}>
-                    {preview.slice(0, 80)}
+                  <div style={{
+                    fontSize: 11, color: '#6b6358', display: 'flex', alignItems: 'center', gap: 6,
+                  }}>
+                    <span style={categoryBadge(note.category)}>{note.category}</span>
+                    <span>{formatDate(note.updatedAt)}</span>
                   </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 10, color: '#4a443e' }}>
-                    <Clock size={10} />
-                    {formatDate(note.timestamp)}
-                  </div>
-                </button>
+                  {note.tags.length > 0 && (
+                    <div style={{ display: 'flex', gap: 4, marginTop: 4, flexWrap: 'wrap' }}>
+                      {note.tags.slice(0, 3).map((tag) => (
+                        <span key={tag} style={{
+                          fontSize: 10, padding: '1px 6px', borderRadius: 4,
+                          background: 'rgba(139,92,246,0.12)', color: '#8b5cf6',
+                        }}>
+                          {tag}
+                        </span>
+                      ))}
+                      {note.tags.length > 3 && (
+                        <span style={{
+                          fontSize: 10, padding: '1px 6px', borderRadius: 4,
+                          background: 'rgba(139,92,246,0.12)', color: '#8b5cf6', opacity: 0.6,
+                        }}>
+                          +{note.tags.length - 3}
+                        </span>
+                      )}
+                    </div>
+                  )}
+                </div>
               );
             })
           )}
         </div>
       </div>
 
-      {/* ── Editor Area ── */}
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-        {selectedNote ? (
-          <>
-            {/* Editor Header */}
-            <div
-              style={{
-                padding: '14px 24px',
-                borderBottom: '1px solid #1e2638',
-                backgroundColor: '#0d1018',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                flexShrink: 0,
-              }}
-            >
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10, flex: 1, minWidth: 0 }}>
-                <FileText size={18} style={{ color: '#d4a574', flexShrink: 0 }} />
-                <input
-                  type="text"
-                  value={selectedNote.title}
-                  onChange={(e) => updateNoteTitle(selectedNote.id, e.target.value)}
-                  style={{
-                    flex: 1,
-                    background: 'transparent',
-                    border: 'none',
-                    outline: 'none',
-                    color: '#f0ebe4',
-                    fontSize: 16,
-                    fontWeight: 700,
-                    fontFamily: 'inherit',
-                    padding: 0,
-                  }}
-                />
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                <span style={{ fontSize: 11, color: '#4a443e', display: 'flex', alignItems: 'center', gap: 4 }}>
-                  <Clock size={11} />
-                  {formatTimeFull(selectedNote.timestamp)}
-                </span>
+      {/* ════════════════════════════════════════════════════════════════════ */}
+      {/* EDITOR / EMPTY STATE                                               */}
+      {/* ════════════════════════════════════════════════════════════════════ */}
+      {selectedNote ? (
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', background: '#0b0d14' }}>
+          {/* Editor Header */}
+          <div style={{ padding: '16px 24px 12px', borderBottom: '1px solid #1e2638' }}>
+            {/* Title row + action buttons */}
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+              <input
+                value={selectedNote.title}
+                onChange={(e) => updateField(selectedNote.id, 'title', e.target.value)}
+                placeholder="Note title..."
+                style={{
+                  flex: 1, background: 'transparent', border: 'none', outline: 'none',
+                  color: '#f0ebe4', fontSize: 20, fontWeight: 600, marginRight: 12, fontFamily: 'inherit',
+                }}
+              />
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <button
+                  onClick={() => togglePin(selectedNote.id)}
+                  title={selectedNote.pinned ? 'Unpin' : 'Pin'}
+                  style={iconBtn(selectedNote.pinned)}
+                >
+                  {selectedNote.pinned ? <PinOff size={15} /> : <Pin size={15} />}
+                </button>
+                <button
+                  onClick={() => setPreviewMode(!previewMode)}
+                  title={previewMode ? 'Edit' : 'Preview'}
+                  style={iconBtn(previewMode)}
+                >
+                  {previewMode ? <Edit3 size={15} /> : <Eye size={15} />}
+                </button>
+                <button
+                  onClick={() => copyToClipboard(selectedNote.content)}
+                  title="Copy to clipboard"
+                  style={iconBtn(copied)}
+                >
+                  {copied ? <Check size={15} color="#6b8f71" /> : <Copy size={15} />}
+                </button>
                 <button
                   onClick={() => deleteNote(selectedNote.id)}
+                  title="Delete note"
                   style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    width: 28,
-                    height: 28,
-                    borderRadius: 8,
-                    border: 'none',
-                    cursor: 'pointer',
-                    backgroundColor: 'transparent',
-                    color: '#6b6358',
-                    transition: 'background 0.15s, color 0.15s',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    padding: 6, borderRadius: 6, background: 'transparent',
+                    border: '1px solid transparent', color: '#6b6358', cursor: 'pointer',
+                    transition: 'all 0.15s',
                   }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.backgroundColor = 'rgba(201, 84, 74, 0.12)';
-                    e.currentTarget.style.color = '#c9544a';
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.backgroundColor = 'transparent';
-                    e.currentTarget.style.color = '#6b6358';
-                  }}
+                  onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.color = '#e07a5f'; }}
+                  onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.color = '#6b6358'; }}
                 >
                   <Trash2 size={15} />
                 </button>
               </div>
             </div>
 
-            {/* Editor Body */}
-            <div style={{ flex: 1, overflow: 'hidden' }}>
+            {/* Meta row: category select + date */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, fontSize: 12, color: '#6b6358', marginBottom: 8 }}>
+              <select
+                value={selectedNote.category}
+                onChange={(e) => updateField(selectedNote.id, 'category', e.target.value as Exclude<Category, 'All'>)}
+                style={{
+                  background: '#131720', border: '1px solid #1e2638', borderRadius: 4,
+                  color: '#a09888', fontSize: 11, padding: '2px 6px', outline: 'none', cursor: 'pointer',
+                  fontFamily: 'inherit',
+                }}
+              >
+                {EDITABLE_CATEGORIES.map((cat) => (
+                  <option key={cat} value={cat}>{cat}</option>
+                ))}
+              </select>
+              <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                <Clock size={11} />
+                {formatDate(selectedNote.updatedAt)}
+              </span>
+            </div>
+
+            {/* Tags row */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', position: 'relative' }}>
+              <Tag size={12} color="#6b6358" />
+              {selectedNote.tags.map((tag) => (
+                <span key={tag} style={{
+                  display: 'flex', alignItems: 'center', gap: 4, fontSize: 11,
+                  padding: '2px 8px', borderRadius: 4, background: 'rgba(139,92,246,0.12)', color: '#8b5cf6',
+                }}>
+                  {tag}
+                  <span
+                    onClick={() => removeTag(selectedNote.id, tag)}
+                    style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', opacity: 0.7 }}
+                  >
+                    <X size={10} />
+                  </span>
+                </span>
+              ))}
+              <div style={{ position: 'relative' }}>
+                <input
+                  placeholder="Add tag..."
+                  value={tagInput}
+                  onChange={(e) => setTagInput(e.target.value)}
+                  onFocus={() => setShowTagSuggestions(true)}
+                  onBlur={() => setTimeout(() => setShowTagSuggestions(false), 200)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      addTag(selectedNote.id, tagInput);
+                    }
+                  }}
+                  style={{
+                    width: 100, background: 'transparent', border: '1px solid #1e2638',
+                    borderRadius: 4, padding: '2px 6px', fontSize: 11, color: '#f0ebe4',
+                    outline: 'none', fontFamily: 'inherit',
+                  }}
+                />
+                {showTagSuggestions && filteredTagSuggestions.length > 0 && (
+                  <div style={{
+                    position: 'absolute', top: '100%', left: 0, marginTop: 4,
+                    background: '#131720', border: '1px solid #1e2638', borderRadius: 6,
+                    zIndex: 20, minWidth: 140, boxShadow: '0 8px 24px rgba(0,0,0,0.4)',
+                    maxHeight: 160, overflowY: 'auto',
+                  }}>
+                    {filteredTagSuggestions.map((sug) => (
+                      <div
+                        key={sug}
+                        onMouseDown={(e) => { e.preventDefault(); addTag(selectedNote.id, sug); }}
+                        style={{ padding: '6px 10px', fontSize: 12, color: '#a09888', cursor: 'pointer' }}
+                        onMouseEnter={(e) => {
+                          (e.currentTarget as HTMLDivElement).style.background = 'rgba(139,92,246,0.08)';
+                          (e.currentTarget as HTMLDivElement).style.color = '#8b5cf6';
+                        }}
+                        onMouseLeave={(e) => {
+                          (e.currentTarget as HTMLDivElement).style.background = 'transparent';
+                          (e.currentTarget as HTMLDivElement).style.color = '#a09888';
+                        }}
+                      >
+                        {sug}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Editor Body */}
+          <div style={{ flex: 1, padding: '16px 24px', overflow: 'auto' }}>
+            {previewMode ? (
+              <div
+                style={{ lineHeight: 1.7, fontSize: 14 }}
+                dangerouslySetInnerHTML={{ __html: renderMarkdown(selectedNote.content) }}
+              />
+            ) : (
               <textarea
                 value={selectedNote.content}
-                onChange={(e) => updateNoteContent(selectedNote.id, e.target.value)}
-                placeholder="Start writing..."
+                onChange={(e) => updateField(selectedNote.id, 'content', e.target.value)}
+                placeholder="Start writing... (supports basic markdown: # headers, **bold**, *italic*, - lists)"
                 style={{
-                  width: '100%',
-                  height: '100%',
-                  padding: '20px 24px',
-                  backgroundColor: 'transparent',
-                  border: 'none',
-                  outline: 'none',
-                  color: '#c8bfb4',
-                  fontSize: 13,
-                  lineHeight: 1.7,
-                  fontFamily: 'inherit',
-                  resize: 'none',
-                  boxSizing: 'border-box',
+                  width: '100%', height: '100%', background: 'transparent', border: 'none',
+                  outline: 'none', color: '#a09888', fontSize: 14, lineHeight: 1.7,
+                  resize: 'none', fontFamily: 'inherit',
                 }}
               />
-            </div>
-          </>
-        ) : (
-          /* Empty state */
-          <div
+            )}
+          </div>
+
+          {/* Editor Footer */}
+          <div style={{
+            padding: '10px 24px', borderTop: '1px solid #1e2638',
+            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+            fontSize: 12, color: '#4a443e',
+          }}>
+            <span style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+              <span>{getWordCount(selectedNote.content)} words</span>
+              <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                <BookOpen size={11} />
+                {getReadingTime(getWordCount(selectedNote.content))}
+              </span>
+            </span>
+            <span>Created {formatDate(selectedNote.createdAt)}</span>
+          </div>
+        </div>
+      ) : (
+        /* ─── Empty State ─────────────────────────────────────────────────── */
+        <div style={{
+          flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center',
+          justifyContent: 'center', color: '#4a443e', gap: 16, padding: 40, textAlign: 'center',
+        }}>
+          <div style={{
+            width: 56, height: 56, borderRadius: 16, background: 'rgba(212,165,116,0.06)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+          }}>
+            <Sparkles size={28} color="#d4a574" />
+          </div>
+          <div style={{ fontSize: 18, fontWeight: 600, color: '#6b6358' }}>
+            No Note Selected
+          </div>
+          <div style={{ fontSize: 13, color: '#4a443e', maxWidth: 300, lineHeight: 1.6 }}>
+            Select a note from the sidebar to view and edit, or create a new one to get started with your ideas.
+          </div>
+          <button
+            onClick={createNote}
             style={{
-              flex: 1,
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              justifyContent: 'center',
-              color: '#6b6358',
+              marginTop: 8, padding: '10px 20px', background: 'rgba(212,165,116,0.1)',
+              border: '1px solid rgba(212,165,116,0.2)', borderRadius: 8,
+              color: '#d4a574', fontSize: 14, fontWeight: 500, cursor: 'pointer',
+              display: 'flex', alignItems: 'center', gap: 8, fontFamily: 'inherit',
             }}
           >
-            <Edit3 size={40} style={{ marginBottom: 12, opacity: 0.3 }} />
-            <p style={{ fontSize: 14, margin: 0 }}>No note selected</p>
-            <p style={{ fontSize: 12, margin: '4px 0 0', opacity: 0.6 }}>
-              Select a note or create a new one
-            </p>
-            <button
-              onClick={addNote}
-              style={{
-                marginTop: 16,
-                padding: '8px 16px',
-                borderRadius: 8,
-                border: 'none',
-                cursor: 'pointer',
-                backgroundColor: 'rgba(212, 165, 116, 0.12)',
-                color: '#d4a574',
-                fontSize: 13,
-                fontWeight: 600,
-                fontFamily: 'inherit',
-                display: 'flex',
-                alignItems: 'center',
-                gap: 6,
-                transition: 'background 0.15s',
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.backgroundColor = 'rgba(212, 165, 116, 0.2)';
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.backgroundColor = 'rgba(212, 165, 116, 0.12)';
-              }}
-            >
-              <Plus size={15} /> New Note
-            </button>
-          </div>
-        )}
-      </div>
+            <Plus size={16} />
+            Create New Note
+          </button>
+        </div>
+      )}
     </div>
   );
 }
+
+export default NotesView;
