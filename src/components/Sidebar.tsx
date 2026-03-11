@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   LayoutDashboard,
   Network,
@@ -12,6 +12,7 @@ import {
   Search,
   ChevronLeft,
   ChevronRight,
+  ChevronDown,
   MessageCircle,
   Calendar,
   Wallet,
@@ -19,6 +20,8 @@ import {
   User,
   Sparkles,
   Trophy,
+  Check,
+  ArrowLeftRight,
 } from 'lucide-react';
 import { UserButton } from '@clerk/nextjs';
 import { teamMembers } from '@/lib/data';
@@ -34,7 +37,16 @@ interface SidebarProps {
   currentUser: string | null;
   onOpenSearch?: () => void;
   onSignOut?: () => void;
+  onSwitchProfile?: (userId: string) => void;
 }
+
+const tailwindColorMap: Record<string, string> = {
+  'bg-amber-500': '#f59e0b', 'bg-amber-400': '#fbbf24', 'bg-rose-400': '#fb7185',
+  'bg-violet-500': '#8b5cf6', 'bg-sky-400': '#38bdf8', 'bg-emerald-500': '#10b981',
+  'bg-purple-500': '#a855f7', 'bg-pink-400': '#f472b6', 'bg-teal-400': '#2dd4bf',
+  'bg-green-500': '#22c55e', 'bg-lime-500': '#84cc16', 'bg-orange-500': '#f97316',
+  'bg-indigo-400': '#818cf8', 'bg-slate-400': '#94a3b8',
+};
 
 const navItems: { label: string; icon: React.ElementType; view: ViewType; group: number }[] = [
   // Personal
@@ -94,10 +106,26 @@ export function Sidebar({
   currentUser,
   onOpenSearch,
   onSignOut,
+  onSwitchProfile,
 }: SidebarProps) {
   const user = teamMembers.find((m) => m.id === currentUser);
   const initials = user?.avatar ?? '??';
   const userName = user?.name ?? 'Unknown';
+  const userColor = tailwindColorMap[user?.color || ''] || '#d4a574';
+  const [showProfilePicker, setShowProfilePicker] = useState(false);
+  const pickerRef = useRef<HTMLDivElement>(null);
+
+  // Close picker on outside click
+  useEffect(() => {
+    if (!showProfilePicker) return;
+    const handler = (e: MouseEvent) => {
+      if (pickerRef.current && !pickerRef.current.contains(e.target as Node)) setShowProfilePicker(false);
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [showProfilePicker]);
+
+  const activeMembers = teamMembers.filter(m => m.status === 'active');
 
   const groups = [0, 1, 2, 3, 4, 5];
 
@@ -248,54 +276,118 @@ export function Sidebar({
         ))}
       </nav>
 
-      {/* User Section */}
-      <div style={{ borderTop: '1px solid #1e2638', padding: collapsed ? '16px 0' : '16px', display: 'flex', alignItems: 'center', justifyContent: collapsed ? 'center' : 'flex-start', gap: 12, flexShrink: 0 }}>
-        {isClerkConfigured ? (
-          <ClerkUserSection collapsed={collapsed} userName={userName} />
-        ) : (
-          <>
-            <div style={{ position: 'relative', flexShrink: 0 }}>
-              <div title={collapsed ? userName : undefined} style={{ width: 36, height: 36, borderRadius: '50%', background: 'linear-gradient(135deg, #c4925a, #d4a574)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 700, color: '#0b0d14', letterSpacing: '0.02em' }}>
-                {initials}
+      {/* User Section with Profile Picker */}
+      <div ref={pickerRef} style={{ position: 'relative', borderTop: '1px solid #1e2638', flexShrink: 0 }}>
+        {/* Profile Picker Dropdown */}
+        {showProfilePicker && (
+          <div style={{
+            position: 'absolute', bottom: '100%', left: 0, right: 0,
+            backgroundColor: '#131720', border: '1px solid #1e2638', borderBottom: 'none',
+            borderRadius: '12px 12px 0 0', maxHeight: 320, overflowY: 'auto',
+            boxShadow: '0 -8px 32px rgba(0, 0, 0, 0.4)',
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', borderBottom: '1px solid #1e2638' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <ArrowLeftRight size={14} style={{ color: '#6b6358' }} />
+                <span style={{ fontSize: 12, fontWeight: 600, color: '#a09888', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Switch Profile</span>
               </div>
-              <div style={{ position: 'absolute', bottom: 0, right: 0, width: 10, height: 10, borderRadius: '50%', backgroundColor: '#6b8f71', border: '2px solid #131720' }} />
             </div>
-            {!collapsed && (
-              <>
-                <div style={{ overflow: 'hidden', flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 13, fontWeight: 600, color: '#f0ebe4', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{userName}</div>
-                  <div style={{ fontSize: 11, color: '#6b8f71', display: 'flex', alignItems: 'center', gap: 4, marginTop: 1 }}>
-                    <span style={{ width: 6, height: 6, borderRadius: '50%', backgroundColor: '#6b8f71', display: 'inline-block' }} />
-                    Online
-                  </div>
-                </div>
-                {onSignOut && (
+            <div style={{ padding: 8 }}>
+              {activeMembers.map(member => {
+                const isCurrent = member.id === currentUser;
+                const hex = tailwindColorMap[member.color] || '#d4a574';
+                return (
                   <button
-                    onClick={onSignOut}
-                    title="Sign out"
-                    style={{
-                      background: 'transparent',
-                      border: 'none',
-                      cursor: 'pointer',
-                      padding: 6,
-                      borderRadius: 6,
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      color: '#6b6358',
-                      transition: 'background 0.15s, color 0.15s',
-                      flexShrink: 0,
+                    key={member.id}
+                    onClick={() => {
+                      if (!isCurrent && onSwitchProfile) onSwitchProfile(member.id);
+                      setShowProfilePicker(false);
                     }}
-                    onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(224, 96, 96, 0.1)'; e.currentTarget.style.color = '#e06060'; }}
-                    onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = '#6b6358'; }}
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: 10, width: '100%',
+                      padding: '8px 10px', border: 'none', borderRadius: 8,
+                      cursor: isCurrent ? 'default' : 'pointer', fontFamily: 'inherit',
+                      backgroundColor: isCurrent ? 'rgba(212, 165, 116, 0.08)' : 'transparent',
+                      transition: 'background 0.15s',
+                    }}
+                    onMouseEnter={e => { if (!isCurrent) e.currentTarget.style.backgroundColor = '#1e2638'; }}
+                    onMouseLeave={e => { if (!isCurrent) e.currentTarget.style.backgroundColor = 'transparent'; }}
                   >
-                    <LogOut size={16} />
+                    <div style={{
+                      width: 30, height: 30, borderRadius: '50%',
+                      background: `linear-gradient(135deg, ${hex}, ${hex}cc)`,
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      fontSize: 11, fontWeight: 700, color: 'white', flexShrink: 0,
+                    }}>
+                      {member.avatar}
+                    </div>
+                    <div style={{ flex: 1, overflow: 'hidden', textAlign: 'left' }}>
+                      <div style={{ fontSize: 12, fontWeight: isCurrent ? 600 : 400, color: isCurrent ? '#f0ebe4' : '#a09888', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{member.name}</div>
+                      <div style={{ fontSize: 10, color: '#6b6358', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{member.role}</div>
+                    </div>
+                    {isCurrent && <Check size={14} style={{ color: '#6b8f71', flexShrink: 0 }} />}
                   </button>
-                )}
-              </>
-            )}
-          </>
+                );
+              })}
+            </div>
+          </div>
         )}
+
+        {/* User Button */}
+        <div style={{ padding: collapsed ? '16px 0' : '16px', display: 'flex', alignItems: 'center', justifyContent: collapsed ? 'center' : 'flex-start', gap: 12 }}>
+          {isClerkConfigured ? (
+            <ClerkUserSection collapsed={collapsed} userName={userName} />
+          ) : (
+            <>
+              <button
+                onClick={() => setShowProfilePicker(!showProfilePicker)}
+                title={collapsed ? `${userName} — click to switch` : undefined}
+                style={{ position: 'relative', flexShrink: 0, background: 'none', border: 'none', padding: 0, cursor: 'pointer' }}
+              >
+                <div style={{
+                  width: 36, height: 36, borderRadius: '50%',
+                  background: `linear-gradient(135deg, ${userColor}, ${userColor}cc)`,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  fontSize: 13, fontWeight: 700, color: 'white', letterSpacing: '0.02em',
+                  boxShadow: showProfilePicker ? `0 0 0 2px #131720, 0 0 0 4px ${userColor}60` : 'none',
+                  transition: 'box-shadow 0.2s',
+                }}>
+                  {initials}
+                </div>
+                <div style={{ position: 'absolute', bottom: 0, right: 0, width: 10, height: 10, borderRadius: '50%', backgroundColor: '#6b8f71', border: '2px solid #131720' }} />
+              </button>
+              {!collapsed && (
+                <>
+                  <button
+                    onClick={() => setShowProfilePicker(!showProfilePicker)}
+                    style={{ overflow: 'hidden', flex: 1, minWidth: 0, background: 'none', border: 'none', cursor: 'pointer', padding: 0, textAlign: 'left' }}
+                  >
+                    <div style={{ fontSize: 13, fontWeight: 600, color: '#f0ebe4', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{userName}</div>
+                    <div style={{ fontSize: 11, color: '#6b8f71', display: 'flex', alignItems: 'center', gap: 4, marginTop: 1 }}>
+                      <span style={{ width: 6, height: 6, borderRadius: '50%', backgroundColor: '#6b8f71', display: 'inline-block' }} />
+                      Online
+                    </div>
+                  </button>
+                  <ChevronDown size={14} style={{
+                    color: '#6b6358', flexShrink: 0, transition: 'transform 0.2s',
+                    transform: showProfilePicker ? 'rotate(180deg)' : 'rotate(0)',
+                  }} />
+                  {onSignOut && (
+                    <button
+                      onClick={onSignOut}
+                      title="Sign out"
+                      style={{ background: 'transparent', border: 'none', cursor: 'pointer', padding: 6, borderRadius: 6, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#6b6358', transition: 'background 0.15s, color 0.15s', flexShrink: 0 }}
+                      onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(224, 96, 96, 0.1)'; e.currentTarget.style.color = '#e06060'; }}
+                      onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = '#6b6358'; }}
+                    >
+                      <LogOut size={16} />
+                    </button>
+                  )}
+                </>
+              )}
+            </>
+          )}
+        </div>
       </div>
     </aside>
   );

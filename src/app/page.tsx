@@ -278,7 +278,7 @@ function ProfileSetupScreen({
 }
 
 export default function Home() {
-  const { user, teamMemberId, loading, signOut, needsProfileSetup, claimTeamMember, isDemo } = useAuth();
+  const { user, teamMemberId, loading, signOut, needsProfileSetup, claimTeamMember, isDemo, demoLogin } = useAuth();
   const [currentView, setCurrentView] = useState<ViewType>('profile');
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
@@ -367,6 +367,7 @@ export default function Home() {
           currentUser={teamMemberId}
           onOpenSearch={() => setCommandPaletteOpen(true)}
           onSignOut={signOut}
+          onSwitchProfile={demoLogin}
         />
       </div>
 
