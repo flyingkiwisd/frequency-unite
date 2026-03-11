@@ -17,15 +17,13 @@ import {
   Building2,
   Leaf,
   BookOpen,
-  Wifi,
   ChevronRight,
-  MapPin,
-  BarChart3,
+  ChevronDown,
+  Link2,
   Zap,
   ArrowUpRight,
   ArrowDownRight,
   Minus,
-  Search,
 } from 'lucide-react';
 import { teamMembers } from '@/lib/data';
 
@@ -39,20 +37,23 @@ type SignalCategory =
   | 'Strategic Shift';
 
 type ImpactLevel = 'Low' | 'Medium' | 'High';
-
-type IntelTab = 'all' | 'Partnership Opportunity' | 'Program Launch' | 'Funding Round' | 'Leadership Change' | 'Strategic Shift';
+type TrendDirection = 'up' | 'down' | 'stable';
 
 interface EcosystemOrg {
   id: string;
   name: string;
-  initials: string;
   focus: string;
   alignment: string;
   icon: React.ElementType;
   color: string;
-  location: { x: number; y: number; label: string };
-  trendDirection: 'up' | 'down' | 'stable';
-  opportunityScore: number; // 0-100
+  trend: TrendDirection;
+  relevanceScore: number;
+}
+
+interface RelatedEntity {
+  name: string;
+  role: string;
+  color: string;
 }
 
 interface IntelSignal {
@@ -65,7 +66,172 @@ interface IntelSignal {
   impact: ImpactLevel;
   frequencyImplication: string;
   source: string;
-  signalStrength: number; // 1-5
+  relatedEntities: RelatedEntity[];
+}
+
+/* ─── Animated Entry ─── */
+
+function AnimatedEntry({ children, delay = 0, style }: {
+  children: React.ReactNode;
+  delay?: number;
+  style?: React.CSSProperties;
+}) {
+  const [visible, setVisible] = useState(false);
+  useEffect(() => {
+    const t = setTimeout(() => setVisible(true), delay);
+    return () => clearTimeout(t);
+  }, [delay]);
+  return (
+    <div
+      style={{
+        opacity: visible ? 1 : 0,
+        transform: visible ? 'translateY(0)' : 'translateY(14px)',
+        transition: 'opacity 0.45s ease-out, transform 0.45s ease-out',
+        ...style,
+      }}
+    >
+      {children}
+    </div>
+  );
+}
+
+/* ─── SVG Mini Sparkline Chart ─── */
+
+function MiniSparkline({ data, color, width = 60, height = 24 }: {
+  data: number[];
+  color: string;
+  width?: number;
+  height?: number;
+}) {
+  const max = Math.max(...data);
+  const min = Math.min(...data);
+  const range = max - min || 1;
+  const padding = 2;
+  const effectiveWidth = width - padding * 2;
+  const effectiveHeight = height - padding * 2;
+
+  const points = data.map((v, i) => {
+    const x = padding + (i / (data.length - 1)) * effectiveWidth;
+    const y = padding + effectiveHeight - ((v - min) / range) * effectiveHeight;
+    return `${x},${y}`;
+  }).join(' ');
+
+  const areaPoints = points + ` ${padding + effectiveWidth},${padding + effectiveHeight} ${padding},${padding + effectiveHeight}`;
+
+  return (
+    <svg width={width} height={height} viewBox={`0 0 ${width} ${height}`}>
+      <defs>
+        <linearGradient id={`sparkGrad-${color.replace('#', '')}`} x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor={color} stopOpacity="0.3" />
+          <stop offset="100%" stopColor={color} stopOpacity="0" />
+        </linearGradient>
+      </defs>
+      <polygon
+        points={areaPoints}
+        fill={`url(#sparkGrad-${color.replace('#', '')})`}
+      />
+      <polyline
+        points={points}
+        fill="none"
+        stroke={color}
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      {/* End dot */}
+      {data.length > 0 && (() => {
+        const lastX = padding + effectiveWidth;
+        const lastY = padding + effectiveHeight - ((data[data.length - 1] - min) / range) * effectiveHeight;
+        return (
+          <circle cx={lastX} cy={lastY} r="2" fill={color} />
+        );
+      })()}
+    </svg>
+  );
+}
+
+/* ─── SVG Ecosystem Metrics Donut ─── */
+
+function MetricsDonut({ segments, size = 80 }: {
+  segments: { label: string; value: number; color: string }[];
+  size?: number;
+}) {
+  const total = segments.reduce((s, seg) => s + seg.value, 0);
+  const radius = (size - 16) / 2;
+  const circumference = 2 * Math.PI * radius;
+  let offset = 0;
+
+  return (
+    <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
+      {segments.map((seg) => {
+        const pct = total > 0 ? seg.value / total : 0;
+        const dash = pct * circumference;
+        const gap = circumference - dash;
+        const currentOffset = offset;
+        offset += dash;
+        return (
+          <circle
+            key={seg.label}
+            cx={size / 2} cy={size / 2} r={radius}
+            fill="none"
+            stroke={seg.color}
+            strokeWidth="6"
+            strokeDasharray={`${dash} ${gap}`}
+            strokeDashoffset={-currentOffset}
+            strokeLinecap="round"
+            transform={`rotate(-90 ${size / 2} ${size / 2})`}
+            opacity={0.8}
+          >
+            <title>{`${seg.label}: ${seg.value}`}</title>
+          </circle>
+        );
+      })}
+      <text x={size / 2} y={size / 2} textAnchor="middle" dominantBaseline="central"
+        style={{ fontSize: 12, fill: '#f0ebe4', fontWeight: 700 }}>
+        {total}
+      </text>
+      <text x={size / 2} y={size / 2 + 12} textAnchor="middle"
+        style={{ fontSize: 7, fill: '#6b6358', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+        signals
+      </text>
+    </svg>
+  );
+}
+
+/* ─── Trend Arrow Component ─── */
+
+function TrendArrow({ direction, color }: { direction: TrendDirection; color: string }) {
+  if (direction === 'up') {
+    return <ArrowUpRight size={12} style={{ color }} />;
+  }
+  if (direction === 'down') {
+    return <ArrowDownRight size={12} style={{ color: '#e06060' }} />;
+  }
+  return <Minus size={12} style={{ color: '#6b6358' }} />;
+}
+
+/* ─── Priority Indicator ─── */
+
+function PriorityIndicator({ impact }: { impact: ImpactLevel }) {
+  const levels = impact === 'High' ? 3 : impact === 'Medium' ? 2 : 1;
+  const color = impact === 'High' ? '#e06060' : impact === 'Medium' ? '#e8b44c' : '#a09888';
+
+  return (
+    <div style={{ display: 'flex', gap: 2, alignItems: 'flex-end' }}>
+      {[1, 2, 3].map((i) => (
+        <div
+          key={i}
+          style={{
+            width: 3,
+            height: 4 + i * 3,
+            borderRadius: 1,
+            backgroundColor: i <= levels ? color : '#1e2638',
+            transition: 'background-color 0.3s',
+          }}
+        />
+      ))}
+    </div>
+  );
 }
 
 /* ─── Ecosystem Organizations ─── */
@@ -74,74 +240,62 @@ const ecosystemOrgs: EcosystemOrg[] = [
   {
     id: 'regenesis',
     name: 'Regenesis Group',
-    initials: 'RG',
     focus: 'Regenerative development',
     alignment: 'Potential bioregion partner',
     icon: Leaf,
     color: '#6b8f71',
-    location: { x: 22, y: 42, label: 'Santa Fe, NM' },
-    trendDirection: 'up',
-    opportunityScore: 88,
+    trend: 'up',
+    relevanceScore: 92,
   },
   {
     id: 'bfi',
     name: 'Buckminster Fuller Institute',
-    initials: 'BFI',
     focus: 'Systems thinking',
     alignment: 'Thesis alignment',
     icon: Globe,
     color: '#8b5cf6',
-    location: { x: 25, y: 38, label: 'New York, NY' },
-    trendDirection: 'stable',
-    opportunityScore: 72,
+    trend: 'up',
+    relevanceScore: 78,
   },
   {
     id: 'presencing',
-    name: 'Presencing Institute',
-    initials: 'PI',
+    name: 'Presencing Institute (Otto Scharmer)',
     focus: 'Theory U',
     alignment: 'Coherence practices',
     icon: BookOpen,
     color: '#60a5fa',
-    location: { x: 27, y: 36, label: 'Cambridge, MA' },
-    trendDirection: 'up',
-    opportunityScore: 82,
+    trend: 'up',
+    relevanceScore: 85,
   },
   {
     id: 'blab',
-    name: 'B Lab / B Corp',
-    initials: 'BL',
+    name: 'B Lab / B Corp Movement',
     focus: 'Conscious capitalism',
     alignment: 'Philosophical alignment',
     icon: Building2,
     color: '#d4a574',
-    location: { x: 24, y: 39, label: 'Wayne, PA' },
-    trendDirection: 'stable',
-    opportunityScore: 65,
+    trend: 'stable',
+    relevanceScore: 65,
   },
   {
     id: 'patagonia',
-    name: 'Patagonia / 1% Planet',
-    initials: 'PG',
+    name: 'Patagonia / 1% for the Planet',
     focus: 'Environmental stewardship',
     alignment: 'Stewardship model',
     icon: Leaf,
     color: '#34d399',
-    location: { x: 18, y: 42, label: 'Ventura, CA' },
-    trendDirection: 'up',
-    opportunityScore: 58,
+    trend: 'stable',
+    relevanceScore: 60,
   },
   {
     id: 'conscious-cap',
     name: 'Conscious Capitalism',
-    initials: 'CC',
     focus: 'Stakeholder capitalism',
     alignment: 'Philosophical alignment',
     icon: TrendingUp,
     color: '#fb923c',
-    location: { x: 20, y: 40, label: 'Austin, TX' },
-    trendDirection: 'up',
-    opportunityScore: 78,
+    trend: 'up',
+    relevanceScore: 82,
   },
 ];
 
@@ -158,7 +312,10 @@ const intelSignals: IntelSignal[] = [
     impact: 'High',
     frequencyImplication: 'Direct opportunity to integrate Gareth\'s Bioregions Node with Regenesis methodology. Could accelerate the Nicoya pilot with their proven frameworks and provide credibility for future bioregion sites.',
     source: 'regenesisgroup.com',
-    signalStrength: 5,
+    relatedEntities: [
+      { name: 'Gareth Hermann', role: 'Bioregions Lead', color: '#84cc16' },
+      { name: 'Bioregions Node', role: 'Node', color: '#34d399' },
+    ],
   },
   {
     id: 'sig-2',
@@ -170,7 +327,11 @@ const intelSignals: IntelSignal[] = [
     impact: 'Medium',
     frequencyImplication: 'Fairman\'s Thesis of Change and Map Node could be strong applicants. BFI endorsement would validate our systems approach and open doors to their alumni network of 2,000+ systems thinkers.',
     source: 'bfi.org',
-    signalStrength: 3,
+    relatedEntities: [
+      { name: 'Alex James Fairman', role: 'Strategic Architect', color: '#8b5cf6' },
+      { name: 'Map Node', role: 'Node', color: '#8b5cf6' },
+      { name: 'Thesis of Change', role: 'Node', color: '#a855f7' },
+    ],
   },
   {
     id: 'sig-3',
@@ -182,7 +343,11 @@ const intelSignals: IntelSignal[] = [
     impact: 'High',
     frequencyImplication: 'Strong alignment with our coherence-to-action bridge. Andrew and Felicia could explore integrating Theory U practices into our pod facilitation model. Their new collective action focus mirrors our two-hemisphere approach.',
     source: 'presencing.org',
-    signalStrength: 5,
+    relatedEntities: [
+      { name: 'Andrew', role: 'Coherence Lead', color: '#a855f7' },
+      { name: 'Felicia Isabella', role: 'Culture', color: '#f472b6' },
+      { name: 'Dave Weale', role: 'Pods & Culture', color: '#34d399' },
+    ],
   },
   {
     id: 'sig-4',
@@ -194,7 +359,10 @@ const intelSignals: IntelSignal[] = [
     impact: 'Medium',
     frequencyImplication: 'Could inform our capital node\'s deal scoring rubric. Greg\'s evaluation criteria could incorporate B Lab\'s regenerative indicators, giving our investment thesis additional rigor and external credibility.',
     source: 'bcorporation.net',
-    signalStrength: 3,
+    relatedEntities: [
+      { name: 'Greg Berry', role: 'Capital Lead', color: '#22c55e' },
+      { name: 'Capital Node', role: 'Node', color: '#d4a574' },
+    ],
   },
   {
     id: 'sig-5',
@@ -206,7 +374,10 @@ const intelSignals: IntelSignal[] = [
     impact: 'Medium',
     frequencyImplication: 'Our DAF model could be presented as an innovative alternative to traditional 1% giving. Colleen could explore whether Frequency members could channel their 1% commitments through our DAF structure.',
     source: 'onepercentfortheplanet.org',
-    signalStrength: 3,
+    relatedEntities: [
+      { name: 'Colleen Galbraith', role: 'DAF Steward', color: '#d4a574' },
+      { name: 'James Hodges', role: 'Founder', color: '#d4a574' },
+    ],
   },
   {
     id: 'sig-6',
@@ -218,7 +389,10 @@ const intelSignals: IntelSignal[] = [
     impact: 'High',
     frequencyImplication: 'This leadership shift creates a natural alignment opportunity. James should consider reaching out for a strategic conversation. Their pivot toward capital deployment mirrors our Capitalism 2.0 node vision.',
     source: 'consciouscapitalism.org',
-    signalStrength: 4,
+    relatedEntities: [
+      { name: 'James Hodges', role: 'Founder', color: '#d4a574' },
+      { name: 'Capitalism 2.0 Node', role: 'Node', color: '#2dd4bf' },
+    ],
   },
   {
     id: 'sig-7',
@@ -230,7 +404,11 @@ const intelSignals: IntelSignal[] = [
     impact: 'High',
     frequencyImplication: 'Directly relevant to our Nicoya pilot. Gareth should immediately explore partnership or co-sponsorship. This could provide on-the-ground expertise and local legitimacy for our bioregion initiative.',
     source: 'regenesisgroup.com',
-    signalStrength: 5,
+    relatedEntities: [
+      { name: 'Gareth Hermann', role: 'Bioregions Lead', color: '#84cc16' },
+      { name: 'Bioregions Node', role: 'Node', color: '#34d399' },
+      { name: 'Blue Spirit 6.0', role: 'Event', color: '#d4a574' },
+    ],
   },
   {
     id: 'sig-8',
@@ -242,7 +420,10 @@ const intelSignals: IntelSignal[] = [
     impact: 'Medium',
     frequencyImplication: 'Our Map Node is a natural fit for this partnership. Fairman\'s ecosystem mapping work could contribute to and benefit from BFI\'s global dataset. This could position Frequency as a key node in the global systems change infrastructure.',
     source: 'bfi.org',
-    signalStrength: 4,
+    relatedEntities: [
+      { name: 'Alex James Fairman', role: 'Strategic Architect', color: '#8b5cf6' },
+      { name: 'Map Node', role: 'Node', color: '#8b5cf6' },
+    ],
   },
   {
     id: 'sig-9',
@@ -254,7 +435,10 @@ const intelSignals: IntelSignal[] = [
     impact: 'Medium',
     frequencyImplication: 'Dave\'s pod facilitation work could integrate this program. Our steward community of 65+ would be an ideal pilot cohort, and the structured curriculum could accelerate our coherence practices.',
     source: 'presencing.org',
-    signalStrength: 3,
+    relatedEntities: [
+      { name: 'Dave Weale', role: 'Pods & Culture', color: '#34d399' },
+      { name: 'Andrew', role: 'Coherence Lead', color: '#a855f7' },
+    ],
   },
   {
     id: 'sig-10',
@@ -266,7 +450,9 @@ const intelSignals: IntelSignal[] = [
     impact: 'Low',
     frequencyImplication: 'Peripheral relevance. Their Latin America expansion could eventually intersect with our bioregion work in Costa Rica, but no immediate action needed. Worth monitoring for future alignment.',
     source: 'bcorporation.net',
-    signalStrength: 2,
+    relatedEntities: [
+      { name: 'Bioregions Node', role: 'Node', color: '#34d399' },
+    ],
   },
 ];
 
@@ -326,279 +512,30 @@ const impactConfig: Record<
   },
 };
 
-/* ─── Animated Card Entrance ─── */
+/* ─── Sparkline data per org (simulated activity trends) ─── */
 
-function AnimatedCard({ children, delay = 0, style, className }: {
-  children: React.ReactNode;
-  delay?: number;
-  style?: React.CSSProperties;
-  className?: string;
-}) {
-  const [visible, setVisible] = useState(false);
-  useEffect(() => {
-    const t = setTimeout(() => setVisible(true), delay);
-    return () => clearTimeout(t);
-  }, [delay]);
-  return (
-    <div
-      className={className}
-      style={{
-        opacity: visible ? 1 : 0,
-        transform: visible ? 'translateY(0) scale(1)' : 'translateY(12px) scale(0.98)',
-        transition: 'opacity 0.4s ease-out, transform 0.4s ease-out',
-        ...style,
-      }}
-    >
-      {children}
-    </div>
-  );
-}
-
-/* ─── Signal Strength Indicator ─── */
-
-function SignalStrengthBar({ strength, color }: { strength: number; color: string }) {
-  return (
-    <div style={{ display: 'flex', alignItems: 'flex-end', gap: 2, height: 16 }}>
-      {[1, 2, 3, 4, 5].map((level) => (
-        <div key={level} style={{
-          width: 3,
-          height: 4 + level * 2.4,
-          borderRadius: 1.5,
-          backgroundColor: level <= strength ? color : '#1e2638',
-          transition: 'background-color 0.3s',
-          opacity: level <= strength ? 1 : 0.4,
-        }} />
-      ))}
-    </div>
-  );
-}
-
-/* ─── Opportunity Score Bar ─── */
-
-function OpportunityScoreBar({ score, color }: { score: number; color: string }) {
-  const [animatedWidth, setAnimatedWidth] = useState(0);
-  useEffect(() => {
-    const t = setTimeout(() => setAnimatedWidth(score), 200);
-    return () => clearTimeout(t);
-  }, [score]);
-
-  return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%' }}>
-      <div style={{
-        flex: 1, height: 6, borderRadius: 3,
-        background: '#1e2638', overflow: 'hidden', position: 'relative',
-      }}>
-        <div style={{
-          width: `${animatedWidth}%`, height: '100%', borderRadius: 3,
-          background: `linear-gradient(90deg, ${color}80, ${color})`,
-          transition: 'width 0.8s ease-out',
-          position: 'relative',
-        }}>
-          {/* Glow effect at the tip */}
-          <div style={{
-            position: 'absolute', right: 0, top: -2, width: 10, height: 10,
-            borderRadius: '50%', background: color,
-            opacity: 0.3, filter: 'blur(4px)',
-          }} />
-        </div>
-      </div>
-      <span style={{ fontSize: 11, fontWeight: 700, color, minWidth: 28, textAlign: 'right' }}>
-        {score}
-      </span>
-    </div>
-  );
-}
-
-/* ─── Trend Arrow ─── */
-
-function TrendArrow({ direction, color }: { direction: 'up' | 'down' | 'stable'; color: string }) {
-  if (direction === 'up') {
-    return (
-      <div style={{
-        display: 'flex', alignItems: 'center', gap: 3, color: '#6b8f71',
-        fontSize: 10, fontWeight: 600,
-      }}>
-        <ArrowUpRight size={12} />
-        <span>Rising</span>
-      </div>
-    );
-  }
-  if (direction === 'down') {
-    return (
-      <div style={{
-        display: 'flex', alignItems: 'center', gap: 3, color: '#e06060',
-        fontSize: 10, fontWeight: 600,
-      }}>
-        <ArrowDownRight size={12} />
-        <span>Declining</span>
-      </div>
-    );
-  }
-  return (
-    <div style={{
-      display: 'flex', alignItems: 'center', gap: 3, color: '#a09888',
-      fontSize: 10, fontWeight: 600,
-    }}>
-      <Minus size={12} />
-      <span>Stable</span>
-    </div>
-  );
-}
-
-/* ─── World Map SVG (simplified) ─── */
-
-function WorldMapPlaceholder({ orgs }: { orgs: EcosystemOrg[] }) {
-  const [hoveredOrg, setHoveredOrg] = useState<string | null>(null);
-
-  return (
-    <div style={{
-      position: 'relative', width: '100%', height: 220,
-      background: '#0f1219', borderRadius: 12, border: '1px solid #1e2638',
-      overflow: 'hidden',
-    }}>
-      {/* Grid pattern overlay */}
-      <svg width="100%" height="100%" style={{ position: 'absolute', top: 0, left: 0, opacity: 0.15 }}>
-        <defs>
-          <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
-            <path d="M 40 0 L 0 0 0 40" fill="none" stroke="#2e3a4e" strokeWidth="0.5" />
-          </pattern>
-        </defs>
-        <rect width="100%" height="100%" fill="url(#grid)" />
-      </svg>
-
-      {/* Simplified world map paths */}
-      <svg viewBox="0 0 100 50" width="100%" height="100%" preserveAspectRatio="xMidYMid meet" style={{
-        position: 'absolute', top: 0, left: 0,
-      }}>
-        {/* Continents - simplified outlines */}
-        {/* North America */}
-        <path d="M8,8 Q12,5 18,7 Q22,6 25,8 Q27,10 28,14 Q27,16 25,18 Q22,20 20,22 Q18,24 16,22 Q14,20 12,18 Q10,16 8,14 Q7,12 8,8 Z"
-          fill="rgba(212,165,116,0.06)" stroke="rgba(212,165,116,0.15)" strokeWidth="0.3" />
-        {/* Central/South America */}
-        <path d="M20,22 Q22,24 24,26 Q25,28 26,32 Q27,36 25,40 Q24,42 22,43 Q20,42 19,40 Q18,36 19,32 Q19,28 20,22 Z"
-          fill="rgba(139,92,246,0.06)" stroke="rgba(139,92,246,0.12)" strokeWidth="0.3" />
-        {/* Europe */}
-        <path d="M42,6 Q44,5 48,6 Q50,7 52,9 Q51,11 50,13 Q48,14 46,13 Q44,12 43,10 Q42,8 42,6 Z"
-          fill="rgba(96,165,250,0.06)" stroke="rgba(96,165,250,0.12)" strokeWidth="0.3" />
-        {/* Africa */}
-        <path d="M44,14 Q48,14 50,16 Q52,18 54,22 Q55,26 54,32 Q52,36 50,38 Q48,40 46,38 Q44,36 43,32 Q42,28 42,24 Q42,20 43,16 Q43,15 44,14 Z"
-          fill="rgba(107,143,113,0.06)" stroke="rgba(107,143,113,0.12)" strokeWidth="0.3" />
-        {/* Asia */}
-        <path d="M54,6 Q60,4 68,5 Q76,6 82,8 Q86,10 88,14 Q87,18 84,20 Q80,22 76,22 Q72,21 68,18 Q64,16 60,14 Q56,12 54,10 Q53,8 54,6 Z"
-          fill="rgba(251,146,60,0.06)" stroke="rgba(251,146,60,0.12)" strokeWidth="0.3" />
-        {/* Australia */}
-        <path d="M76,30 Q80,28 84,29 Q86,30 87,33 Q86,36 84,37 Q80,38 78,36 Q76,34 76,30 Z"
-          fill="rgba(232,180,76,0.06)" stroke="rgba(232,180,76,0.12)" strokeWidth="0.3" />
-
-        {/* Connection lines between orgs */}
-        {orgs.map((org, i) =>
-          orgs.slice(i + 1).map((other) => (
-            <line key={`${org.id}-${other.id}`}
-              x1={org.location.x} y1={org.location.y}
-              x2={other.location.x} y2={other.location.y}
-              stroke="rgba(212,165,116,0.06)" strokeWidth="0.2"
-              strokeDasharray="1,2"
-            />
-          ))
-        )}
-
-        {/* Organization location markers */}
-        {orgs.map((org) => {
-          const isHovered = hoveredOrg === org.id;
-          return (
-            <g key={org.id}
-              onMouseEnter={() => setHoveredOrg(org.id)}
-              onMouseLeave={() => setHoveredOrg(null)}
-              style={{ cursor: 'pointer' }}
-            >
-              {/* Pulse ring */}
-              <circle cx={org.location.x} cy={org.location.y} r={isHovered ? 3 : 2}
-                fill="none" stroke={org.color} strokeWidth="0.3"
-                opacity={isHovered ? 0.6 : 0.3}
-              >
-                <animate attributeName="r" from="2" to="5" dur="2s" repeatCount="indefinite" />
-                <animate attributeName="opacity" from="0.3" to="0" dur="2s" repeatCount="indefinite" />
-              </circle>
-              {/* Core dot */}
-              <circle cx={org.location.x} cy={org.location.y} r={isHovered ? 1.5 : 1}
-                fill={org.color}
-                style={{ transition: 'r 0.2s' }}
-              />
-              {/* Label on hover */}
-              {isHovered && (
-                <g>
-                  <rect x={org.location.x + 2} y={org.location.y - 4} width={org.initials.length * 2.5 + 3} height={5}
-                    rx="1" fill="#131720" stroke={org.color} strokeWidth="0.2" opacity="0.95" />
-                  <text x={org.location.x + 3.5} y={org.location.y - 0.5}
-                    fontSize="2.5" fill={org.color} fontWeight="600" fontFamily="sans-serif">
-                    {org.initials}
-                  </text>
-                </g>
-              )}
-            </g>
-          );
-        })}
-      </svg>
-
-      {/* Title overlay */}
-      <div style={{
-        position: 'absolute', top: 12, left: 16, display: 'flex', alignItems: 'center', gap: 6,
-      }}>
-        <MapPin size={12} color="#d4a574" />
-        <span style={{ fontSize: 10, fontWeight: 600, color: '#6b6358', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-          Partner Locations
-        </span>
-      </div>
-
-      {/* Legend */}
-      <div style={{
-        position: 'absolute', bottom: 10, right: 16, display: 'flex', gap: 8,
-        background: 'rgba(15,18,25,0.8)', padding: '4px 10px', borderRadius: 6,
-        backdropFilter: 'blur(8px)',
-      }}>
-        {orgs.map((org) => (
-          <div key={org.id} style={{
-            display: 'flex', alignItems: 'center', gap: 3,
-            opacity: hoveredOrg === org.id ? 1 : 0.6,
-            transition: 'opacity 0.15s',
-          }}
-            onMouseEnter={() => setHoveredOrg(org.id)}
-            onMouseLeave={() => setHoveredOrg(null)}
-          >
-            <div style={{ width: 5, height: 5, borderRadius: '50%', background: org.color }} />
-            <span style={{ fontSize: 8, color: org.color, fontWeight: 500 }}>{org.initials}</span>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
+const orgSparklines: Record<string, number[]> = {
+  'regenesis': [2, 3, 4, 3, 5, 6, 8],
+  'bfi': [3, 2, 4, 5, 4, 5, 6],
+  'presencing': [1, 3, 2, 4, 5, 6, 7],
+  'blab': [4, 3, 3, 4, 3, 4, 4],
+  'patagonia': [2, 2, 3, 3, 2, 3, 3],
+  'conscious-cap': [1, 2, 3, 4, 5, 6, 7],
+};
 
 /* ─── Component ─── */
 
 export function EcosystemIntelView() {
-  const [activeTab, setActiveTab] = useState<IntelTab>('all');
+  const [categoryFilter, setCategoryFilter] = useState<SignalCategory | 'all'>('all');
   const [expandedSignal, setExpandedSignal] = useState<string | null>(null);
-  const [searchQuery, setSearchQuery] = useState('');
 
   const filteredSignals = useMemo(() => {
-    let sorted = [...intelSignals].sort(
+    const sorted = [...intelSignals].sort(
       (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
     );
-    if (activeTab !== 'all') {
-      sorted = sorted.filter((s) => s.category === activeTab);
-    }
-    if (searchQuery.trim()) {
-      const q = searchQuery.toLowerCase();
-      sorted = sorted.filter(
-        (s) =>
-          s.title.toLowerCase().includes(q) ||
-          s.summary.toLowerCase().includes(q) ||
-          ecosystemOrgs.find((o) => o.id === s.orgId)?.name.toLowerCase().includes(q)
-      );
-    }
-    return sorted;
-  }, [activeTab, searchQuery]);
+    if (categoryFilter === 'all') return sorted;
+    return sorted.filter((s) => s.category === categoryFilter);
+  }, [categoryFilter]);
 
   // Stats
   const highImpactCount = intelSignals.filter((s) => s.impact === 'High').length;
@@ -606,290 +543,324 @@ export function EcosystemIntelView() {
     (s) => s.category === 'Partnership Opportunity'
   ).length;
   const orgCount = ecosystemOrgs.length;
-  const avgOpportunityScore = Math.round(
-    ecosystemOrgs.reduce((sum, o) => sum + o.opportunityScore, 0) / ecosystemOrgs.length
-  );
+
+  // Category counts for donut
+  const categoryCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+    intelSignals.forEach((s) => {
+      counts[s.category] = (counts[s.category] || 0) + 1;
+    });
+    return counts;
+  }, []);
 
   return (
-    <div className="space-y-6">
+    <div style={{ padding: '24px 32px', height: '100%', overflow: 'auto', backgroundColor: '#0b0d14' }}>
       {/* ── Header ── */}
-      <AnimatedCard delay={0}>
-        <div className="flex items-center gap-3 mb-1">
-          <div style={{
-            width: 40, height: 40, borderRadius: 12,
-            background: 'rgba(212,165,116,0.1)', border: '1px solid rgba(212,165,116,0.15)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-          }}>
-            <Globe size={20} className="text-accent" />
-          </div>
-          <div>
-            <h1 className="text-2xl font-bold tracking-tight" style={{ letterSpacing: '-0.01em' }}>
-              <span className="gradient-text">Ecosystem Intel</span>
-            </h1>
-            <p className="text-text-secondary text-xs" style={{ marginTop: 2 }}>
-              Intelligence on aligned organizations and movements
-            </p>
+      <AnimatedEntry delay={0}>
+        <div style={{ marginBottom: 24 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6 }}>
+            <div style={{
+              width: 38, height: 38, borderRadius: 10,
+              background: 'rgba(212, 165, 116, 0.1)',
+              border: '1px solid rgba(212, 165, 116, 0.2)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+            }}>
+              <Globe size={20} style={{ color: '#d4a574' }} />
+            </div>
+            <div>
+              <h1 style={{ fontSize: 24, fontWeight: 700, color: '#f0ebe4', margin: 0, letterSpacing: '-0.01em' }}>
+                Ecosystem Intel
+              </h1>
+              <p style={{ fontSize: 13, color: '#6b6358', margin: 0 }}>
+                Intelligence on aligned organizations and movements
+              </p>
+            </div>
           </div>
         </div>
-      </AnimatedCard>
+      </AnimatedEntry>
 
-      {/* ── World Map ── */}
-      <AnimatedCard delay={50}>
-        <WorldMapPlaceholder orgs={ecosystemOrgs} />
-      </AnimatedCard>
-
-      {/* ── Summary Stats ── */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        {[
-          {
-            label: 'Tracked Orgs',
-            value: orgCount.toString(),
-            icon: Building2,
-            color: '#8b5cf6',
-            bg: 'rgba(139, 92, 246, 0.08)',
-          },
-          {
-            label: 'Total Signals',
-            value: intelSignals.length.toString(),
-            icon: Wifi,
-            color: '#d4a574',
-            bg: 'rgba(212, 165, 116, 0.08)',
-          },
-          {
-            label: 'High Impact',
-            value: highImpactCount.toString(),
-            icon: Zap,
-            color: '#e06060',
-            bg: 'rgba(224, 96, 96, 0.08)',
-          },
-          {
-            label: 'Avg. Opportunity',
-            value: `${avgOpportunityScore}%`,
-            icon: BarChart3,
-            color: '#6b8f71',
-            bg: 'rgba(107, 143, 113, 0.08)',
-          },
-        ].map((stat, i) => {
-          const Icon = stat.icon;
-          return (
-            <AnimatedCard key={stat.label} delay={80 + i * 40}>
+      {/* ── Summary Stats + Donut ── */}
+      <AnimatedEntry delay={50}>
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr)) auto',
+          gap: 12,
+          marginBottom: 24,
+          alignItems: 'stretch',
+        }}>
+          {[
+            {
+              label: 'Tracked Orgs',
+              value: orgCount.toString(),
+              icon: Building2,
+              color: '#8b5cf6',
+              bg: 'rgba(139, 92, 246, 0.08)',
+            },
+            {
+              label: 'Total Signals',
+              value: intelSignals.length.toString(),
+              icon: AlertCircle,
+              color: '#d4a574',
+              bg: 'rgba(212, 165, 116, 0.08)',
+            },
+            {
+              label: 'High Impact',
+              value: highImpactCount.toString(),
+              icon: Zap,
+              color: '#e06060',
+              bg: 'rgba(224, 96, 96, 0.08)',
+            },
+            {
+              label: 'Partnerships',
+              value: partnershipCount.toString(),
+              icon: Handshake,
+              color: '#6b8f71',
+              bg: 'rgba(107, 143, 113, 0.08)',
+            },
+          ].map((stat) => {
+            const Icon = stat.icon;
+            return (
               <div
-                className="glow-card rounded-xl border p-4"
+                key={stat.label}
                 style={{
-                  backgroundColor: stat.bg,
-                  borderColor: `${stat.color}18`,
-                  position: 'relative',
-                  overflow: 'hidden',
+                  backgroundColor: '#0f1219',
+                  border: '1px solid #1e2638',
+                  borderRadius: 12,
+                  padding: '14px 18px',
+                  transition: 'border-color 0.15s, box-shadow 0.15s',
+                  cursor: 'default',
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.borderColor = `${stat.color}40`;
+                  e.currentTarget.style.boxShadow = `0 0 12px ${stat.color}10`;
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.borderColor = '#1e2638';
+                  e.currentTarget.style.boxShadow = 'none';
                 }}
               >
-                <div style={{
-                  position: 'absolute', top: 0, left: 0, right: 0, height: 2,
-                  background: `linear-gradient(90deg, ${stat.color}40, transparent)`,
-                }} />
-                <div className="flex items-center gap-2 mb-2">
-                  <Icon size={13} style={{ color: stat.color }} />
-                  <span
-                    className="text-[10px] font-semibold uppercase tracking-wider"
-                    style={{ color: stat.color }}
-                  >
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
+                  <div style={{
+                    width: 24, height: 24, borderRadius: 6,
+                    background: stat.bg,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  }}>
+                    <Icon size={12} style={{ color: stat.color }} />
+                  </div>
+                  <span style={{
+                    fontSize: 10, fontWeight: 600, color: '#6b6358',
+                    textTransform: 'uppercase', letterSpacing: '0.05em',
+                  }}>
                     {stat.label}
                   </span>
                 </div>
-                <div className="text-2xl font-bold" style={{ color: stat.color }}>
+                <div style={{ fontSize: 26, fontWeight: 700, color: stat.color }}>
                   {stat.value}
                 </div>
               </div>
-            </AnimatedCard>
-          );
-        })}
-      </div>
-
-      {/* ── Partner / Competitor Cards with Logos and Scores ── */}
-      <AnimatedCard delay={250}>
-        <div className="flex items-center gap-2 mb-3">
-          <Building2 size={14} className="text-text-muted" />
-          <span className="text-xs font-semibold text-text-muted uppercase tracking-wider">
-            Aligned Organizations
-          </span>
-        </div>
-        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-          {ecosystemOrgs.map((org, i) => {
-            const Icon = org.icon;
-            const signalCount = intelSignals.filter(
-              (s) => s.orgId === org.id
-            ).length;
-            return (
-              <AnimatedCard key={org.id} delay={280 + i * 50}>
-                <div
-                  className="glow-card rounded-xl border transition-all"
-                  style={{
-                    backgroundColor: '#131720',
-                    borderColor: `${org.color}18`,
-                    padding: 16,
-                    position: 'relative',
-                    overflow: 'hidden',
-                  }}
-                >
-                  {/* Top accent */}
-                  <div style={{
-                    position: 'absolute', top: 0, left: 0, right: 0, height: 2,
-                    background: `linear-gradient(90deg, ${org.color}50, transparent)`,
-                  }} />
-
-                  <div className="flex items-start gap-3">
-                    {/* Logo/Initials circle */}
-                    <div style={{
-                      width: 40, height: 40, borderRadius: 10,
-                      background: `${org.color}12`,
-                      border: `1px solid ${org.color}25`,
-                      display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      flexShrink: 0,
-                    }}>
-                      <span style={{
-                        fontSize: 13, fontWeight: 700, color: org.color,
-                        letterSpacing: '-0.02em',
-                      }}>
-                        {org.initials}
-                      </span>
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <h3 className="text-xs font-semibold text-text-primary truncate">
-                        {org.name}
-                      </h3>
-                      <p className="text-[10px] text-text-muted mt-0.5">
-                        {org.focus}
-                      </p>
-                    </div>
-                  </div>
-
-                  {/* Market trend indicator */}
-                  <div style={{
-                    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                    marginTop: 10, paddingTop: 10, borderTop: '1px solid #1e2638',
-                  }}>
-                    <TrendArrow direction={org.trendDirection} color={org.color} />
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                      {signalCount > 0 && (
-                        <span style={{
-                          fontSize: 9, fontWeight: 600, padding: '1px 6px', borderRadius: 10,
-                          background: 'rgba(212,165,116,0.1)', color: '#d4a574',
-                        }}>
-                          {signalCount} signal{signalCount !== 1 ? 's' : ''}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Opportunity Score */}
-                  <div style={{ marginTop: 8 }}>
-                    <div style={{
-                      fontSize: 9, color: '#4a443e', marginBottom: 4,
-                      textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 600,
-                    }}>
-                      Opportunity Score
-                    </div>
-                    <OpportunityScoreBar score={org.opportunityScore} color={org.color} />
-                  </div>
-                </div>
-              </AnimatedCard>
             );
           })}
-        </div>
-      </AnimatedCard>
 
-      {/* ── Search ── */}
-      <AnimatedCard delay={550}>
-        <div style={{ position: 'relative' }}>
-          <Search size={14} style={{
-            position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)',
-            color: '#4a443e', pointerEvents: 'none',
-          }} />
-          <input
-            type="text"
-            placeholder="Search signals by title, org, or content..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
+          {/* Donut chart */}
+          <div
             style={{
-              width: '100%', padding: '10px 14px 10px 34px',
-              backgroundColor: '#131720', border: '1px solid #1e2638',
-              borderRadius: 10, color: '#f0ebe4', fontSize: 13,
-              fontFamily: 'inherit', outline: 'none',
-              transition: 'border-color 0.15s', boxSizing: 'border-box',
-            }}
-            onFocus={(e) => { e.currentTarget.style.borderColor = '#2e3a4e'; }}
-            onBlur={(e) => { e.currentTarget.style.borderColor = '#1e2638'; }}
-          />
-        </div>
-      </AnimatedCard>
-
-      {/* ── Intelligence Categories as Tabs ── */}
-      <AnimatedCard delay={580}>
-        <div className="flex items-center gap-2 flex-wrap">
-          <Filter size={14} className="text-text-muted" />
-          <span className="text-xs font-semibold text-text-muted uppercase tracking-wider mr-1">
-            Category
-          </span>
-          {/* "All" tab */}
-          <button
-            onClick={() => setActiveTab('all')}
-            style={{
-              padding: '6px 14px', borderRadius: 8, fontSize: 11, fontWeight: activeTab === 'all' ? 600 : 400,
-              background: activeTab === 'all' ? 'rgba(212,165,116,0.12)' : '#131720',
-              color: activeTab === 'all' ? '#d4a574' : '#6b6358',
-              border: `1px solid ${activeTab === 'all' ? 'rgba(212,165,116,0.3)' : '#1e2638'}`,
-              cursor: 'pointer', fontFamily: 'inherit',
-              transition: 'all 0.15s', display: 'flex', alignItems: 'center', gap: 5,
+              backgroundColor: '#0f1219',
+              border: '1px solid #1e2638',
+              borderRadius: 12,
+              padding: '14px 18px',
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              justifyContent: 'center',
+              minWidth: 110,
             }}
           >
-            All
-            <span style={{
-              fontSize: 10, fontWeight: 700,
-              background: activeTab === 'all' ? 'rgba(212,165,116,0.15)' : '#1e2638',
-              color: activeTab === 'all' ? '#d4a574' : '#6b6358',
-              padding: '0 5px', borderRadius: 6,
-            }}>
-              {intelSignals.length}
+            <div style={{ fontSize: 10, color: '#6b6358', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 6 }}>
+              By Category
+            </div>
+            <MetricsDonut
+              size={72}
+              segments={Object.entries(categoryCounts).map(([cat, count]) => ({
+                label: cat,
+                value: count,
+                color: categoryConfig[cat as SignalCategory]?.color || '#a09888',
+              }))}
+            />
+          </div>
+        </div>
+      </AnimatedEntry>
+
+      {/* ── Tracked Organizations with trends ── */}
+      <AnimatedEntry delay={100}>
+        <div style={{ marginBottom: 24 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 12 }}>
+            <Building2 size={14} style={{ color: '#6b6358' }} />
+            <span style={{ fontSize: 11, fontWeight: 600, color: '#6b6358', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+              Aligned Organizations
             </span>
+          </div>
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))',
+            gap: 10,
+          }}>
+            {ecosystemOrgs.map((org, i) => {
+              const Icon = org.icon;
+              const signalCount = intelSignals.filter(
+                (s) => s.orgId === org.id
+              ).length;
+              const sparkData = orgSparklines[org.id] || [1, 2, 3, 2, 3];
+              return (
+                <AnimatedEntry key={org.id} delay={120 + i * 40}>
+                  <div
+                    style={{
+                      backgroundColor: '#0f1219',
+                      border: `1px solid ${org.color}18`,
+                      borderRadius: 12,
+                      padding: '14px 16px',
+                      transition: 'all 0.2s',
+                      cursor: 'default',
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.borderColor = `${org.color}40`;
+                      e.currentTarget.style.boxShadow = `0 4px 16px ${org.color}10`;
+                      e.currentTarget.style.transform = 'translateY(-1px)';
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.borderColor = `${org.color}18`;
+                      e.currentTarget.style.boxShadow = 'none';
+                      e.currentTarget.style.transform = 'translateY(0)';
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
+                      <div
+                        style={{
+                          width: 34, height: 34, borderRadius: 8,
+                          background: `${org.color}12`,
+                          border: `1px solid ${org.color}25`,
+                          display: 'flex', alignItems: 'center', justifyContent: 'center',
+                          flexShrink: 0,
+                        }}
+                      >
+                        <Icon size={15} style={{ color: org.color }} />
+                      </div>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2 }}>
+                          <h3 style={{
+                            fontSize: 12, fontWeight: 600, color: '#f0ebe4', margin: 0,
+                            overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                          }}>
+                            {org.name}
+                          </h3>
+                          <TrendArrow direction={org.trend} color={org.color} />
+                        </div>
+                        <p style={{ fontSize: 10, color: '#6b6358', margin: 0, marginBottom: 6 }}>
+                          {org.focus}
+                        </p>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                            <span style={{
+                              fontSize: 9, fontWeight: 600, padding: '2px 6px', borderRadius: 10,
+                              background: `${org.color}12`, color: org.color,
+                            }}>
+                              {org.alignment}
+                            </span>
+                            {signalCount > 0 && (
+                              <span style={{
+                                fontSize: 9, fontWeight: 600, padding: '2px 6px', borderRadius: 10,
+                                background: 'rgba(212,165,116,0.12)', color: '#d4a574',
+                              }}>
+                                {signalCount}
+                              </span>
+                            )}
+                          </div>
+                          <MiniSparkline data={sparkData} color={org.color} width={48} height={18} />
+                        </div>
+                      </div>
+                    </div>
+                    {/* Relevance score bar */}
+                    <div style={{ marginTop: 10 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 3 }}>
+                        <span style={{ fontSize: 9, color: '#4a443e' }}>Relevance</span>
+                        <span style={{ fontSize: 9, color: org.color, fontWeight: 600 }}>{org.relevanceScore}%</span>
+                      </div>
+                      <div style={{
+                        height: 3, borderRadius: 2, background: '#1e2638', overflow: 'hidden',
+                      }}>
+                        <div style={{
+                          width: `${org.relevanceScore}%`, height: '100%',
+                          background: org.color, borderRadius: 2,
+                          transition: 'width 0.4s ease',
+                        }} />
+                      </div>
+                    </div>
+                  </div>
+                </AnimatedEntry>
+              );
+            })}
+          </div>
+        </div>
+      </AnimatedEntry>
+
+      {/* ── Category Filter ── */}
+      <AnimatedEntry delay={350}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 20 }}>
+          <Filter size={14} style={{ color: '#6b6358' }} />
+          <span style={{ fontSize: 11, fontWeight: 600, color: '#6b6358', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+            Filter
+          </span>
+          <button
+            onClick={() => setCategoryFilter('all')}
+            style={{
+              padding: '6px 14px', borderRadius: 20, fontSize: 11, fontWeight: 500, cursor: 'pointer',
+              fontFamily: 'inherit', transition: 'all 0.15s',
+              backgroundColor: categoryFilter === 'all' ? 'rgba(212, 165, 116, 0.15)' : '#0f1219',
+              color: categoryFilter === 'all' ? '#d4a574' : '#6b6358',
+              border: `1px solid ${categoryFilter === 'all' ? 'rgba(212, 165, 116, 0.3)' : '#1e2638'}`,
+            }}
+          >
+            All ({intelSignals.length})
           </button>
-          {/* Category tabs */}
           {(Object.keys(categoryConfig) as SignalCategory[]).map((cat) => {
             const cfg = categoryConfig[cat];
-            const CatIcon = cfg.icon;
             const count = intelSignals.filter((s) => s.category === cat).length;
             if (count === 0) return null;
-            const isActive = activeTab === cat;
+            const CatIcon = cfg.icon;
             return (
               <button
                 key={cat}
-                onClick={() => setActiveTab(cat)}
+                onClick={() => setCategoryFilter(cat)}
                 style={{
-                  padding: '6px 14px', borderRadius: 8, fontSize: 11,
-                  fontWeight: isActive ? 600 : 400,
-                  background: isActive ? cfg.bg : '#131720',
-                  color: isActive ? cfg.color : '#6b6358',
-                  border: `1px solid ${isActive ? `${cfg.color}40` : '#1e2638'}`,
-                  cursor: 'pointer', fontFamily: 'inherit',
-                  transition: 'all 0.15s', display: 'flex', alignItems: 'center', gap: 5,
+                  padding: '6px 14px', borderRadius: 20, fontSize: 11, fontWeight: 500, cursor: 'pointer',
+                  fontFamily: 'inherit', transition: 'all 0.15s',
+                  display: 'flex', alignItems: 'center', gap: 5,
+                  backgroundColor: categoryFilter === cat ? cfg.bg : '#0f1219',
+                  color: categoryFilter === cat ? cfg.color : '#6b6358',
+                  border: `1px solid ${categoryFilter === cat ? `${cfg.color}40` : '#1e2638'}`,
+                }}
+                onMouseEnter={(e) => {
+                  if (categoryFilter !== cat) {
+                    e.currentTarget.style.borderColor = '#2e3a4e';
+                    e.currentTarget.style.color = '#a09888';
+                  }
+                }}
+                onMouseLeave={(e) => {
+                  if (categoryFilter !== cat) {
+                    e.currentTarget.style.borderColor = '#1e2638';
+                    e.currentTarget.style.color = '#6b6358';
+                  }
                 }}
               >
                 <CatIcon size={11} />
-                {cat}
-                <span style={{
-                  fontSize: 10, fontWeight: 700,
-                  background: isActive ? `${cfg.color}18` : '#1e2638',
-                  color: isActive ? cfg.color : '#6b6358',
-                  padding: '0 5px', borderRadius: 6,
-                }}>
-                  {count}
-                </span>
+                {cat} ({count})
               </button>
             );
           })}
         </div>
-      </AnimatedCard>
+      </AnimatedEntry>
 
       {/* ── Intelligence Signals ── */}
-      <div className="space-y-4">
+      <div>
         {filteredSignals.map((signal, i) => {
           const org = ecosystemOrgs.find((o) => o.id === signal.orgId);
           const catCfg = categoryConfig[signal.category];
@@ -898,37 +869,40 @@ export function EcosystemIntelView() {
           const isExpanded = expandedSignal === signal.id;
 
           return (
-            <AnimatedCard key={signal.id} delay={620 + i * 60}>
+            <AnimatedEntry key={signal.id} delay={400 + i * 50}>
               <div
-                className="glow-card rounded-xl border transition-all cursor-pointer"
                 style={{
-                  backgroundColor: '#131720',
-                  borderColor: isExpanded
-                    ? `${catCfg.color}40`
-                    : signal.impact === 'High'
-                    ? 'rgba(224, 96, 96, 0.2)'
-                    : '#1e2638',
-                  position: 'relative',
+                  backgroundColor: '#0f1219',
+                  border: `1px solid ${isExpanded ? `${catCfg.color}40` : signal.impact === 'High' ? 'rgba(224, 96, 96, 0.2)' : '#1e2638'}`,
+                  borderLeft: `3px solid ${impCfg.color}`,
+                  borderRadius: 12,
+                  marginBottom: 12,
+                  transition: 'all 0.2s',
+                  cursor: 'pointer',
                   overflow: 'hidden',
                 }}
-                onClick={() =>
-                  setExpandedSignal(isExpanded ? null : signal.id)
-                }
+                onClick={() => setExpandedSignal(isExpanded ? null : signal.id)}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.borderColor = `${catCfg.color}40`;
+                  e.currentTarget.style.borderLeftColor = impCfg.color;
+                  e.currentTarget.style.boxShadow = `0 4px 16px rgba(0,0,0,0.15)`;
+                }}
+                onMouseLeave={(e) => {
+                  if (!isExpanded) {
+                    e.currentTarget.style.borderColor = signal.impact === 'High' ? 'rgba(224, 96, 96, 0.2)' : '#1e2638';
+                  }
+                  e.currentTarget.style.borderLeftColor = impCfg.color;
+                  e.currentTarget.style.boxShadow = 'none';
+                }}
               >
-                {/* Left accent for high impact */}
-                {signal.impact === 'High' && (
-                  <div style={{
-                    position: 'absolute', left: 0, top: 0, bottom: 0, width: 3,
-                    background: 'linear-gradient(to bottom, #e06060, transparent)',
-                    borderRadius: '12px 0 0 12px',
-                  }} />
-                )}
-
-                <div className="p-5">
-                  {/* Top row: date + signal strength + badges */}
-                  <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
-                    <div className="flex items-center gap-3">
-                      <span className="text-[11px] text-text-muted tabular-nums">
+                <div style={{ padding: '16px 20px' }}>
+                  {/* Top row: date + badges + priority indicator */}
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10, flexWrap: 'wrap', gap: 6 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <span style={{
+                        fontSize: 11, color: '#6b6358', fontVariantNumeric: 'tabular-nums',
+                        background: 'rgba(30,38,56,0.3)', padding: '2px 8px', borderRadius: 6,
+                      }}>
                         {new Date(signal.date).toLocaleDateString('en-US', {
                           year: 'numeric',
                           month: 'short',
@@ -936,170 +910,170 @@ export function EcosystemIntelView() {
                         })}
                       </span>
                       {org && (
-                        <span className="flex items-center gap-1.5">
-                          {/* Org initials badge */}
-                          <span
-                            style={{
-                              display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-                              width: 20, height: 20, borderRadius: 6,
-                              background: `${org.color}15`, fontSize: 8, fontWeight: 700,
-                              color: org.color,
-                            }}
-                          >
-                            {org.initials}
-                          </span>
-                          <span
-                            className="text-[10px] font-semibold"
-                            style={{ color: org.color }}
-                          >
-                            {org.name}
-                          </span>
+                        <span style={{
+                          display: 'flex', alignItems: 'center', gap: 4,
+                          fontSize: 10, fontWeight: 600, padding: '2px 8px', borderRadius: 10,
+                          background: `${org.color}12`, color: org.color,
+                        }}>
+                          <org.icon size={9} />
+                          {org.name}
                         </span>
                       )}
                     </div>
-                    <div className="flex items-center gap-3">
-                      {/* Signal Strength */}
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                        <Wifi size={10} style={{ color: '#4a443e' }} />
-                        <SignalStrengthBar strength={signal.signalStrength} color={catCfg.color} />
-                      </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      {/* Priority indicator bars */}
+                      <PriorityIndicator impact={signal.impact} />
                       {/* Category badge */}
-                      <span
-                        className="text-[10px] font-semibold px-2 py-0.5 rounded-full flex items-center gap-1"
-                        style={{
-                          backgroundColor: catCfg.bg,
-                          color: catCfg.color,
-                        }}
-                      >
+                      <span style={{
+                        display: 'flex', alignItems: 'center', gap: 4,
+                        fontSize: 10, fontWeight: 600, padding: '2px 8px', borderRadius: 10,
+                        background: catCfg.bg, color: catCfg.color,
+                      }}>
                         <CatIcon size={10} />
                         {signal.category}
                       </span>
                       {/* Impact badge */}
-                      <span
-                        className="text-[10px] font-semibold px-2 py-0.5 rounded-full"
-                        style={{
-                          backgroundColor: impCfg.bg,
-                          color: impCfg.color,
-                          border: `1px solid ${impCfg.border}`,
-                        }}
-                      >
-                        {signal.impact} Impact
+                      <span style={{
+                        fontSize: 10, fontWeight: 600, padding: '2px 8px', borderRadius: 10,
+                        background: impCfg.bg, color: impCfg.color,
+                        border: `1px solid ${impCfg.border}`,
+                      }}>
+                        {signal.impact}
                       </span>
+                      {/* Expand/collapse */}
+                      {isExpanded ? (
+                        <ChevronDown size={14} style={{ color: '#6b6358' }} />
+                      ) : (
+                        <ChevronRight size={14} style={{ color: '#4a443e' }} />
+                      )}
                     </div>
                   </div>
 
                   {/* Title */}
-                  <h3 className="text-sm font-semibold text-text-primary mb-2" style={{
-                    display: 'flex', alignItems: 'center', gap: 6,
-                  }}>
+                  <h3 style={{ fontSize: 14, fontWeight: 600, color: '#f0ebe4', margin: '0 0 6px', lineHeight: 1.4 }}>
                     {signal.title}
-                    {isExpanded ? (
-                      <ChevronRight size={14} style={{ color: '#6b6358', transform: 'rotate(90deg)', transition: 'transform 0.2s' }} />
-                    ) : (
-                      <ChevronRight size={14} style={{ color: '#4a443e', transition: 'transform 0.2s' }} />
-                    )}
                   </h3>
 
                   {/* Summary */}
-                  <p className="text-[12px] text-text-secondary leading-relaxed mb-3">
+                  <p style={{ fontSize: 12, color: '#a09888', lineHeight: 1.6, margin: '0 0 10px' }}>
                     {signal.summary}
                   </p>
 
-                  {/* Frequency Implication (always visible for High impact, expandable for others) */}
+                  {/* Frequency Implication (always visible for High impact) */}
                   {(isExpanded || signal.impact === 'High') && (
                     <div
-                      className="rounded-lg p-3 mt-3"
                       style={{
-                        backgroundColor: 'rgba(212, 165, 116, 0.06)',
+                        borderRadius: 10, padding: '12px 14px', marginTop: 10,
+                        background: 'rgba(212, 165, 116, 0.06)',
                         border: '1px solid rgba(212, 165, 116, 0.15)',
                       }}
                     >
-                      <div className="flex items-center gap-2 mb-2">
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
                         <Lightbulb size={13} style={{ color: '#d4a574' }} />
-                        <span
-                          className="text-[10px] font-semibold uppercase tracking-wider"
-                          style={{ color: '#d4a574' }}
-                        >
+                        <span style={{
+                          fontSize: 10, fontWeight: 600, color: '#d4a574',
+                          textTransform: 'uppercase', letterSpacing: '0.05em',
+                        }}>
                           What This Means For Frequency
                         </span>
                       </div>
-                      <p className="text-[12px] text-text-secondary leading-relaxed">
+                      <p style={{ fontSize: 12, color: '#a09888', lineHeight: 1.6, margin: 0 }}>
                         {signal.frequencyImplication}
                       </p>
                     </div>
                   )}
 
-                  {/* Expanded: Opportunity score for the related org */}
-                  {isExpanded && org && (
-                    <div style={{
-                      marginTop: 12, padding: '10px 14px', borderRadius: 8,
-                      background: 'rgba(30,38,56,0.2)', border: '1px solid #1e2638',
-                    }}>
-                      <div style={{
-                        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                        marginBottom: 8,
-                      }}>
-                        <span style={{
-                          fontSize: 10, fontWeight: 600, color: '#6b6358',
-                          textTransform: 'uppercase', letterSpacing: '0.05em',
-                        }}>
-                          Opportunity Score for {org.initials}
+                  {/* Related Entities (visible when expanded) */}
+                  {isExpanded && signal.relatedEntities.length > 0 && (
+                    <div style={{ marginTop: 12 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginBottom: 8 }}>
+                        <Link2 size={11} style={{ color: '#4a443e' }} />
+                        <span style={{ fontSize: 10, fontWeight: 600, color: '#6b6358', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                          Related Entities
                         </span>
-                        <TrendArrow direction={org.trendDirection} color={org.color} />
                       </div>
-                      <OpportunityScoreBar score={org.opportunityScore} color={org.color} />
+                      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                        {signal.relatedEntities.map((entity, ei) => (
+                          <div
+                            key={ei}
+                            style={{
+                              display: 'flex', alignItems: 'center', gap: 6,
+                              padding: '6px 12px', borderRadius: 8,
+                              background: 'rgba(30, 38, 56, 0.2)',
+                              border: '1px solid #1e2638',
+                              transition: 'border-color 0.15s',
+                            }}
+                            onMouseEnter={(e) => { e.currentTarget.style.borderColor = `${entity.color}40`; }}
+                            onMouseLeave={(e) => { e.currentTarget.style.borderColor = '#1e2638'; }}
+                          >
+                            <div style={{
+                              width: 20, height: 20, borderRadius: '50%',
+                              background: `${entity.color}20`,
+                              border: `1px solid ${entity.color}30`,
+                              display: 'flex', alignItems: 'center', justifyContent: 'center',
+                              fontSize: 8, fontWeight: 700, color: entity.color,
+                            }}>
+                              {entity.name.split(' ').map(w => w[0]).join('').slice(0, 2)}
+                            </div>
+                            <div>
+                              <div style={{ fontSize: 11, color: '#f0ebe4', fontWeight: 500 }}>
+                                {entity.name}
+                              </div>
+                              <div style={{ fontSize: 9, color: '#4a443e' }}>
+                                {entity.role}
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
                     </div>
                   )}
 
-                  {/* Source */}
-                  <div className="flex items-center justify-between mt-3 pt-3" style={{ borderTop: '1px solid #1e2638' }}>
-                    <div className="flex items-center gap-1.5">
-                      <ExternalLink size={11} className="text-text-muted" />
-                      <span className="text-[10px] text-text-muted">
+                  {/* Source + expand hint */}
+                  <div style={{
+                    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                    marginTop: 12, paddingTop: 10,
+                    borderTop: '1px solid #1e2638',
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                      <div style={{
+                        width: 18, height: 18, borderRadius: 4,
+                        background: 'rgba(30,38,56,0.4)',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      }}>
+                        <ExternalLink size={10} style={{ color: '#4a443e' }} />
+                      </div>
+                      <span style={{ fontSize: 10, color: '#6b6358' }}>
                         {signal.source}
                       </span>
                     </div>
-                    <div className="flex items-center gap-3">
-                      {!isExpanded && signal.impact !== 'High' && (
-                        <span className="text-[10px] text-text-muted italic">
-                          Click to expand analysis
-                        </span>
-                      )}
-                    </div>
+                    {!isExpanded && signal.impact !== 'High' && (
+                      <span style={{ fontSize: 10, color: '#4a443e', fontStyle: 'italic' }}>
+                        Click to expand analysis
+                      </span>
+                    )}
                   </div>
                 </div>
               </div>
-            </AnimatedCard>
+            </AnimatedEntry>
           );
         })}
       </div>
 
       {/* ── Empty State ── */}
       {filteredSignals.length === 0 && (
-        <AnimatedCard delay={100}>
-          <div
-            className="flex flex-col items-center justify-center py-12 rounded-xl border"
-            style={{
-              backgroundColor: '#131720',
-              borderColor: '#1e2638',
-            }}
-          >
-            <div style={{
-              width: 56, height: 56, borderRadius: 16,
-              background: 'rgba(107,99,88,0.08)',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              marginBottom: 12,
-            }}>
-              <Globe size={28} className="text-text-muted" style={{ opacity: 0.4 }} />
-            </div>
-            <span className="text-sm text-text-muted font-medium">
-              No signals found
-            </span>
-            <span className="text-xs text-text-muted mt-1" style={{ opacity: 0.6 }}>
-              Try adjusting your category filter or search
+        <AnimatedEntry delay={400}>
+          <div style={{
+            display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+            padding: '48px 24px', borderRadius: 12,
+            background: '#0f1219', border: '1px solid #1e2638',
+          }}>
+            <Globe size={32} style={{ color: '#4a443e', marginBottom: 12 }} />
+            <span style={{ fontSize: 14, color: '#6b6358' }}>
+              No signals found for this category.
             </span>
           </div>
-        </AnimatedCard>
+        </AnimatedEntry>
       )}
     </div>
   );

@@ -15,19 +15,17 @@ import {
   Calendar,
   Heart,
   AlertTriangle,
-  CheckCircle2,
   ArrowUpRight,
   ArrowDownRight,
   ArrowRight,
   Zap,
-  Shield,
   Star,
   Eye,
   Tag,
   ChevronRight,
   Wrench,
   Lightbulb,
-  GitCommit,
+  BarChart3,
 } from 'lucide-react';
 
 /* ─── Types ─── */
@@ -74,17 +72,6 @@ const animationStyles = `
     opacity: 1;
     transform: translateY(0) scale(1);
   }
-}
-
-@keyframes timelineDotPulse {
-  0% { box-shadow: 0 0 0 0 rgba(212, 165, 116, 0.4); }
-  70% { box-shadow: 0 0 0 8px rgba(212, 165, 116, 0); }
-  100% { box-shadow: 0 0 0 0 rgba(212, 165, 116, 0); }
-}
-
-@keyframes timelineLineGrow {
-  from { height: 0%; }
-  to { height: 100%; }
 }
 
 @keyframes newBadgePulse {
@@ -139,10 +126,10 @@ const sentimentConfig: Record<Sentiment, { label: string; color: string; bg: str
   negative: { label: 'Needs Attention', color: '#f87171', bg: 'rgba(248, 113, 113, 0.12)', icon: TrendingDown },
 };
 
-const impactConfig: Record<ImpactLevel, { label: string; color: string; bg: string }> = {
-  high: { label: 'High Impact', color: '#d4a574', bg: 'rgba(212, 165, 116, 0.15)' },
-  medium: { label: 'Medium', color: '#60a5fa', bg: 'rgba(96, 165, 250, 0.12)' },
-  low: { label: 'Low', color: '#a09888', bg: 'rgba(160, 152, 136, 0.12)' },
+const impactConfig: Record<ImpactLevel, { label: string; tag: string; color: string; bg: string }> = {
+  high: { label: 'High Impact', tag: 'MAJOR', color: '#d4a574', bg: 'rgba(212, 165, 116, 0.15)' },
+  medium: { label: 'Medium', tag: 'MINOR', color: '#60a5fa', bg: 'rgba(96, 165, 250, 0.12)' },
+  low: { label: 'Low', tag: 'PATCH', color: '#a09888', bg: 'rgba(160, 152, 136, 0.12)' },
 };
 
 const changeTypeConfig: Record<ChangeType, { label: string; color: string; bg: string; border: string; icon: React.ElementType }> = {
@@ -444,8 +431,8 @@ const changesData: ChangeItem[] = [
 
 /* ─── Helper: Group by time period ─── */
 
-function groupByTimePeriod(items: ChangeItem[]): { label: string; items: ChangeItem[] }[] {
-  const groups: { label: string; items: ChangeItem[] }[] = [];
+function groupByTimePeriod(items: ChangeItem[]): { label: string; relative: string; items: ChangeItem[] }[] {
+  const groups: { label: string; relative: string; items: ChangeItem[] }[] = [];
   const today: ChangeItem[] = [];
   const thisWeek: ChangeItem[] = [];
   const thisMonth: ChangeItem[] = [];
@@ -458,10 +445,10 @@ function groupByTimePeriod(items: ChangeItem[]): { label: string; items: ChangeI
     else older.push(item);
   });
 
-  if (today.length > 0) groups.push({ label: 'Today', items: today });
-  if (thisWeek.length > 0) groups.push({ label: 'This Week', items: thisWeek });
-  if (thisMonth.length > 0) groups.push({ label: 'This Month', items: thisMonth });
-  if (older.length > 0) groups.push({ label: 'Earlier', items: older });
+  if (today.length > 0) groups.push({ label: 'Today', relative: 'March 10, 2026', items: today });
+  if (thisWeek.length > 0) groups.push({ label: 'This Week', relative: 'Mar 3 -- Mar 9', items: thisWeek });
+  if (thisMonth.length > 0) groups.push({ label: 'Earlier This Month', relative: 'Feb 20 -- Mar 2', items: thisMonth });
+  if (older.length > 0) groups.push({ label: 'Earlier', relative: 'Older entries', items: older });
 
   return groups;
 }
@@ -511,6 +498,14 @@ export function WhatChangedView() {
     return { total, positive, neutral, negative };
   }, [filteredChanges]);
 
+  const summaryStats = useMemo(() => {
+    const weekChanges = changesData.filter((c) => c.daysAgo <= 7).length;
+    const monthChanges = changesData.filter((c) => c.daysAgo <= 30).length;
+    const highImpactWeek = changesData.filter((c) => c.daysAgo <= 7 && c.impact === 'high').length;
+    const decisionsWeek = changesData.filter((c) => c.daysAgo <= 7 && c.changeType === 'decision').length;
+    return { weekChanges, monthChanges, highImpactWeek, decisionsWeek };
+  }, []);
+
   const categoryCounts = useMemo(() => {
     const maxDays = timeFilters.find((t) => t.key === timeFilter)?.maxDays ?? 7;
     const timeFiltered = changesData.filter((c) => c.daysAgo <= maxDays);
@@ -531,19 +526,20 @@ export function WhatChangedView() {
 
       {/* ── Header ── */}
       <div className="animate-fade-in" style={{ marginBottom: 32 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 8 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 8 }}>
           <div
             style={{
-              width: 40,
-              height: 40,
-              borderRadius: 12,
-              background: 'linear-gradient(135deg, rgba(212, 165, 116, 0.2), rgba(139, 92, 246, 0.2))',
+              width: 46,
+              height: 46,
+              borderRadius: 13,
+              background: 'linear-gradient(135deg, rgba(212, 165, 116, 0.2), rgba(139, 92, 246, 0.15))',
+              border: '1px solid rgba(212, 165, 116, 0.2)',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
             }}
           >
-            <Sparkles size={22} style={{ color: '#d4a574' }} />
+            <Sparkles size={24} style={{ color: '#d4a574' }} />
           </div>
           <div>
             <h1
@@ -564,13 +560,70 @@ export function WhatChangedView() {
         </div>
       </div>
 
+      {/* ── Summary Stats (Changes This Week/Month) ── */}
+      <div
+        className="animate-fade-in"
+        style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(4, 1fr)',
+          gap: 12,
+          marginBottom: 24,
+          animationDelay: '0.03s',
+        }}
+      >
+        {[
+          { label: 'This Week', value: summaryStats.weekChanges, icon: Calendar, color: '#d4a574', sub: 'changes tracked' },
+          { label: 'This Month', value: summaryStats.monthChanges, icon: BarChart3, color: '#8b5cf6', sub: 'total changes' },
+          { label: 'High Impact', value: summaryStats.highImpactWeek, icon: Zap, color: '#e8b44c', sub: 'this week' },
+          { label: 'Decisions', value: summaryStats.decisionsWeek, icon: Lightbulb, color: '#6b8f71', sub: 'this week' },
+        ].map((stat, idx) => {
+          const Icon = stat.icon;
+          return (
+            <div
+              key={stat.label}
+              className="glow-card"
+              style={{
+                backgroundColor: '#131720',
+                border: '1px solid #1e2638',
+                borderRadius: 14,
+                padding: '14px 18px',
+                animation: mounted ? `statCardEntrance 0.4s ease-out ${0.15 + idx * 0.06}s both` : 'none',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
+                <div
+                  style={{
+                    width: 30,
+                    height: 30,
+                    borderRadius: 8,
+                    backgroundColor: `${stat.color}12`,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}
+                >
+                  <Icon size={14} style={{ color: stat.color }} />
+                </div>
+                <span style={{ fontSize: 10, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#6b6358' }}>
+                  {stat.label}
+                </span>
+              </div>
+              <div style={{ fontSize: 24, fontWeight: 700, color: '#f0ebe4', letterSpacing: '-0.02em' }}>
+                {stat.value}
+              </div>
+              <div style={{ fontSize: 10, color: '#6b6358', marginTop: 2 }}>{stat.sub}</div>
+            </div>
+          );
+        })}
+      </div>
+
       {/* ── "New Since Your Last Visit" Section ── */}
       {newSinceLastVisit.length > 0 && (
         <div
           className="animate-fade-in"
           style={{
             marginBottom: 24,
-            animationDelay: '0.03s',
+            animationDelay: '0.06s',
           }}
         >
           <div
@@ -623,7 +676,6 @@ export function WhatChangedView() {
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                 {newSinceLastVisit.map((change) => {
-                  const catCfg = categoryConfig[change.category];
                   const sentCfg = sentimentConfig[change.sentiment];
                   const ctCfg = changeTypeConfig[change.changeType];
                   const CtIcon = ctCfg.icon;
@@ -674,7 +726,7 @@ export function WhatChangedView() {
       )}
 
       {/* ── Time Filter ── */}
-      <div className="animate-fade-in" style={{ marginBottom: 20, animationDelay: '0.05s' }}>
+      <div className="animate-fade-in" style={{ marginBottom: 20, animationDelay: '0.08s' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
           <Clock size={14} style={{ color: '#6b6358' }} />
           <span style={{ fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#6b6358' }}>
@@ -720,7 +772,7 @@ export function WhatChangedView() {
         </div>
       </div>
 
-      {/* ── Category Filter ── */}
+      {/* ── Category Filter Pills ── */}
       <div className="animate-fade-in" style={{ marginBottom: 24, animationDelay: '0.1s' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
           <Filter size={14} style={{ color: '#6b6358' }} />
@@ -785,7 +837,7 @@ export function WhatChangedView() {
         </div>
       </div>
 
-      {/* ── Stats Row ── */}
+      {/* ── Sentiment Stats Row ── */}
       <div
         className="animate-fade-in"
         style={{
@@ -793,7 +845,7 @@ export function WhatChangedView() {
           gridTemplateColumns: 'repeat(4, 1fr)',
           gap: 12,
           marginBottom: 32,
-          animationDelay: '0.15s',
+          animationDelay: '0.12s',
         }}
       >
         {/* Total */}
@@ -804,7 +856,7 @@ export function WhatChangedView() {
             border: '1px solid #1e2638',
             borderRadius: 14,
             padding: '16px 20px',
-            animation: mounted ? 'statCardEntrance 0.4s ease-out 0.2s both' : 'none',
+            animation: mounted ? 'statCardEntrance 0.4s ease-out 0.35s both' : 'none',
           }}
         >
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
@@ -836,7 +888,7 @@ export function WhatChangedView() {
             border: '1px solid #1e2638',
             borderRadius: 14,
             padding: '16px 20px',
-            animation: mounted ? 'statCardEntrance 0.4s ease-out 0.28s both' : 'none',
+            animation: mounted ? 'statCardEntrance 0.4s ease-out 0.4s both' : 'none',
           }}
         >
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
@@ -869,7 +921,7 @@ export function WhatChangedView() {
             border: '1px solid #1e2638',
             borderRadius: 14,
             padding: '16px 20px',
-            animation: mounted ? 'statCardEntrance 0.4s ease-out 0.36s both' : 'none',
+            animation: mounted ? 'statCardEntrance 0.4s ease-out 0.45s both' : 'none',
           }}
         >
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
@@ -902,7 +954,7 @@ export function WhatChangedView() {
             border: '1px solid #1e2638',
             borderRadius: 14,
             padding: '16px 20px',
-            animation: mounted ? 'statCardEntrance 0.4s ease-out 0.44s both' : 'none',
+            animation: mounted ? 'statCardEntrance 0.4s ease-out 0.5s both' : 'none',
           }}
         >
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
@@ -932,7 +984,7 @@ export function WhatChangedView() {
       <div style={{ position: 'relative' }}>
         {groupedChanges.map((group, groupIdx) => (
           <div key={group.label} style={{ marginBottom: 8 }}>
-            {/* Time Period Header / Date Marker */}
+            {/* Date Grouping Header */}
             <div
               style={{
                 display: 'flex',
@@ -953,7 +1005,7 @@ export function WhatChangedView() {
                   height: 12,
                   borderRadius: '50%',
                   backgroundColor: '#d4a574',
-                  border: '2px solid #0d1117',
+                  border: '2px solid #0b0d14',
                   boxShadow: '0 0 0 3px rgba(212, 165, 116, 0.2)',
                   zIndex: 2,
                 }}
@@ -981,6 +1033,15 @@ export function WhatChangedView() {
                 <span
                   style={{
                     fontSize: 10,
+                    color: '#6b6358',
+                    fontWeight: 500,
+                  }}
+                >
+                  {group.relative}
+                </span>
+                <span
+                  style={{
+                    fontSize: 10,
                     fontWeight: 600,
                     color: '#6b6358',
                     backgroundColor: 'rgba(212, 165, 116, 0.1)',
@@ -1004,7 +1065,7 @@ export function WhatChangedView() {
                 marginBottom: 24,
               }}
             >
-              {/* Vertical timeline line */}
+              {/* Vertical timeline connector line */}
               <div
                 style={{
                   position: 'absolute',
@@ -1017,7 +1078,7 @@ export function WhatChangedView() {
                 }}
               />
 
-              {group.items.map((change, idx) => {
+              {group.items.map((change) => {
                 const catCfg = categoryConfig[change.category];
                 const sentCfg = sentimentConfig[change.sentiment];
                 const impCfg = impactConfig[change.impact];
@@ -1027,18 +1088,17 @@ export function WhatChangedView() {
                 const CtIcon = ctCfg.icon;
                 const isExpanded = expandedIds.has(change.id);
 
-                // Diff-style colors
-                const diffBorderColor = change.sentiment === 'positive'
-                  ? 'rgba(52, 211, 153, 0.25)'  // green for additions
-                  : change.sentiment === 'negative'
-                    ? 'rgba(248, 113, 113, 0.25)'
-                    : 'rgba(212, 165, 116, 0.15)'; // amber for changes/neutral
-
                 const diffAccentColor = change.sentiment === 'positive'
                   ? '#34d399'
                   : change.sentiment === 'negative'
                     ? '#f87171'
                     : '#d4a574';
+
+                const diffBorderColor = change.sentiment === 'positive'
+                  ? 'rgba(52, 211, 153, 0.25)'
+                  : change.sentiment === 'negative'
+                    ? 'rgba(248, 113, 113, 0.25)'
+                    : 'rgba(212, 165, 116, 0.15)';
 
                 const currentGlobalIdx = globalItemIndex++;
 
@@ -1053,7 +1113,7 @@ export function WhatChangedView() {
                         : 'none',
                     }}
                   >
-                    {/* Timeline dot for each item */}
+                    {/* Timeline dot for each item -- colored by category */}
                     <div
                       style={{
                         position: 'absolute',
@@ -1062,8 +1122,8 @@ export function WhatChangedView() {
                         width: 14,
                         height: 14,
                         borderRadius: '50%',
-                        backgroundColor: sentCfg.bg,
-                        border: `2px solid ${sentCfg.color}`,
+                        backgroundColor: `${catCfg.color}20`,
+                        border: `2px solid ${catCfg.color}`,
                         zIndex: 2,
                         display: 'flex',
                         alignItems: 'center',
@@ -1075,7 +1135,7 @@ export function WhatChangedView() {
                           width: 4,
                           height: 4,
                           borderRadius: '50%',
-                          backgroundColor: sentCfg.color,
+                          backgroundColor: catCfg.color,
                         }}
                       />
                     </div>
@@ -1108,7 +1168,7 @@ export function WhatChangedView() {
                         e.currentTarget.style.transform = 'translateX(0)';
                       }}
                     >
-                      {/* "New" indicator overlay for new items */}
+                      {/* "New" indicator overlay */}
                       {change.isNew && (
                         <div
                           style={{
@@ -1191,13 +1251,7 @@ export function WhatChangedView() {
                             }}
                           >
                             <SentIcon size={11} style={{ color: sentCfg.color }} />
-                            <span
-                              style={{
-                                fontSize: 10,
-                                fontWeight: 600,
-                                color: sentCfg.color,
-                              }}
-                            >
+                            <span style={{ fontSize: 10, fontWeight: 600, color: sentCfg.color }}>
                               {sentCfg.label}
                             </span>
                           </div>
@@ -1222,18 +1276,21 @@ export function WhatChangedView() {
                             {catCfg.label}
                           </span>
 
-                          {/* Impact badge */}
+                          {/* Impact badge (major/minor/patch) */}
                           <span
                             style={{
-                              fontSize: 10,
-                              fontWeight: 600,
+                              fontSize: 9,
+                              fontWeight: 700,
+                              textTransform: 'uppercase',
+                              letterSpacing: '0.06em',
                               color: impCfg.color,
                               backgroundColor: impCfg.bg,
-                              borderRadius: 12,
-                              padding: '3px 9px',
+                              borderRadius: 6,
+                              padding: '3px 8px',
+                              fontFamily: 'monospace',
                             }}
                           >
-                            {impCfg.label}
+                            {impCfg.tag}
                           </span>
                         </div>
 
@@ -1262,7 +1319,7 @@ export function WhatChangedView() {
                         </div>
                       </div>
 
-                      {/* Description with diff-style highlighting */}
+                      {/* Description with diff-style prefix */}
                       <h3
                         style={{
                           fontSize: 15,
@@ -1275,7 +1332,6 @@ export function WhatChangedView() {
                           gap: 8,
                         }}
                       >
-                        {/* Diff prefix symbol */}
                         <span
                           style={{
                             fontSize: 14,
@@ -1307,7 +1363,7 @@ export function WhatChangedView() {
                         </span>
                       </h3>
 
-                      {/* Collapsed preview of detail */}
+                      {/* Collapsed preview */}
                       {!isExpanded && (
                         <p
                           style={{
@@ -1344,7 +1400,7 @@ export function WhatChangedView() {
                             {change.detail}
                           </p>
 
-                          {/* Impact indicators - affected areas */}
+                          {/* Affected areas */}
                           {change.affectedAreas.length > 0 && (
                             <div
                               style={{
@@ -1410,6 +1466,7 @@ export function WhatChangedView() {
         {/* Empty state */}
         {filteredChanges.length === 0 && (
           <div
+            className="animate-fade-in"
             style={{
               textAlign: 'center',
               padding: '60px 40px',

@@ -1,14 +1,19 @@
 -- ============================================================
--- Frequency Unite — Database Schema
+-- Frequency Unite — Database Schema (Clerk Auth Edition)
 -- Run this FIRST to create all tables, then run seed.sql
+--
+-- Auth: Clerk (external) — user IDs are TEXT strings (e.g. "user_2abc...")
+-- Database: Supabase PostgreSQL
+-- JWT bridge: Clerk signs JWTs with Supabase's JWT_SECRET
+--   → RLS uses (auth.jwt() ->> 'sub') instead of auth.uid()
 -- ============================================================
 
--- ─── Reference Tables (read-only for authenticated users) ───
+-- ─── Reference Tables (read-only for authenticated + anon users) ───
 
 -- Team Members
 CREATE TABLE IF NOT EXISTS team_members (
   id TEXT PRIMARY KEY,
-  auth_user_id UUID UNIQUE REFERENCES auth.users(id),
+  auth_user_id TEXT UNIQUE,  -- Clerk user ID (e.g. "user_2abc..."), NULL until claimed
   name TEXT NOT NULL,
   role TEXT NOT NULL,
   short_role TEXT NOT NULL,
@@ -147,11 +152,12 @@ CREATE TABLE IF NOT EXISTS roadmap_phases (
 
 
 -- ─── User-Editable Tables (per-user via RLS) ───
+-- user_id is TEXT (Clerk user ID string), no FK to auth.users
 
 -- OKR Edits (user overrides for progress, status, notes, confidence)
 CREATE TABLE IF NOT EXISTS okr_edits (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  user_id TEXT NOT NULL,
   data JSONB NOT NULL DEFAULT '{}',
   updated_at TIMESTAMPTZ DEFAULT now(),
   UNIQUE(user_id)
@@ -160,7 +166,7 @@ CREATE TABLE IF NOT EXISTS okr_edits (
 -- Roadmap Progress
 CREATE TABLE IF NOT EXISTS roadmap_progress (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  user_id TEXT NOT NULL,
   data JSONB NOT NULL DEFAULT '{}',
   updated_at TIMESTAMPTZ DEFAULT now(),
   UNIQUE(user_id)
@@ -169,7 +175,7 @@ CREATE TABLE IF NOT EXISTS roadmap_progress (
 -- Accountability Data
 CREATE TABLE IF NOT EXISTS accountability_data (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  user_id TEXT NOT NULL,
   data JSONB NOT NULL DEFAULT '{}',
   updated_at TIMESTAMPTZ DEFAULT now(),
   UNIQUE(user_id)
@@ -178,7 +184,7 @@ CREATE TABLE IF NOT EXISTS accountability_data (
 -- Notes
 CREATE TABLE IF NOT EXISTS user_notes (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  user_id TEXT NOT NULL,
   data JSONB NOT NULL DEFAULT '[]',
   updated_at TIMESTAMPTZ DEFAULT now(),
   UNIQUE(user_id)
@@ -187,7 +193,7 @@ CREATE TABLE IF NOT EXISTS user_notes (
 -- Node Updates
 CREATE TABLE IF NOT EXISTS node_updates (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  user_id TEXT NOT NULL,
   data JSONB NOT NULL DEFAULT '{}',
   updated_at TIMESTAMPTZ DEFAULT now(),
   UNIQUE(user_id)
@@ -196,7 +202,7 @@ CREATE TABLE IF NOT EXISTS node_updates (
 -- Bookmarked Activities
 CREATE TABLE IF NOT EXISTS bookmarked_activities (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  user_id TEXT NOT NULL,
   data JSONB NOT NULL DEFAULT '[]',
   updated_at TIMESTAMPTZ DEFAULT now(),
   UNIQUE(user_id)
@@ -205,7 +211,7 @@ CREATE TABLE IF NOT EXISTS bookmarked_activities (
 -- Steward Journal
 CREATE TABLE IF NOT EXISTS steward_journal (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  user_id TEXT NOT NULL,
   data JSONB NOT NULL DEFAULT '{}',
   updated_at TIMESTAMPTZ DEFAULT now(),
   UNIQUE(user_id)
@@ -214,7 +220,7 @@ CREATE TABLE IF NOT EXISTS steward_journal (
 -- Steward Alignment
 CREATE TABLE IF NOT EXISTS steward_alignment (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  user_id TEXT NOT NULL,
   data JSONB NOT NULL DEFAULT '[]',
   updated_at TIMESTAMPTZ DEFAULT now(),
   UNIQUE(user_id)
@@ -224,6 +230,8 @@ CREATE TABLE IF NOT EXISTS steward_alignment (
 -- ============================================================
 -- Row Level Security (RLS) Policies
 -- ============================================================
+-- IMPORTANT: Clerk JWTs use auth.jwt() ->> 'sub' for user identity.
+-- auth.uid() returns NULL with Clerk tokens — never use it.
 
 -- ─── Enable RLS on ALL tables ───
 
@@ -248,245 +256,255 @@ ALTER TABLE steward_journal ENABLE ROW LEVEL SECURITY;
 ALTER TABLE steward_alignment ENABLE ROW LEVEL SECURITY;
 
 
--- ─── Reference Tables: SELECT only for authenticated users ───
+-- ─── Reference Tables: SELECT for authenticated + anon ───
+-- These are public org data — readable by all roles
 
-CREATE POLICY "Authenticated users can read team_members"
+CREATE POLICY "Anyone can read team_members"
   ON team_members FOR SELECT
-  TO authenticated
+  TO authenticated, anon
   USING (true);
 
--- Allow authenticated users to UPDATE their own team_members row (registration flow)
-CREATE POLICY "Users can update own team_members row"
+-- Allow authenticated users to claim an unclaimed team_members row (profile linking)
+CREATE POLICY "Users can claim unclaimed team_members row"
   ON team_members FOR UPDATE
   TO authenticated
-  USING (auth.uid() = auth_user_id)
-  WITH CHECK (auth.uid() = auth_user_id);
+  USING (auth_user_id IS NULL OR auth_user_id = (auth.jwt() ->> 'sub'))
+  WITH CHECK (auth_user_id = (auth.jwt() ->> 'sub'));
 
-CREATE POLICY "Authenticated users can read nodes"
+CREATE POLICY "Anyone can read nodes"
   ON nodes FOR SELECT
-  TO authenticated
+  TO authenticated, anon
   USING (true);
 
-CREATE POLICY "Authenticated users can read okrs"
+CREATE POLICY "Anyone can read okrs"
   ON okrs FOR SELECT
-  TO authenticated
+  TO authenticated, anon
   USING (true);
 
-CREATE POLICY "Authenticated users can read okr_key_results"
+CREATE POLICY "Anyone can read okr_key_results"
   ON okr_key_results FOR SELECT
-  TO authenticated
+  TO authenticated, anon
   USING (true);
 
-CREATE POLICY "Authenticated users can read kpis"
+CREATE POLICY "Anyone can read kpis"
   ON kpis FOR SELECT
-  TO authenticated
+  TO authenticated, anon
   USING (true);
 
-CREATE POLICY "Authenticated users can read governance_decisions"
+CREATE POLICY "Anyone can read governance_decisions"
   ON governance_decisions FOR SELECT
-  TO authenticated
+  TO authenticated, anon
   USING (true);
 
-CREATE POLICY "Authenticated users can read events"
+CREATE POLICY "Anyone can read events"
   ON events FOR SELECT
-  TO authenticated
+  TO authenticated, anon
   USING (true);
 
-CREATE POLICY "Authenticated users can read tasks"
+CREATE POLICY "Anyone can read tasks"
   ON tasks FOR SELECT
-  TO authenticated
+  TO authenticated, anon
   USING (true);
 
-CREATE POLICY "Authenticated users can read chat_channels"
+CREATE POLICY "Anyone can read chat_channels"
   ON chat_channels FOR SELECT
-  TO authenticated
+  TO authenticated, anon
   USING (true);
 
-CREATE POLICY "Authenticated users can read chat_messages"
+CREATE POLICY "Anyone can read chat_messages"
   ON chat_messages FOR SELECT
-  TO authenticated
+  TO authenticated, anon
   USING (true);
 
-CREATE POLICY "Authenticated users can read roadmap_phases"
+CREATE POLICY "Anyone can read roadmap_phases"
   ON roadmap_phases FOR SELECT
-  TO authenticated
+  TO authenticated, anon
   USING (true);
 
 
 -- ─── User-Editable Tables: Full CRUD for own rows ───
+-- Uses (auth.jwt() ->> 'sub') = user_id for Clerk JWT compatibility
 
 -- okr_edits
 CREATE POLICY "Users can read own okr_edits"
   ON okr_edits FOR SELECT
   TO authenticated
-  USING (auth.uid() = user_id);
+  USING ((auth.jwt() ->> 'sub') = user_id);
 
 CREATE POLICY "Users can insert own okr_edits"
   ON okr_edits FOR INSERT
   TO authenticated
-  WITH CHECK (auth.uid() = user_id);
+  WITH CHECK ((auth.jwt() ->> 'sub') = user_id);
 
 CREATE POLICY "Users can update own okr_edits"
   ON okr_edits FOR UPDATE
   TO authenticated
-  USING (auth.uid() = user_id)
-  WITH CHECK (auth.uid() = user_id);
+  USING ((auth.jwt() ->> 'sub') = user_id)
+  WITH CHECK ((auth.jwt() ->> 'sub') = user_id);
 
 CREATE POLICY "Users can delete own okr_edits"
   ON okr_edits FOR DELETE
   TO authenticated
-  USING (auth.uid() = user_id);
+  USING ((auth.jwt() ->> 'sub') = user_id);
 
 -- roadmap_progress
 CREATE POLICY "Users can read own roadmap_progress"
   ON roadmap_progress FOR SELECT
   TO authenticated
-  USING (auth.uid() = user_id);
+  USING ((auth.jwt() ->> 'sub') = user_id);
 
 CREATE POLICY "Users can insert own roadmap_progress"
   ON roadmap_progress FOR INSERT
   TO authenticated
-  WITH CHECK (auth.uid() = user_id);
+  WITH CHECK ((auth.jwt() ->> 'sub') = user_id);
 
 CREATE POLICY "Users can update own roadmap_progress"
   ON roadmap_progress FOR UPDATE
   TO authenticated
-  USING (auth.uid() = user_id)
-  WITH CHECK (auth.uid() = user_id);
+  USING ((auth.jwt() ->> 'sub') = user_id)
+  WITH CHECK ((auth.jwt() ->> 'sub') = user_id);
 
 CREATE POLICY "Users can delete own roadmap_progress"
   ON roadmap_progress FOR DELETE
   TO authenticated
-  USING (auth.uid() = user_id);
+  USING ((auth.jwt() ->> 'sub') = user_id);
 
 -- accountability_data
 CREATE POLICY "Users can read own accountability_data"
   ON accountability_data FOR SELECT
   TO authenticated
-  USING (auth.uid() = user_id);
+  USING ((auth.jwt() ->> 'sub') = user_id);
 
 CREATE POLICY "Users can insert own accountability_data"
   ON accountability_data FOR INSERT
   TO authenticated
-  WITH CHECK (auth.uid() = user_id);
+  WITH CHECK ((auth.jwt() ->> 'sub') = user_id);
 
 CREATE POLICY "Users can update own accountability_data"
   ON accountability_data FOR UPDATE
   TO authenticated
-  USING (auth.uid() = user_id)
-  WITH CHECK (auth.uid() = user_id);
+  USING ((auth.jwt() ->> 'sub') = user_id)
+  WITH CHECK ((auth.jwt() ->> 'sub') = user_id);
 
 CREATE POLICY "Users can delete own accountability_data"
   ON accountability_data FOR DELETE
   TO authenticated
-  USING (auth.uid() = user_id);
+  USING ((auth.jwt() ->> 'sub') = user_id);
 
 -- user_notes
 CREATE POLICY "Users can read own user_notes"
   ON user_notes FOR SELECT
   TO authenticated
-  USING (auth.uid() = user_id);
+  USING ((auth.jwt() ->> 'sub') = user_id);
 
 CREATE POLICY "Users can insert own user_notes"
   ON user_notes FOR INSERT
   TO authenticated
-  WITH CHECK (auth.uid() = user_id);
+  WITH CHECK ((auth.jwt() ->> 'sub') = user_id);
 
 CREATE POLICY "Users can update own user_notes"
   ON user_notes FOR UPDATE
   TO authenticated
-  USING (auth.uid() = user_id)
-  WITH CHECK (auth.uid() = user_id);
+  USING ((auth.jwt() ->> 'sub') = user_id)
+  WITH CHECK ((auth.jwt() ->> 'sub') = user_id);
 
 CREATE POLICY "Users can delete own user_notes"
   ON user_notes FOR DELETE
   TO authenticated
-  USING (auth.uid() = user_id);
+  USING ((auth.jwt() ->> 'sub') = user_id);
 
 -- node_updates
 CREATE POLICY "Users can read own node_updates"
   ON node_updates FOR SELECT
   TO authenticated
-  USING (auth.uid() = user_id);
+  USING ((auth.jwt() ->> 'sub') = user_id);
 
 CREATE POLICY "Users can insert own node_updates"
   ON node_updates FOR INSERT
   TO authenticated
-  WITH CHECK (auth.uid() = user_id);
+  WITH CHECK ((auth.jwt() ->> 'sub') = user_id);
 
 CREATE POLICY "Users can update own node_updates"
   ON node_updates FOR UPDATE
   TO authenticated
-  USING (auth.uid() = user_id)
-  WITH CHECK (auth.uid() = user_id);
+  USING ((auth.jwt() ->> 'sub') = user_id)
+  WITH CHECK ((auth.jwt() ->> 'sub') = user_id);
 
 CREATE POLICY "Users can delete own node_updates"
   ON node_updates FOR DELETE
   TO authenticated
-  USING (auth.uid() = user_id);
+  USING ((auth.jwt() ->> 'sub') = user_id);
 
 -- bookmarked_activities
 CREATE POLICY "Users can read own bookmarked_activities"
   ON bookmarked_activities FOR SELECT
   TO authenticated
-  USING (auth.uid() = user_id);
+  USING ((auth.jwt() ->> 'sub') = user_id);
 
 CREATE POLICY "Users can insert own bookmarked_activities"
   ON bookmarked_activities FOR INSERT
   TO authenticated
-  WITH CHECK (auth.uid() = user_id);
+  WITH CHECK ((auth.jwt() ->> 'sub') = user_id);
 
 CREATE POLICY "Users can update own bookmarked_activities"
   ON bookmarked_activities FOR UPDATE
   TO authenticated
-  USING (auth.uid() = user_id)
-  WITH CHECK (auth.uid() = user_id);
+  USING ((auth.jwt() ->> 'sub') = user_id)
+  WITH CHECK ((auth.jwt() ->> 'sub') = user_id);
 
 CREATE POLICY "Users can delete own bookmarked_activities"
   ON bookmarked_activities FOR DELETE
   TO authenticated
-  USING (auth.uid() = user_id);
+  USING ((auth.jwt() ->> 'sub') = user_id);
 
 -- steward_journal
 CREATE POLICY "Users can read own steward_journal"
   ON steward_journal FOR SELECT
   TO authenticated
-  USING (auth.uid() = user_id);
+  USING ((auth.jwt() ->> 'sub') = user_id);
 
 CREATE POLICY "Users can insert own steward_journal"
   ON steward_journal FOR INSERT
   TO authenticated
-  WITH CHECK (auth.uid() = user_id);
+  WITH CHECK ((auth.jwt() ->> 'sub') = user_id);
 
 CREATE POLICY "Users can update own steward_journal"
   ON steward_journal FOR UPDATE
   TO authenticated
-  USING (auth.uid() = user_id)
-  WITH CHECK (auth.uid() = user_id);
+  USING ((auth.jwt() ->> 'sub') = user_id)
+  WITH CHECK ((auth.jwt() ->> 'sub') = user_id);
 
 CREATE POLICY "Users can delete own steward_journal"
   ON steward_journal FOR DELETE
   TO authenticated
-  USING (auth.uid() = user_id);
+  USING ((auth.jwt() ->> 'sub') = user_id);
 
 -- steward_alignment
 CREATE POLICY "Users can read own steward_alignment"
   ON steward_alignment FOR SELECT
   TO authenticated
-  USING (auth.uid() = user_id);
+  USING ((auth.jwt() ->> 'sub') = user_id);
 
 CREATE POLICY "Users can insert own steward_alignment"
   ON steward_alignment FOR INSERT
   TO authenticated
-  WITH CHECK (auth.uid() = user_id);
+  WITH CHECK ((auth.jwt() ->> 'sub') = user_id);
 
 CREATE POLICY "Users can update own steward_alignment"
   ON steward_alignment FOR UPDATE
   TO authenticated
-  USING (auth.uid() = user_id)
-  WITH CHECK (auth.uid() = user_id);
+  USING ((auth.jwt() ->> 'sub') = user_id)
+  WITH CHECK ((auth.jwt() ->> 'sub') = user_id);
 
 CREATE POLICY "Users can delete own steward_alignment"
   ON steward_alignment FOR DELETE
   TO authenticated
-  USING (auth.uid() = user_id);
+  USING ((auth.jwt() ->> 'sub') = user_id);
+
+
+-- ============================================================
+-- Migration SQL (run against existing Supabase database)
+-- ============================================================
+-- If you already have the old schema with UUID columns and auth.uid()
+-- policies, run the migration script at supabase/migrate-to-clerk.sql
+-- instead of recreating tables.

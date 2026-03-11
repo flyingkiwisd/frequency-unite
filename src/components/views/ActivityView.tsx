@@ -24,9 +24,9 @@ import {
   Link2,
   BarChart3,
   CalendarDays,
-  Loader2,
-  FileText,
-  MessageCircle,
+  TrendingUp,
+  Users,
+  Award,
 } from 'lucide-react';
 
 type ActivityType = 'task' | 'okr' | 'governance' | 'member' | 'event' | 'milestone';
@@ -45,6 +45,7 @@ interface ActivityItem {
   title: string;
   description: string;
   actor: string;
+  actorAvatar: string;
   timestamp: string;
   timeAgo: string;
   icon: React.ElementType;
@@ -55,12 +56,11 @@ interface ActivityItem {
 }
 
 const BOOKMARKS_KEY = 'frequency-bookmarked-activities';
-const ITEMS_PER_PAGE = 8;
 
 const impactConfig: Record<ImpactLevel, { dot: string; label: string; glow: string }> = {
-  positive: { dot: '#6b8f71', label: 'Positive', glow: 'rgba(107,143,113,0.2)' },
-  neutral: { dot: '#e8b44c', label: 'Neutral', glow: 'rgba(232,180,76,0.2)' },
-  concern: { dot: '#ef4444', label: 'Concern', glow: 'rgba(239,68,68,0.2)' },
+  positive: { dot: '#6b8f71', label: 'Positive', glow: 'rgba(107, 143, 113, 0.3)' },
+  neutral: { dot: '#e8b44c', label: 'Neutral', glow: 'rgba(232, 180, 76, 0.3)' },
+  concern: { dot: '#ef4444', label: 'Concern', glow: 'rgba(239, 68, 68, 0.3)' },
 };
 
 const activityData: ActivityItem[] = [
@@ -70,6 +70,7 @@ const activityData: ActivityItem[] = [
     title: 'Teal Governance Model Adopted',
     description: 'Wisdom Council moved from Green-stage consensus to Teal governance with responsibility-weighted voice.',
     actor: 'Wisdom Council',
+    actorAvatar: 'WC',
     timestamp: '2026-03-08',
     timeAgo: '1 day ago',
     icon: Scale,
@@ -87,6 +88,7 @@ const activityData: ActivityItem[] = [
     title: 'Monthly Communication Cadence Established',
     description: 'Sian completed the member communication cadence setup ahead of schedule.',
     actor: 'Sian Hodges',
+    actorAvatar: 'SH',
     timestamp: '2026-03-08',
     timeAgo: '1 day ago',
     icon: CheckCircle2,
@@ -104,6 +106,7 @@ const activityData: ActivityItem[] = [
     title: 'OKR Progress: 144 Well-Stewards',
     description: 'Community membership objective updated to 45% progress. On track for H1 2026 target.',
     actor: 'James Hodges',
+    actorAvatar: 'JH',
     timestamp: '2026-03-07',
     timeAgo: '2 days ago',
     icon: Target,
@@ -121,6 +124,7 @@ const activityData: ActivityItem[] = [
     title: 'Bi-weekly Node Sync Calls Established',
     description: 'Fairman completed setup of regular coordination calls across all active nodes.',
     actor: 'Alex James Fairman',
+    actorAvatar: 'AF',
     timestamp: '2026-03-07',
     timeAgo: '2 days ago',
     icon: CheckCircle2,
@@ -138,6 +142,7 @@ const activityData: ActivityItem[] = [
     title: 'New Prospect Pipeline Growing',
     description: 'Maximillian is conducting essence interviews with 15 new prospects for Blue Spirit enrollment.',
     actor: 'Maximillian',
+    actorAvatar: 'MX',
     timestamp: '2026-03-06',
     timeAgo: '3 days ago',
     icon: UserPlus,
@@ -155,6 +160,7 @@ const activityData: ActivityItem[] = [
     title: 'Megaphone Node: Studio Session Complete',
     description: 'Raamayan wrapped a powerful Anthem studio session. Cultural heartbeat of the movement is forming.',
     actor: 'Raamayan Ananda',
+    actorAvatar: 'RA',
     timestamp: '2026-03-06',
     timeAgo: '3 days ago',
     icon: Megaphone,
@@ -172,6 +178,7 @@ const activityData: ActivityItem[] = [
     title: 'Blue Spirit 6.0 Confirmed',
     description: 'Blue Spirit event confirmed for July 18, 2026 in Nosara, Costa Rica. Registration opens April 15th.',
     actor: 'Core Stewardship Team',
+    actorAvatar: 'CS',
     timestamp: '2026-03-05',
     timeAgo: '4 days ago',
     icon: Calendar,
@@ -189,6 +196,7 @@ const activityData: ActivityItem[] = [
     title: 'CEO Search Plan Approved',
     description: 'Board agreed to formally begin CEO search after Blue Spirit. James transitions to strategic advisor.',
     actor: 'Board',
+    actorAvatar: 'BD',
     timestamp: '2026-03-05',
     timeAgo: '4 days ago',
     icon: Scale,
@@ -206,6 +214,7 @@ const activityData: ActivityItem[] = [
     title: 'DAF Structure Progress Update',
     description: 'DAF operational objective updated. Compliance checklist at 50%, fundraising at 20%. Status: at-risk.',
     actor: 'Colleen Galbraith',
+    actorAvatar: 'CG',
     timestamp: '2026-03-04',
     timeAgo: '5 days ago',
     icon: Target,
@@ -223,6 +232,7 @@ const activityData: ActivityItem[] = [
     title: 'Capital Node: 8 Deals in Pipeline',
     description: 'Greg reports 8 deals under evaluation, narrowing to 5 finalists for Blue Spirit presentations.',
     actor: 'Greg Berry',
+    actorAvatar: 'GB',
     timestamp: '2026-03-04',
     timeAgo: '5 days ago',
     icon: Gem,
@@ -240,6 +250,7 @@ const activityData: ActivityItem[] = [
     title: 'Bioregions: Nicoya Community Partnership',
     description: 'Gareth met with local community leaders. Nosara School confirmed for Phase 1 partnership.',
     actor: 'Gareth Hermann',
+    actorAvatar: 'GH',
     timestamp: '2026-03-03',
     timeAgo: '6 days ago',
     icon: TreePine,
@@ -257,6 +268,7 @@ const activityData: ActivityItem[] = [
     title: 'Map Node MVP Specs In Progress',
     description: 'Fairman progressing on the coordination layer specs. The ecosystem nervous system is taking shape.',
     actor: 'Alex James Fairman',
+    actorAvatar: 'AF',
     timestamp: '2026-03-03',
     timeAgo: '6 days ago',
     icon: Globe,
@@ -274,6 +286,7 @@ const activityData: ActivityItem[] = [
     title: 'Node Lead Accountability Framework Set',
     description: 'Each node lead now required to submit quarterly OKRs, monthly updates, and join bi-weekly syncs.',
     actor: 'Core Stewardship Team',
+    actorAvatar: 'CS',
     timestamp: '2026-03-02',
     timeAgo: '1 week ago',
     icon: Network,
@@ -291,6 +304,7 @@ const activityData: ActivityItem[] = [
     title: 'Cabo 5.0 Completed Successfully',
     description: 'Flagship gathering concluded with 9.3/10 NPS. Teal governance adopted, DAF structure approved.',
     actor: 'Frequency Community',
+    actorAvatar: 'FC',
     timestamp: '2026-02-02',
     timeAgo: '5 weeks ago',
     icon: Calendar,
@@ -308,6 +322,7 @@ const activityData: ActivityItem[] = [
     title: 'Community Reaches ~65 Well-Stewards',
     description: 'Membership growing steadily toward the 144 target. Retention rate improving at 78%.',
     actor: 'Frequency Community',
+    actorAvatar: 'FC',
     timestamp: '2026-02-28',
     timeAgo: '1 week ago',
     icon: Heart,
@@ -325,10 +340,91 @@ const typeConfig: Record<ActivityType, { label: string; color: string; icon: Rea
   task: { label: 'Task', color: '#6b8f71', icon: CheckCircle2 },
   okr: { label: 'OKR', color: '#8b5cf6', icon: Target },
   governance: { label: 'Governance', color: '#d4a574', icon: Scale },
-  member: { label: 'Member', color: '#38bdf8', icon: UserPlus },
+  member: { label: 'Member', color: '#38bdf8', icon: Users },
   event: { label: 'Event', color: '#f97316', icon: Calendar },
-  milestone: { label: 'Milestone', color: '#fbbf24', icon: Gem },
+  milestone: { label: 'Milestone', color: '#fbbf24', icon: Award },
 };
+
+// ─── Animated Entry Wrapper ──────────────────────────────────────────────────
+
+function AnimatedEntry({ children, delay = 0, style }: {
+  children: React.ReactNode;
+  delay?: number;
+  style?: React.CSSProperties;
+}) {
+  const [visible, setVisible] = useState(false);
+  useEffect(() => {
+    const t = setTimeout(() => setVisible(true), delay);
+    return () => clearTimeout(t);
+  }, [delay]);
+  return (
+    <div
+      style={{
+        opacity: visible ? 1 : 0,
+        transform: visible ? 'translateY(0) scale(1)' : 'translateY(16px) scale(0.98)',
+        transition: 'opacity 0.45s ease-out, transform 0.45s ease-out',
+        ...style,
+      }}
+    >
+      {children}
+    </div>
+  );
+}
+
+// ─── SVG Mini Activity Chart ─────────────────────────────────────────────────
+
+function ActivityMiniChart({ data }: { data: { label: string; count: number; color: string }[] }) {
+  const maxCount = Math.max(...data.map(d => d.count), 1);
+  const barWidth = 14;
+  const gap = 6;
+  const chartHeight = 32;
+  const chartWidth = data.length * (barWidth + gap) - gap;
+
+  return (
+    <svg width={chartWidth} height={chartHeight + 16} viewBox={`0 0 ${chartWidth} ${chartHeight + 16}`}>
+      {data.map((d, i) => {
+        const barHeight = Math.max(2, (d.count / maxCount) * chartHeight);
+        const x = i * (barWidth + gap);
+        return (
+          <g key={d.label}>
+            <rect
+              x={x} y={chartHeight - barHeight} width={barWidth} height={barHeight}
+              rx={3} fill={d.color} opacity={0.7}
+            >
+              <title>{`${d.label}: ${d.count}`}</title>
+            </rect>
+            <text
+              x={x + barWidth / 2} y={chartHeight + 10}
+              textAnchor="middle" style={{ fontSize: 7, fill: '#4a443e' }}
+            >
+              {d.count}
+            </text>
+          </g>
+        );
+      })}
+    </svg>
+  );
+}
+
+// ─── User Avatar Badge ─────────────────────────────────────────────────────
+
+function AvatarBadge({ initials, color, size = 28 }: { initials: string; color: string; size?: number }) {
+  return (
+    <div style={{
+      width: size, height: size, borderRadius: '50%',
+      background: `${color}20`,
+      border: `1.5px solid ${color}40`,
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+      fontSize: size * 0.35, fontWeight: 700, color,
+      flexShrink: 0,
+      letterSpacing: '-0.02em',
+    }}>
+      {initials}
+    </div>
+  );
+}
+
+// ─── Helpers ─────────────────────────────────────────────────────────────────
 
 function formatDayLabel(dateStr: string, today: string): string {
   if (dateStr === today) return 'Today';
@@ -338,26 +434,7 @@ function formatDayLabel(dateStr: string, today: string): string {
   const yStr = yesterday.toISOString().split('T')[0];
   if (dateStr === yStr) return 'Yesterday';
   const d = new Date(dateStr + 'T00:00:00');
-  const diffDays = Math.floor((todayDate.getTime() - d.getTime()) / 86400000);
-  if (diffDays < 7) {
-    return d.toLocaleDateString('en-US', { weekday: 'long' });
-  }
   return d.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
-}
-
-function formatRelativeTimestamp(dateStr: string, today: string): string {
-  const todayDate = new Date(today + 'T12:00:00');
-  const d = new Date(dateStr + 'T12:00:00');
-  const diffMs = todayDate.getTime() - d.getTime();
-  const diffDays = Math.floor(diffMs / 86400000);
-
-  if (diffDays === 0) return 'Today';
-  if (diffDays === 1) return 'Yesterday';
-  if (diffDays < 7) return `${diffDays} days ago`;
-  if (diffDays < 14) return '1 week ago';
-  if (diffDays < 30) return `${Math.floor(diffDays / 7)} weeks ago`;
-  if (diffDays < 60) return '1 month ago';
-  return `${Math.floor(diffDays / 30)} months ago`;
 }
 
 function getStartOfWeek(today: string): string {
@@ -385,29 +462,18 @@ function saveBookmarks(ids: Set<string>) {
   localStorage.setItem(BOOKMARKS_KEY, JSON.stringify([...ids]));
 }
 
-// ─── Animated entry wrapper ──────────────────────────────────────────────────
-
-function FadeSlideIn({ children, delay = 0, style }: {
-  children: React.ReactNode;
-  delay?: number;
-  style?: React.CSSProperties;
-}) {
-  const [visible, setVisible] = useState(false);
-  useEffect(() => {
-    const t = setTimeout(() => setVisible(true), delay);
-    return () => clearTimeout(t);
-  }, [delay]);
-  return (
-    <div style={{
-      opacity: visible ? 1 : 0,
-      transform: visible ? 'translateY(0)' : 'translateY(8px)',
-      transition: 'opacity 0.35s ease-out, transform 0.35s ease-out',
-      ...style,
-    }}>
-      {children}
-    </div>
-  );
+function getActorColor(avatar: string): string {
+  const colorMap: Record<string, string> = {
+    'JH': '#d4a574', 'SH': '#f472b6', 'AF': '#8b5cf6', 'MX': '#38bdf8',
+    'DW': '#34d399', 'AN': '#a855f7', 'FI': '#f472b6', 'MF': '#2dd4bf',
+    'CG': '#d4a574', 'GB': '#22c55e', 'GH': '#84cc16', 'RA': '#f97316',
+    'WC': '#d4a574', 'BD': '#d4a574', 'CS': '#8b5cf6', 'FC': '#6b8f71',
+    'SS': '#818cf8', 'NP': '#94a3b8',
+  };
+  return colorMap[avatar] || '#a09888';
 }
+
+// ─── Component ───────────────────────────────────────────────────────────────
 
 export function ActivityView() {
   const [filterType, setFilterType] = useState<ActivityType | 'all' | 'bookmarked'>('all');
@@ -415,17 +481,10 @@ export function ActivityView() {
   const [timePeriod, setTimePeriod] = useState<TimePeriod>('all');
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [bookmarks, setBookmarks] = useState<Set<string>>(new Set());
-  const [visibleCount, setVisibleCount] = useState(ITEMS_PER_PAGE);
-  const [loadingMore, setLoadingMore] = useState(false);
 
   useEffect(() => {
     setBookmarks(loadBookmarks());
   }, []);
-
-  // Reset visible count when filters change
-  useEffect(() => {
-    setVisibleCount(ITEMS_PER_PAGE);
-  }, [filterType, searchQuery, timePeriod]);
 
   const toggleBookmark = useCallback((id: string, e: React.MouseEvent) => {
     e.stopPropagation();
@@ -470,26 +529,10 @@ export function ActivityView() {
     return items;
   }, [filterType, searchQuery, timePeriod, bookmarks, weekStart, monthStart]);
 
-  // Paginated activities
-  const paginatedActivities = useMemo(
-    () => filteredActivities.slice(0, visibleCount),
-    [filteredActivities, visibleCount]
-  );
-  const hasMore = visibleCount < filteredActivities.length;
-
-  const loadMore = useCallback(() => {
-    setLoadingMore(true);
-    setTimeout(() => {
-      setVisibleCount((prev) => prev + ITEMS_PER_PAGE);
-      setLoadingMore(false);
-    }, 400);
-  }, []);
-
-  // Group by day
   const groupedActivities = useMemo(() => {
     const groups: { date: string; label: string; items: ActivityItem[] }[] = [];
     const map = new Map<string, ActivityItem[]>();
-    paginatedActivities.forEach((item) => {
+    filteredActivities.forEach((item) => {
       const existing = map.get(item.timestamp);
       if (existing) existing.push(item);
       else map.set(item.timestamp, [item]);
@@ -499,7 +542,7 @@ export function ActivityView() {
     });
     groups.sort((a, b) => (a.date > b.date ? -1 : 1));
     return groups;
-  }, [paginatedActivities]);
+  }, [filteredActivities]);
 
   const typeCounts = useMemo(() => {
     const counts: Record<string, number> = { all: activityData.length };
@@ -536,256 +579,412 @@ export function ActivityView() {
   return (
     <div style={{ padding: '24px 32px', height: '100%', overflow: 'auto', backgroundColor: '#0b0d14' }}>
       {/* Header */}
-      <div style={{ marginBottom: 24 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
-          <div style={{
-            width: 36, height: 36, borderRadius: 10, display: 'flex', alignItems: 'center', justifyContent: 'center',
-            background: 'rgba(212,165,116,0.1)', border: '1px solid rgba(212,165,116,0.15)',
-          }}>
-            <Activity size={18} style={{ color: '#d4a574' }} />
-          </div>
-          <div>
-            <h1 style={{ fontSize: 22, fontWeight: 700, color: '#f0ebe4', margin: 0, letterSpacing: '-0.01em' }}>
-              Activity Feed
-            </h1>
-            <p style={{ fontSize: 12, color: '#6b6358', margin: '2px 0 0' }}>
-              Recent updates across all workstreams
-            </p>
+      <AnimatedEntry delay={0}>
+        <div style={{ marginBottom: 20 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
+            <div style={{
+              width: 36, height: 36, borderRadius: 10,
+              background: 'rgba(212, 165, 116, 0.1)',
+              border: '1px solid rgba(212, 165, 116, 0.2)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+            }}>
+              <Activity size={18} style={{ color: '#d4a574' }} />
+            </div>
+            <div>
+              <h1 style={{ fontSize: 22, fontWeight: 700, color: '#f0ebe4', margin: 0, letterSpacing: '-0.01em' }}>
+                Activity Feed
+              </h1>
+              <p style={{ fontSize: 12, color: '#6b6358', margin: 0 }}>
+                Recent updates across all workstreams
+              </p>
+            </div>
           </div>
         </div>
-      </div>
+      </AnimatedEntry>
 
       {/* Stats Summary Row */}
-      <div style={{ display: 'flex', gap: 12, marginBottom: 20, flexWrap: 'wrap', alignItems: 'stretch' }}>
-        {[
-          { label: 'Total Activities', value: activityData.length, color: '#f0ebe4', accent: '#a09888' },
-          { label: 'This Week', value: thisWeekCount, color: '#d4a574', accent: '#d4a574' },
-          { label: 'Positive Impact', value: positiveCount, color: '#6b8f71', accent: '#6b8f71' },
-          { label: 'Bookmarked', value: bookmarks.size, color: '#e8b44c', accent: '#e8b44c' },
-        ].map((stat) => (
-          <div key={stat.label} style={{
-            backgroundColor: '#0f1219', border: '1px solid #1e2638', borderRadius: 10,
-            padding: '12px 18px', minWidth: 110, flex: '1 1 0',
-            position: 'relative', overflow: 'hidden',
-          }}>
-            <div style={{
-              position: 'absolute', top: 0, left: 0, right: 0, height: 2,
-              background: `linear-gradient(90deg, ${stat.accent}40, transparent)`,
-            }} />
-            <div style={{
-              fontSize: 10, color: '#6b6358', textTransform: 'uppercase',
-              letterSpacing: '0.06em', marginBottom: 4,
-            }}>
-              {stat.label}
+      <AnimatedEntry delay={50}>
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))',
+            gap: 12,
+            marginBottom: 20,
+          }}
+        >
+          <div
+            style={{
+              backgroundColor: '#0f1219',
+              border: '1px solid #1e2638',
+              borderRadius: 12,
+              padding: '14px 18px',
+              transition: 'border-color 0.15s',
+            }}
+            onMouseEnter={(e) => { e.currentTarget.style.borderColor = '#2e3a4e'; }}
+            onMouseLeave={(e) => { e.currentTarget.style.borderColor = '#1e2638'; }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+              <div style={{ fontSize: 10, color: '#6b6358', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+                Total Activities
+              </div>
+              <Activity size={12} style={{ color: '#4a443e' }} />
             </div>
-            <div style={{ fontSize: 24, fontWeight: 700, color: stat.color }}>
-              {stat.value}
+            <div style={{ fontSize: 24, fontWeight: 700, color: '#f0ebe4' }}>
+              {activityData.length}
             </div>
           </div>
-        ))}
 
-        {/* Types Breakdown */}
-        <div style={{
-          backgroundColor: '#0f1219', border: '1px solid #1e2638', borderRadius: 10,
-          padding: '12px 18px', flex: '2 1 200px', position: 'relative', overflow: 'hidden',
-        }}>
-          <div style={{
-            fontSize: 10, color: '#6b6358', textTransform: 'uppercase',
-            letterSpacing: '0.06em', marginBottom: 8,
-          }}>
-            Types Breakdown
+          <div
+            style={{
+              backgroundColor: '#0f1219',
+              border: '1px solid #1e2638',
+              borderRadius: 12,
+              padding: '14px 18px',
+              transition: 'border-color 0.15s',
+            }}
+            onMouseEnter={(e) => { e.currentTarget.style.borderColor = 'rgba(212, 165, 116, 0.3)'; }}
+            onMouseLeave={(e) => { e.currentTarget.style.borderColor = '#1e2638'; }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+              <div style={{ fontSize: 10, color: '#6b6358', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+                This Week
+              </div>
+              <TrendingUp size={12} style={{ color: '#d4a574' }} />
+            </div>
+            <div style={{ fontSize: 24, fontWeight: 700, color: '#d4a574' }}>
+              {thisWeekCount}
+            </div>
           </div>
-          <div style={{
-            display: 'flex', height: 6, borderRadius: 3, overflow: 'hidden', backgroundColor: '#1e2638',
-          }}>
+
+          <div
+            style={{
+              backgroundColor: '#0f1219',
+              border: '1px solid #1e2638',
+              borderRadius: 12,
+              padding: '14px 18px',
+              transition: 'border-color 0.15s',
+            }}
+            onMouseEnter={(e) => { e.currentTarget.style.borderColor = 'rgba(107, 143, 113, 0.3)'; }}
+            onMouseLeave={(e) => { e.currentTarget.style.borderColor = '#1e2638'; }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+              <div style={{ fontSize: 10, color: '#6b6358', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+                Positive Impact
+              </div>
+              <div style={{
+                width: 8, height: 8, borderRadius: '50%', background: '#6b8f71',
+                boxShadow: '0 0 6px rgba(107,143,113,0.4)',
+              }} />
+            </div>
+            <div style={{ fontSize: 24, fontWeight: 700, color: '#6b8f71' }}>
+              {positiveCount}
+            </div>
+          </div>
+
+          <div
+            style={{
+              backgroundColor: '#0f1219',
+              border: '1px solid #1e2638',
+              borderRadius: 12,
+              padding: '14px 18px',
+              transition: 'border-color 0.15s',
+            }}
+            onMouseEnter={(e) => { e.currentTarget.style.borderColor = '#2e3a4e'; }}
+            onMouseLeave={(e) => { e.currentTarget.style.borderColor = '#1e2638'; }}
+          >
+            <div style={{ fontSize: 10, color: '#6b6358', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 8 }}>
+              Type Distribution
+            </div>
+            <ActivityMiniChart
+              data={typeBreakdown.filter(t => t.count > 0).map(t => ({
+                label: t.label,
+                count: t.count,
+                color: t.color,
+              }))}
+            />
+          </div>
+        </div>
+      </AnimatedEntry>
+
+      {/* Stacked bar */}
+      <AnimatedEntry delay={100}>
+        <div style={{ marginBottom: 16 }}>
+          <div
+            style={{
+              display: 'flex',
+              height: 6,
+              borderRadius: 3,
+              overflow: 'hidden',
+              backgroundColor: '#1e2638',
+            }}
+          >
             {typeBreakdown.map((t) => (
-              <div key={t.type} style={{
-                width: `${t.pct}%`, backgroundColor: t.color, transition: 'width 0.3s',
-              }} title={`${t.label}: ${t.count}`} />
+              <div
+                key={t.type}
+                style={{
+                  width: `${t.pct}%`,
+                  backgroundColor: t.color,
+                  transition: 'width 0.4s ease',
+                }}
+                title={`${t.label}: ${t.count}`}
+              />
             ))}
           </div>
-          <div style={{ display: 'flex', gap: 10, marginTop: 6, flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', gap: 12, marginTop: 6, flexWrap: 'wrap' }}>
             {typeBreakdown.filter((t) => t.count > 0).map((t) => (
               <div key={t.type} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
                 <div style={{ width: 6, height: 6, borderRadius: '50%', backgroundColor: t.color }} />
-                <span style={{ fontSize: 10, color: '#6b6358' }}>{t.label} {t.count}</span>
+                <span style={{ fontSize: 10, color: '#6b6358' }}>
+                  {t.label} {t.count}
+                </span>
               </div>
             ))}
           </div>
         </div>
-      </div>
+      </AnimatedEntry>
 
       {/* Search Bar */}
-      <div style={{ marginBottom: 14, position: 'relative' }}>
-        <Search size={14} style={{
-          position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)',
-          color: '#4a443e', pointerEvents: 'none',
-        }} />
-        <input
-          type="text"
-          placeholder="Search activities by title, description, or person..."
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-          style={{
-            width: '100%', padding: '10px 14px 10px 38px',
-            backgroundColor: '#0f1219', border: '1px solid #1e2638', borderRadius: 10,
-            color: '#f0ebe4', fontSize: 13, fontFamily: 'inherit', outline: 'none',
-            transition: 'border-color 0.15s', boxSizing: 'border-box',
-          }}
-          onFocus={(e) => { e.currentTarget.style.borderColor = '#2e3a4e'; }}
-          onBlur={(e) => { e.currentTarget.style.borderColor = '#1e2638'; }}
-        />
-        {searchQuery && (
-          <button
-            onClick={() => setSearchQuery('')}
+      <AnimatedEntry delay={120}>
+        <div style={{ marginBottom: 16, position: 'relative' }}>
+          <Search
+            size={14}
             style={{
-              position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)',
-              background: 'rgba(107,99,88,0.2)', border: 'none', borderRadius: 4,
-              padding: '2px 4px', cursor: 'pointer', color: '#6b6358', display: 'flex',
-              alignItems: 'center',
+              position: 'absolute',
+              left: 12,
+              top: '50%',
+              transform: 'translateY(-50%)',
+              color: '#4a443e',
+              pointerEvents: 'none',
             }}
-          >
-            <span style={{ fontSize: 11 }}>Clear</span>
-          </button>
-        )}
-      </div>
+          />
+          <input
+            type="text"
+            placeholder="Search activities by title, description, or person..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            style={{
+              width: '100%',
+              padding: '10px 14px 10px 34px',
+              backgroundColor: '#0f1219',
+              border: '1px solid #1e2638',
+              borderRadius: 10,
+              color: '#f0ebe4',
+              fontSize: 13,
+              fontFamily: 'inherit',
+              outline: 'none',
+              transition: 'border-color 0.15s',
+              boxSizing: 'border-box',
+            }}
+            onFocus={(e) => { e.currentTarget.style.borderColor = '#2e3a4e'; }}
+            onBlur={(e) => { e.currentTarget.style.borderColor = '#1e2638'; }}
+          />
+        </div>
+      </AnimatedEntry>
 
       {/* Time Period Filter */}
-      <div style={{ display: 'flex', gap: 6, marginBottom: 10 }}>
-        {([
-          { key: 'all' as TimePeriod, label: 'All Time' },
-          { key: 'week' as TimePeriod, label: 'This Week' },
-          { key: 'month' as TimePeriod, label: 'This Month' },
-        ]).map(({ key, label }) => {
-          const isActive = timePeriod === key;
-          return (
-            <button
-              key={key}
-              onClick={() => setTimePeriod(key)}
-              style={{
-                padding: '5px 14px', borderRadius: 8,
-                border: isActive ? '1px solid rgba(139, 92, 246, 0.3)' : '1px solid #1e2638',
-                cursor: 'pointer',
-                backgroundColor: isActive ? 'rgba(139, 92, 246, 0.1)' : 'transparent',
-                color: isActive ? '#8b5cf6' : '#6b6358',
-                fontSize: 11, fontWeight: isActive ? 600 : 400,
-                fontFamily: 'inherit', transition: 'all 0.15s',
-                display: 'flex', alignItems: 'center', gap: 5,
-              }}
-              onMouseEnter={(e) => {
-                if (!isActive) { e.currentTarget.style.borderColor = '#2e3a4e'; e.currentTarget.style.color = '#a09888'; }
-              }}
-              onMouseLeave={(e) => {
-                if (!isActive) { e.currentTarget.style.borderColor = '#1e2638'; e.currentTarget.style.color = '#6b6358'; }
-              }}
-            >
-              <CalendarDays size={11} />
-              {label}
-            </button>
-          );
-        })}
-      </div>
-
-      {/* Type Filter Tabs */}
-      <div style={{ display: 'flex', gap: 6, marginBottom: 24, flexWrap: 'wrap' }}>
-        {(['all', 'task', 'okr', 'governance', 'member', 'event', 'milestone', 'bookmarked'] as const).map(
-          (type) => {
-            const isActive = filterType === type;
-            const config =
-              type === 'all'
-                ? { label: 'All', color: '#a09888', icon: Activity }
-                : type === 'bookmarked'
-                ? { label: 'Bookmarked', color: '#d4a574', icon: Star }
-                : typeConfig[type];
-            const count =
-              type === 'bookmarked' ? bookmarks.size : typeCounts[type] || 0;
-            const TypeIcon = 'icon' in config ? config.icon : Activity;
-
+      <AnimatedEntry delay={140}>
+        <div style={{ display: 'flex', gap: 6, marginBottom: 12 }}>
+          {([
+            { key: 'all' as TimePeriod, label: 'All Time' },
+            { key: 'week' as TimePeriod, label: 'This Week' },
+            { key: 'month' as TimePeriod, label: 'This Month' },
+          ]).map(({ key, label }) => {
+            const isActive = timePeriod === key;
             return (
               <button
-                key={type}
-                onClick={() => setFilterType(type)}
+                key={key}
+                onClick={() => setTimePeriod(key)}
                 style={{
-                  padding: '6px 14px', borderRadius: 20,
-                  border: isActive ? `1px solid ${config.color}44` : '1px solid #1e2638',
+                  padding: '5px 12px',
+                  borderRadius: 8,
+                  border: isActive ? '1px solid rgba(139, 92, 246, 0.3)' : '1px solid #1e2638',
                   cursor: 'pointer',
-                  backgroundColor: isActive ? `${config.color}18` : 'transparent',
-                  color: isActive ? config.color : '#6b6358',
-                  fontSize: 12, fontWeight: isActive ? 600 : 400,
-                  fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 6,
+                  backgroundColor: isActive ? 'rgba(139, 92, 246, 0.1)' : 'transparent',
+                  color: isActive ? '#8b5cf6' : '#6b6358',
+                  fontSize: 11,
+                  fontWeight: isActive ? 600 : 400,
+                  fontFamily: 'inherit',
                   transition: 'all 0.15s',
                 }}
                 onMouseEnter={(e) => {
-                  if (!isActive) { e.currentTarget.style.borderColor = '#2e3a4e'; e.currentTarget.style.color = '#a09888'; }
+                  if (!isActive) {
+                    e.currentTarget.style.borderColor = '#2e3a4e';
+                    e.currentTarget.style.color = '#a09888';
+                  }
                 }}
                 onMouseLeave={(e) => {
-                  if (!isActive) { e.currentTarget.style.borderColor = '#1e2638'; e.currentTarget.style.color = '#6b6358'; }
+                  if (!isActive) {
+                    e.currentTarget.style.borderColor = '#1e2638';
+                    e.currentTarget.style.color = '#6b6358';
+                  }
                 }}
               >
-                <TypeIcon size={12} />
-                {config.label}
-                <span style={{
-                  fontSize: 10, fontWeight: 700,
-                  backgroundColor: isActive ? `${config.color}22` : '#1e2638',
-                  color: isActive ? config.color : '#6b6358',
-                  borderRadius: 8, padding: '1px 6px',
-                }}>
-                  {count}
-                </span>
+                {label}
               </button>
             );
-          }
-        )}
-      </div>
+          })}
+        </div>
+      </AnimatedEntry>
+
+      {/* Type Filter Tabs */}
+      <AnimatedEntry delay={160}>
+        <div style={{ display: 'flex', gap: 6, marginBottom: 24, flexWrap: 'wrap' }}>
+          {(['all', 'task', 'okr', 'governance', 'member', 'event', 'milestone', 'bookmarked'] as const).map(
+            (type) => {
+              const isActive = filterType === type;
+              const config =
+                type === 'all'
+                  ? { label: 'All', color: '#a09888' }
+                  : type === 'bookmarked'
+                  ? { label: 'Bookmarked', color: '#d4a574' }
+                  : typeConfig[type];
+              const count =
+                type === 'bookmarked' ? bookmarks.size : typeCounts[type] || 0;
+              const isBookmarked = type === 'bookmarked';
+              const TypeIcon = type !== 'all' && type !== 'bookmarked' ? typeConfig[type].icon : null;
+
+              return (
+                <button
+                  key={type}
+                  onClick={() => setFilterType(type)}
+                  style={{
+                    padding: '6px 14px',
+                    borderRadius: 20,
+                    border: isActive ? `1px solid ${config.color}44` : '1px solid #1e2638',
+                    cursor: 'pointer',
+                    backgroundColor: isActive ? `${config.color}18` : 'transparent',
+                    color: isActive ? config.color : '#6b6358',
+                    fontSize: 12,
+                    fontWeight: isActive ? 600 : 400,
+                    fontFamily: 'inherit',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 6,
+                    transition: 'all 0.15s',
+                  }}
+                  onMouseEnter={(e) => {
+                    if (!isActive) {
+                      e.currentTarget.style.borderColor = '#2e3a4e';
+                      e.currentTarget.style.color = '#a09888';
+                    }
+                  }}
+                  onMouseLeave={(e) => {
+                    if (!isActive) {
+                      e.currentTarget.style.borderColor = '#1e2638';
+                      e.currentTarget.style.color = '#6b6358';
+                    }
+                  }}
+                >
+                  {isBookmarked && <Star size={11} />}
+                  {TypeIcon && <TypeIcon size={11} />}
+                  {config.label}
+                  <span
+                    style={{
+                      fontSize: 10,
+                      fontWeight: 700,
+                      backgroundColor: isActive ? `${config.color}22` : '#1e2638',
+                      color: isActive ? config.color : '#6b6358',
+                      borderRadius: 8,
+                      padding: '1px 6px',
+                    }}
+                  >
+                    {count}
+                  </span>
+                </button>
+              );
+            }
+          )}
+        </div>
+      </AnimatedEntry>
 
       {/* Activity Timeline with Day Grouping */}
       <div style={{ position: 'relative' }}>
-        {/* Timeline vertical line */}
-        {groupedActivities.length > 0 && (
-          <div style={{
-            position: 'absolute', left: 19, top: 0, bottom: 40,
-            width: 2, borderRadius: 1,
-            background: 'linear-gradient(to bottom, #2e3a4e, #1e2638 30%, #1e2638 70%, transparent)',
-          }} />
-        )}
+        {/* Timeline connector line */}
+        <div
+          style={{
+            position: 'absolute',
+            left: 19,
+            top: 0,
+            bottom: 0,
+            width: 2,
+            background: 'linear-gradient(to bottom, #2e3a4e, #1e2638 40%, #1e2638 80%, transparent)',
+            borderRadius: 1,
+          }}
+        />
 
         {groupedActivities.map((group, gi) => (
           <div key={group.date}>
             {/* Day Header */}
-            <FadeSlideIn delay={gi * 60} style={{ position: 'relative', zIndex: 5 }}>
-              <div style={{
-                position: 'sticky', top: 0, zIndex: 10,
-                display: 'flex', alignItems: 'center', gap: 12,
-                paddingTop: gi === 0 ? 0 : 20, paddingBottom: 12,
-                backgroundColor: '#0b0d14',
-              }}>
-                <div style={{
-                  width: 40, display: 'flex', justifyContent: 'center', flexShrink: 0, zIndex: 2,
-                }}>
-                  <div style={{
-                    width: 12, height: 12, borderRadius: '50%',
-                    backgroundColor: '#0f1219', border: '2px solid #d4a574',
-                    boxShadow: '0 0 8px rgba(212,165,116,0.2)',
-                  }} />
+            <AnimatedEntry delay={200 + gi * 40}>
+              <div
+                style={{
+                  position: 'sticky',
+                  top: 0,
+                  zIndex: 10,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 12,
+                  paddingTop: gi === 0 ? 0 : 16,
+                  paddingBottom: 12,
+                  backgroundColor: '#0b0d14',
+                }}
+              >
+                <div
+                  style={{
+                    width: 40,
+                    display: 'flex',
+                    justifyContent: 'center',
+                    flexShrink: 0,
+                    zIndex: 2,
+                  }}
+                >
+                  <div
+                    style={{
+                      width: 12,
+                      height: 12,
+                      borderRadius: '50%',
+                      backgroundColor: group.label === 'Today' ? '#d4a574' : group.label === 'Yesterday' ? '#8b5cf6' : '#1e2638',
+                      border: `2px solid ${group.label === 'Today' ? 'rgba(212,165,116,0.4)' : group.label === 'Yesterday' ? 'rgba(139,92,246,0.3)' : '#2e3a4e'}`,
+                      boxShadow: group.label === 'Today' ? '0 0 8px rgba(212,165,116,0.3)' : 'none',
+                    }}
+                  />
                 </div>
-                <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 10 }}>
-                  <span style={{
-                    fontSize: 12, fontWeight: 700, color: '#d4a574',
-                    textTransform: 'uppercase', letterSpacing: '0.05em', whiteSpace: 'nowrap',
-                  }}>
+                <div
+                  style={{
+                    flex: 1,
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 10,
+                  }}
+                >
+                  <span
+                    style={{
+                      fontSize: 11,
+                      fontWeight: 700,
+                      color: group.label === 'Today' ? '#d4a574' : '#a09888',
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.06em',
+                      whiteSpace: 'nowrap',
+                    }}
+                  >
                     {group.label}
                   </span>
-                  <div style={{ flex: 1, height: 1, backgroundColor: '#1e2638' }} />
+                  <div
+                    style={{
+                      flex: 1,
+                      height: 1,
+                      backgroundColor: '#1e2638',
+                    }}
+                  />
                   <span style={{
                     fontSize: 10, color: '#4a443e', whiteSpace: 'nowrap',
-                    background: '#0f1219', padding: '2px 8px', borderRadius: 4,
-                    border: '1px solid #1e2638',
+                    background: 'rgba(30,38,56,0.3)', padding: '2px 8px', borderRadius: 6,
                   }}>
                     {group.items.length} {group.items.length === 1 ? 'activity' : 'activities'}
                   </span>
                 </div>
               </div>
-            </FadeSlideIn>
+            </AnimatedEntry>
 
             {/* Activities in this group */}
             {group.items.map((item, idx) => {
@@ -794,78 +993,103 @@ export function ActivityView() {
               const isExpanded = expandedId === item.id;
               const isBookmarked = bookmarks.has(item.id);
               const impactCfg = impactConfig[item.impact];
+              const isLast = gi === groupedActivities.length - 1 && idx === group.items.length - 1;
               const currentAnimIndex = animationIndex++;
 
               return (
-                <FadeSlideIn key={item.id} delay={80 + currentAnimIndex * 50}>
-                  <div style={{ display: 'flex', gap: 16, position: 'relative' }}>
-                    {/* Timeline icon node */}
-                    <div style={{
-                      width: 40, height: 40, borderRadius: '50%',
-                      backgroundColor: item.iconBg,
-                      border: `2px solid ${item.iconColor}30`,
-                      display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      flexShrink: 0, zIndex: 1,
-                      boxShadow: isExpanded ? `0 0 12px ${item.iconColor}20` : 'none',
-                      transition: 'box-shadow 0.2s',
-                    }}>
+                <AnimatedEntry key={item.id} delay={250 + currentAnimIndex * 50}>
+                  <div
+                    style={{
+                      display: 'flex',
+                      gap: 16,
+                      marginBottom: isLast ? 0 : 4,
+                      position: 'relative',
+                    }}
+                  >
+                    {/* Timeline dot + icon */}
+                    <div
+                      style={{
+                        width: 40,
+                        height: 40,
+                        borderRadius: '50%',
+                        backgroundColor: item.iconBg,
+                        border: `2px solid ${item.iconColor}33`,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        flexShrink: 0,
+                        zIndex: 1,
+                        transition: 'transform 0.2s, box-shadow 0.2s',
+                      }}
+                    >
                       <Icon size={16} style={{ color: item.iconColor }} />
                     </div>
 
                     {/* Content Card */}
                     <div
                       style={{
-                        flex: 1, backgroundColor: '#0f1219',
-                        border: `1px solid ${isExpanded ? '#2e3a4e' : '#1e2638'}`,
-                        borderRadius: 12, padding: '14px 18px', marginBottom: 12,
-                        transition: 'all 0.2s', cursor: 'pointer', position: 'relative',
-                        overflow: 'hidden',
+                        flex: 1,
+                        backgroundColor: '#0f1219',
+                        border: `1px solid ${isExpanded ? '#2e3a4e' : item.impact === 'concern' ? 'rgba(239,68,68,0.2)' : '#1e2638'}`,
+                        borderLeft: `3px solid ${impactCfg.dot}`,
+                        borderRadius: 12,
+                        padding: '14px 18px',
+                        marginBottom: 12,
+                        transition: 'border-color 0.15s, box-shadow 0.15s',
+                        cursor: 'pointer',
                       }}
                       onClick={() => setExpandedId(isExpanded ? null : item.id)}
                       onMouseEnter={(e) => {
                         e.currentTarget.style.borderColor = '#2e3a4e';
-                        e.currentTarget.style.boxShadow = '0 4px 16px rgba(0,0,0,0.15)';
+                        e.currentTarget.style.borderLeftColor = impactCfg.dot;
+                        e.currentTarget.style.boxShadow = `0 2px 12px rgba(0,0,0,0.15), inset 3px 0 0 ${impactCfg.dot}`;
                       }}
                       onMouseLeave={(e) => {
-                        if (!isExpanded) e.currentTarget.style.borderColor = '#1e2638';
+                        if (!isExpanded) {
+                          e.currentTarget.style.borderColor = item.impact === 'concern' ? 'rgba(239,68,68,0.2)' : '#1e2638';
+                        }
+                        e.currentTarget.style.borderLeftColor = impactCfg.dot;
                         e.currentTarget.style.boxShadow = 'none';
                       }}
                     >
-                      {/* Left accent bar */}
-                      <div style={{
-                        position: 'absolute', top: 0, left: 0, width: 3, height: '100%',
-                        background: `linear-gradient(to bottom, ${tConfig.color}, transparent)`,
-                        borderRadius: '12px 0 0 12px',
-                        opacity: isExpanded ? 0.8 : 0.3,
-                        transition: 'opacity 0.2s',
-                      }} />
-
                       {/* Top row */}
-                      <div style={{
-                        display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between',
-                        gap: 8, marginBottom: 6,
-                      }}>
+                      <div
+                        style={{
+                          display: 'flex',
+                          alignItems: 'flex-start',
+                          justifyContent: 'space-between',
+                          gap: 8,
+                          marginBottom: 6,
+                        }}
+                      >
                         <div style={{ flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
-                          {/* Impact Dot with glow */}
-                          <div title={impactCfg.label} style={{
-                            width: 8, height: 8, borderRadius: '50%',
-                            backgroundColor: impactCfg.dot, flexShrink: 0,
-                            boxShadow: `0 0 6px ${impactCfg.glow}`,
-                          }} />
+                          <div
+                            title={impactCfg.label}
+                            style={{
+                              width: 8,
+                              height: 8,
+                              borderRadius: '50%',
+                              backgroundColor: impactCfg.dot,
+                              flexShrink: 0,
+                              boxShadow: `0 0 6px ${impactCfg.glow}`,
+                            }}
+                          />
                           <h3 style={{ fontSize: 13, fontWeight: 700, color: '#f0ebe4', margin: 0, lineHeight: 1.4 }}>
                             {item.title}
                           </h3>
                         </div>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
-                          {/* Bookmark star */}
                           <button
                             onClick={(e) => toggleBookmark(item.id, e)}
                             style={{
-                              background: 'none', border: 'none', cursor: 'pointer', padding: 2,
-                              display: 'flex', alignItems: 'center',
+                              background: 'none',
+                              border: 'none',
+                              cursor: 'pointer',
+                              padding: 2,
+                              display: 'flex',
+                              alignItems: 'center',
                               color: isBookmarked ? '#d4a574' : '#4a443e',
-                              transition: 'all 0.15s',
-                              transform: isBookmarked ? 'scale(1.1)' : 'scale(1)',
+                              transition: 'color 0.15s',
                             }}
                             onMouseEnter={(e) => {
                               if (!isBookmarked) e.currentTarget.style.color = '#a09888';
@@ -875,131 +1099,205 @@ export function ActivityView() {
                             }}
                             title={isBookmarked ? 'Remove bookmark' : 'Bookmark activity'}
                           >
-                            <Star size={13} fill={isBookmarked ? '#d4a574' : 'none'} />
+                            <Star
+                              size={13}
+                              fill={isBookmarked ? '#d4a574' : 'none'}
+                            />
                           </button>
-                          {/* Expand chevron */}
-                          <div style={{
-                            transition: 'transform 0.2s',
-                            transform: isExpanded ? 'rotate(90deg)' : 'rotate(0)',
-                          }}>
-                            <ChevronRight size={13} style={{ color: '#6b6358' }} />
-                          </div>
-                          {/* Type badge */}
-                          <span style={{
-                            padding: '2px 8px', borderRadius: 6,
-                            backgroundColor: `${tConfig.color}15`, color: tConfig.color,
-                            fontSize: 10, fontWeight: 600, whiteSpace: 'nowrap',
-                            display: 'flex', alignItems: 'center', gap: 4,
-                          }}>
+                          {isExpanded ? (
+                            <ChevronDown size={13} style={{ color: '#6b6358' }} />
+                          ) : (
+                            <ChevronRight size={13} style={{ color: '#4a443e' }} />
+                          )}
+                          <span
+                            style={{
+                              padding: '2px 8px',
+                              borderRadius: 6,
+                              backgroundColor: `${tConfig.color}15`,
+                              color: tConfig.color,
+                              fontSize: 10,
+                              fontWeight: 600,
+                              whiteSpace: 'nowrap',
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: 4,
+                            }}
+                          >
+                            <tConfig.icon size={9} />
                             {tConfig.label}
                           </span>
                         </div>
                       </div>
 
                       {/* Description */}
-                      <p style={{ fontSize: 12, color: '#a09888', lineHeight: 1.6, margin: '0 0 8px' }}>
+                      <p style={{ fontSize: 12, color: '#a09888', lineHeight: 1.5, margin: '0 0 8px' }}>
                         {item.description}
                       </p>
 
-                      {/* Bottom meta */}
-                      <div style={{
-                        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                        fontSize: 11, color: '#6b6358',
-                      }}>
-                        <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-                          <div style={{
-                            width: 18, height: 18, borderRadius: '50%',
-                            background: `${item.iconColor}15`,
-                            display: 'flex', alignItems: 'center', justifyContent: 'center',
-                          }}>
-                            <Zap size={9} style={{ color: item.iconColor }} />
-                          </div>
-                          {item.actor}
+                      {/* Bottom meta with avatar badge */}
+                      <div
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          fontSize: 11,
+                          color: '#6b6358',
+                        }}
+                      >
+                        <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                          <AvatarBadge
+                            initials={item.actorAvatar}
+                            color={getActorColor(item.actorAvatar)}
+                            size={22}
+                          />
+                          <span style={{ color: '#a09888', fontWeight: 500 }}>{item.actor}</span>
                         </span>
-                        <span style={{
-                          display: 'flex', alignItems: 'center', gap: 4,
-                          padding: '1px 6px', borderRadius: 4,
-                          background: 'rgba(30,38,56,0.3)',
-                        }}>
+                        <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
                           <Clock size={10} />
-                          {formatRelativeTimestamp(item.timestamp, today)}
+                          {item.timeAgo}
                         </span>
                       </div>
 
                       {/* Expanded Details */}
                       {isExpanded && (
-                        <div style={{
-                          marginTop: 14, paddingTop: 14, borderTop: '1px solid #1e2638',
-                          animation: 'fadeIn 0.3s ease-out',
-                        }}>
-                          {/* Detail grid */}
+                        <div
+                          style={{
+                            marginTop: 14,
+                            paddingTop: 14,
+                            borderTop: '1px solid #1e2638',
+                          }}
+                        >
                           <div style={{ marginBottom: 14 }}>
-                            <div style={{
-                              fontSize: 11, color: '#6b6358', marginBottom: 8,
-                              display: 'flex', alignItems: 'center', gap: 5,
-                            }}>
+                            <div style={{ fontSize: 11, color: '#6b6358', marginBottom: 6, display: 'flex', alignItems: 'center', gap: 5 }}>
                               <BarChart3 size={11} style={{ color: '#4a443e' }} />
                               Details
                             </div>
-                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-                              {[
-                                { label: 'Impact', value: impactCfg.label, color: impactCfg.dot, dot: true },
-                                { label: 'Date', value: new Date(item.timestamp + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }), color: '#f0ebe4' },
-                                { label: 'Type', value: tConfig.label, color: tConfig.color },
-                                { label: 'Actor', value: item.actor, color: '#f0ebe4' },
-                              ].map((d) => (
-                                <div key={d.label} style={{
-                                  backgroundColor: 'rgba(30, 38, 56, 0.3)', borderRadius: 8, padding: '8px 12px',
-                                }}>
-                                  <div style={{ fontSize: 10, color: '#4a443e', marginBottom: 2 }}>{d.label}</div>
-                                  <div style={{
-                                    fontSize: 12, color: d.color, fontWeight: 600,
-                                    display: 'flex', alignItems: 'center', gap: 5,
-                                  }}>
-                                    {d.dot && (
-                                      <div style={{
-                                        width: 6, height: 6, borderRadius: '50%', backgroundColor: d.color,
-                                      }} />
-                                    )}
-                                    {d.value}
-                                  </div>
+                            <div
+                              style={{
+                                display: 'grid',
+                                gridTemplateColumns: '1fr 1fr',
+                                gap: 8,
+                              }}
+                            >
+                              <div
+                                style={{
+                                  backgroundColor: 'rgba(30, 38, 56, 0.3)',
+                                  borderRadius: 8,
+                                  padding: '8px 12px',
+                                }}
+                              >
+                                <div style={{ fontSize: 10, color: '#4a443e', marginBottom: 2 }}>Impact</div>
+                                <div style={{ fontSize: 12, color: impactCfg.dot, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 5 }}>
+                                  <div
+                                    style={{
+                                      width: 6,
+                                      height: 6,
+                                      borderRadius: '50%',
+                                      backgroundColor: impactCfg.dot,
+                                      boxShadow: `0 0 4px ${impactCfg.glow}`,
+                                    }}
+                                  />
+                                  {impactCfg.label}
                                 </div>
-                              ))}
+                              </div>
+                              <div
+                                style={{
+                                  backgroundColor: 'rgba(30, 38, 56, 0.3)',
+                                  borderRadius: 8,
+                                  padding: '8px 12px',
+                                }}
+                              >
+                                <div style={{ fontSize: 10, color: '#4a443e', marginBottom: 2 }}>Date</div>
+                                <div style={{ fontSize: 12, color: '#f0ebe4', fontWeight: 500 }}>
+                                  {new Date(item.timestamp + 'T00:00:00').toLocaleDateString('en-US', {
+                                    month: 'short',
+                                    day: 'numeric',
+                                    year: 'numeric',
+                                  })}
+                                </div>
+                              </div>
+                              <div
+                                style={{
+                                  backgroundColor: 'rgba(30, 38, 56, 0.3)',
+                                  borderRadius: 8,
+                                  padding: '8px 12px',
+                                }}
+                              >
+                                <div style={{ fontSize: 10, color: '#4a443e', marginBottom: 2 }}>Type</div>
+                                <div style={{ fontSize: 12, color: tConfig.color, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 4 }}>
+                                  <tConfig.icon size={11} />
+                                  {tConfig.label}
+                                </div>
+                              </div>
+                              <div
+                                style={{
+                                  backgroundColor: 'rgba(30, 38, 56, 0.3)',
+                                  borderRadius: 8,
+                                  padding: '8px 12px',
+                                }}
+                              >
+                                <div style={{ fontSize: 10, color: '#4a443e', marginBottom: 2 }}>Actor</div>
+                                <div style={{ fontSize: 12, color: '#f0ebe4', fontWeight: 500, display: 'flex', alignItems: 'center', gap: 5 }}>
+                                  <AvatarBadge initials={item.actorAvatar} color={getActorColor(item.actorAvatar)} size={18} />
+                                  {item.actor}
+                                </div>
+                              </div>
                             </div>
                           </div>
 
                           {/* Related Items */}
                           <div>
-                            <div style={{
-                              fontSize: 11, color: '#6b6358', marginBottom: 8,
-                              display: 'flex', alignItems: 'center', gap: 5,
-                            }}>
+                            <div style={{ fontSize: 11, color: '#6b6358', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 5 }}>
                               <Link2 size={11} style={{ color: '#4a443e' }} />
                               Related Items
                             </div>
                             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                               {item.relatedItems.map((rel, ri) => (
-                                <div key={ri} style={{
-                                  display: 'flex', alignItems: 'center', gap: 8,
-                                  padding: '8px 12px', borderRadius: 8,
-                                  backgroundColor: 'rgba(30, 38, 56, 0.2)',
-                                  border: '1px solid #1e2638',
-                                  transition: 'border-color 0.15s',
-                                }}
-                                  onMouseEnter={(e) => { e.currentTarget.style.borderColor = '#2e3a4e'; }}
-                                  onMouseLeave={(e) => { e.currentTarget.style.borderColor = '#1e2638'; }}
+                                <div
+                                  key={ri}
+                                  style={{
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: 8,
+                                    padding: '7px 12px',
+                                    borderRadius: 8,
+                                    backgroundColor: 'rgba(30, 38, 56, 0.2)',
+                                    border: '1px solid #1e2638',
+                                    transition: 'border-color 0.15s',
+                                    cursor: 'default',
+                                  }}
+                                  onMouseEnter={(e) => {
+                                    e.currentTarget.style.borderColor = '#2e3a4e';
+                                  }}
+                                  onMouseLeave={(e) => {
+                                    e.currentTarget.style.borderColor = '#1e2638';
+                                  }}
                                 >
-                                  <div style={{
-                                    width: 5, height: 5, borderRadius: '50%',
-                                    backgroundColor: rel.color, flexShrink: 0,
-                                  }} />
-                                  <span style={{ fontSize: 12, color: '#a09888', flex: 1 }}>{rel.label}</span>
-                                  <span style={{
-                                    fontSize: 9, color: '#4a443e',
-                                    backgroundColor: 'rgba(30, 38, 56, 0.5)',
-                                    padding: '2px 8px', borderRadius: 4,
-                                    fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em',
-                                  }}>
+                                  <div
+                                    style={{
+                                      width: 5,
+                                      height: 5,
+                                      borderRadius: '50%',
+                                      backgroundColor: rel.color,
+                                      flexShrink: 0,
+                                      boxShadow: `0 0 4px ${rel.color}40`,
+                                    }}
+                                  />
+                                  <span style={{ fontSize: 12, color: '#a09888', flex: 1 }}>
+                                    {rel.label}
+                                  </span>
+                                  <span
+                                    style={{
+                                      fontSize: 9,
+                                      color: '#4a443e',
+                                      backgroundColor: 'rgba(30, 38, 56, 0.5)',
+                                      padding: '1px 6px',
+                                      borderRadius: 4,
+                                      fontWeight: 600,
+                                      textTransform: 'uppercase',
+                                      letterSpacing: '0.04em',
+                                    }}
+                                  >
                                     {rel.workstream}
                                   </span>
                                 </div>
@@ -1010,92 +1308,27 @@ export function ActivityView() {
                       )}
                     </div>
                   </div>
-                </FadeSlideIn>
+                </AnimatedEntry>
               );
             })}
           </div>
         ))}
 
-        {/* Load More Button */}
-        {hasMore && (
-          <div style={{ display: 'flex', justifyContent: 'center', padding: '20px 0 8px' }}>
-            <button
-              onClick={loadMore}
-              disabled={loadingMore}
-              style={{
-                padding: '10px 28px', borderRadius: 10,
-                background: 'rgba(212,165,116,0.08)',
-                border: '1px solid rgba(212,165,116,0.2)',
-                color: '#d4a574', fontSize: 13, fontWeight: 600,
-                fontFamily: 'inherit', cursor: loadingMore ? 'wait' : 'pointer',
-                display: 'flex', alignItems: 'center', gap: 8,
-                transition: 'all 0.15s',
-                opacity: loadingMore ? 0.6 : 1,
-              }}
-              onMouseEnter={(e) => {
-                if (!loadingMore) e.currentTarget.style.background = 'rgba(212,165,116,0.15)';
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.background = 'rgba(212,165,116,0.08)';
-              }}
-            >
-              {loadingMore ? (
-                <>
-                  <Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} />
-                  Loading...
-                </>
-              ) : (
-                <>
-                  <ChevronDown size={14} />
-                  Load More ({filteredActivities.length - visibleCount} remaining)
-                </>
-              )}
-            </button>
-          </div>
-        )}
-
-        {/* Showing count */}
-        {filteredActivities.length > 0 && (
-          <div style={{
-            textAlign: 'center', padding: '8px 0 16px', fontSize: 11, color: '#4a443e',
-          }}>
-            Showing {paginatedActivities.length} of {filteredActivities.length} activities
-          </div>
-        )}
-
         {filteredActivities.length === 0 && (
-          <div style={{
-            textAlign: 'center', padding: 48, color: '#6b6358',
-            display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12,
-          }}>
-            <div style={{
-              width: 56, height: 56, borderRadius: 16,
-              background: 'rgba(107,99,88,0.08)',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-            }}>
-              <Filter size={24} style={{ opacity: 0.4 }} />
+          <AnimatedEntry delay={200}>
+            <div style={{ textAlign: 'center', padding: 40, color: '#6b6358' }}>
+              <Filter size={32} style={{ marginBottom: 8, opacity: 0.3 }} />
+              <p style={{ fontSize: 13, margin: 0 }}>
+                {searchQuery
+                  ? 'No activities match your search'
+                  : filterType === 'bookmarked'
+                  ? 'No bookmarked activities yet'
+                  : 'No activities match the selected filter'}
+              </p>
             </div>
-            <p style={{ fontSize: 14, margin: 0, fontWeight: 500 }}>
-              {searchQuery
-                ? 'No activities match your search'
-                : filterType === 'bookmarked'
-                ? 'No bookmarked activities yet'
-                : 'No activities match the selected filter'}
-            </p>
-            <p style={{ fontSize: 12, margin: 0, color: '#4a443e' }}>
-              Try adjusting your filters or search query
-            </p>
-          </div>
+          </AnimatedEntry>
         )}
       </div>
-
-      {/* CSS for spinner animation */}
-      <style>{`
-        @keyframes spin {
-          from { transform: rotate(0deg); }
-          to { transform: rotate(360deg); }
-        }
-      `}</style>
     </div>
   );
 }

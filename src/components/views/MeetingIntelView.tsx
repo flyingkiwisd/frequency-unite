@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   Brain,
   Calendar,
@@ -22,11 +22,8 @@ import {
   CheckSquare,
   BarChart3,
   Zap,
+  AlertCircle,
   TrendingUp,
-  AlertTriangle,
-  Smile,
-  Meh,
-  Frown,
 } from 'lucide-react';
 import { teamMembers } from '@/lib/data';
 
@@ -34,7 +31,7 @@ import { teamMembers } from '@/lib/data';
 
 type MeetingType = 'wisdom-council' | 'node-sync' | 'board' | 'standup' | 'external';
 type MeetingStatus = 'upcoming' | 'completed';
-type Sentiment = 'positive' | 'neutral' | 'negative';
+type FilterTab = 'all' | 'this-week' | 'by-node' | 'action-items';
 
 interface AgendaItem {
   text: string;
@@ -51,11 +48,7 @@ interface ActionItem {
   text: string;
   owner: string;
   done: boolean;
-}
-
-interface AIInsight {
-  text: string;
-  type: 'recommendation' | 'risk' | 'opportunity';
+  priority?: 'high' | 'medium' | 'low';
 }
 
 interface Meeting {
@@ -73,8 +66,8 @@ interface Meeting {
   decisions: string[];
   actionItems: ActionItem[];
   notes: string;
-  sentiment?: Sentiment;
-  aiInsights?: AIInsight[];
+  sentiment?: 'energized' | 'constructive' | 'tense' | 'neutral';
+  aiInsights?: { text: string; priority: 'high' | 'medium' | 'low' }[];
 }
 
 // ─── Config ───
@@ -132,16 +125,17 @@ const statusConfig: Record<MeetingStatus, { label: string; color: string; bg: st
   },
 };
 
-const sentimentConfig: Record<Sentiment, { label: string; color: string; bg: string; emoji: string; icon: React.ElementType }> = {
-  positive: { label: 'Positive', color: '#34d399', bg: 'rgba(52, 211, 153, 0.12)', emoji: '', icon: Smile },
-  neutral: { label: 'Neutral', color: '#e8b44c', bg: 'rgba(232, 180, 76, 0.12)', emoji: '', icon: Meh },
-  negative: { label: 'Needs Attention', color: '#f87171', bg: 'rgba(248, 113, 113, 0.12)', emoji: '', icon: Frown },
+const sentimentConfig: Record<string, { label: string; color: string; emoji: string }> = {
+  energized: { label: 'Energized', color: '#34d399', emoji: '' },
+  constructive: { label: 'Constructive', color: '#60a5fa', emoji: '' },
+  tense: { label: 'Tense', color: '#f87171', emoji: '' },
+  neutral: { label: 'Neutral', color: '#e8b44c', emoji: '' },
 };
 
-const insightTypeConfig: Record<string, { label: string; color: string; bg: string }> = {
-  recommendation: { label: 'Recommendation', color: '#60a5fa', bg: 'rgba(96, 165, 250, 0.1)' },
-  risk: { label: 'Risk', color: '#f87171', bg: 'rgba(248, 113, 113, 0.1)' },
-  opportunity: { label: 'Opportunity', color: '#34d399', bg: 'rgba(52, 211, 153, 0.1)' },
+const insightPriorityConfig: Record<string, { color: string; bg: string; border: string }> = {
+  high: { color: '#e06060', bg: 'rgba(224, 96, 96, 0.1)', border: 'rgba(224, 96, 96, 0.25)' },
+  medium: { color: '#e8b44c', bg: 'rgba(232, 180, 76, 0.1)', border: 'rgba(232, 180, 76, 0.25)' },
+  low: { color: '#60a5fa', bg: 'rgba(96, 165, 250, 0.1)', border: 'rgba(96, 165, 250, 0.2)' },
 };
 
 const tailwindToHex: Record<string, string> = {
@@ -179,64 +173,78 @@ function getMemberAvatar(id: string): { initials: string; hex: string } {
   };
 }
 
-function parseDuration(dur: string): number {
+function parseDurationMinutes(dur: string): number {
   const match = dur.match(/(\d+)/);
   return match ? parseInt(match[1], 10) : 60;
 }
 
-// ─── Inline Keyframes Style Tag ───
-
-const animationStyles = `
-@keyframes meetingCardEntrance {
-  0% {
-    opacity: 0;
-    transform: translateY(20px) scale(0.98);
-  }
-  60% {
-    opacity: 1;
-    transform: translateY(-2px) scale(1.002);
-  }
-  100% {
-    opacity: 1;
-    transform: translateY(0) scale(1);
-  }
+function getRelativeDate(dateStr: string): string {
+  const now = new Date('2026-03-10');
+  const date = new Date(dateStr);
+  const diffMs = date.getTime() - now.getTime();
+  const diffDays = Math.round(diffMs / (1000 * 60 * 60 * 24));
+  if (diffDays === 0) return 'Today';
+  if (diffDays === 1) return 'Tomorrow';
+  if (diffDays === -1) return 'Yesterday';
+  if (diffDays > 1 && diffDays <= 7) return `In ${diffDays} days`;
+  if (diffDays < -1 && diffDays >= -7) return `${Math.abs(diffDays)} days ago`;
+  return '';
 }
 
-@keyframes insightShimmer {
-  0% { background-position: -200% center; }
-  100% { background-position: 200% center; }
-}
+// ─── Sentiment Gauge SVG ───
 
-@keyframes pulseRing {
-  0% { transform: scale(0.95); opacity: 0.7; }
-  50% { transform: scale(1.05); opacity: 1; }
-  100% { transform: scale(0.95); opacity: 0.7; }
-}
+function SentimentGauge({ sentiment }: { sentiment: string }) {
+  const cfg = sentimentConfig[sentiment] ?? sentimentConfig.neutral;
+  const angles: Record<string, number> = {
+    tense: -60,
+    neutral: -20,
+    constructive: 20,
+    energized: 55,
+  };
+  const angle = angles[sentiment] ?? 0;
+  const needleRad = (angle * Math.PI) / 180;
+  const needleLen = 18;
+  const cx = 28;
+  const cy = 26;
+  const nx = cx + needleLen * Math.cos(needleRad - Math.PI);
+  const ny = cy + needleLen * Math.sin(needleRad - Math.PI);
 
-@keyframes sentimentPulse {
-  0%, 100% { transform: scale(1); }
-  50% { transform: scale(1.15); }
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+      <svg width="56" height="32" viewBox="0 0 56 32">
+        {/* Arc background */}
+        <path
+          d="M 6 26 A 22 22 0 0 1 50 26"
+          fill="none"
+          stroke="#1e2638"
+          strokeWidth="4"
+          strokeLinecap="round"
+        />
+        {/* Colored sections */}
+        <path d="M 6 26 A 22 22 0 0 1 15 10" fill="none" stroke="#f87171" strokeWidth="3" strokeLinecap="round" opacity="0.5" />
+        <path d="M 15 10 A 22 22 0 0 1 28 4" fill="none" stroke="#e8b44c" strokeWidth="3" strokeLinecap="round" opacity="0.5" />
+        <path d="M 28 4 A 22 22 0 0 1 41 10" fill="none" stroke="#60a5fa" strokeWidth="3" strokeLinecap="round" opacity="0.5" />
+        <path d="M 41 10 A 22 22 0 0 1 50 26" fill="none" stroke="#34d399" strokeWidth="3" strokeLinecap="round" opacity="0.5" />
+        {/* Needle */}
+        <line
+          x1={cx}
+          y1={cy}
+          x2={nx}
+          y2={ny}
+          stroke={cfg.color}
+          strokeWidth="2"
+          strokeLinecap="round"
+          style={{ transition: 'all 0.6s ease-out' }}
+        />
+        <circle cx={cx} cy={cy} r="3" fill={cfg.color} />
+      </svg>
+      <div>
+        <div style={{ fontSize: 11, fontWeight: 600, color: cfg.color }}>{cfg.label}</div>
+        <div style={{ fontSize: 16 }}>{cfg.emoji}</div>
+      </div>
+    </div>
+  );
 }
-
-@keyframes expandContent {
-  from {
-    opacity: 0;
-    max-height: 0;
-    transform: translateY(-8px);
-  }
-  to {
-    opacity: 1;
-    max-height: 2000px;
-    transform: translateY(0);
-  }
-}
-
-@keyframes timelineDot {
-  0% { box-shadow: 0 0 0 0 rgba(212, 165, 116, 0.4); }
-  70% { box-shadow: 0 0 0 8px rgba(212, 165, 116, 0); }
-  100% { box-shadow: 0 0 0 0 rgba(212, 165, 116, 0); }
-}
-`;
 
 // ─── Mock Data ───
 
@@ -250,6 +258,11 @@ const initialMeetings: Meeting[] = [
     time: '10:00 AM MT',
     duration: '90 min',
     attendees: ['james', 'fairman', 'sian', 'dave'],
+    sentiment: 'constructive',
+    aiInsights: [
+      { text: 'OKR-2 (DAF) at 28% -- at risk of falling behind without intervention this month', priority: 'high' },
+      { text: 'CEO search criteria should align with Teal governance principles documented in dec-4', priority: 'medium' },
+    ],
     agenda: [
       { text: 'Coherence check-in and centering practice', source: 'Standing agenda', duration: '10 min' },
       { text: 'Blue Spirit 6.0 registration timeline review', source: 'Auto-generated from Tasks (t-6)', duration: '15 min' },
@@ -268,16 +281,10 @@ const initialMeetings: Meeting[] = [
     ],
     decisions: [],
     actionItems: [
-      { text: 'Draft CEO job description for review', owner: 'james', done: false },
-      { text: 'Prepare OKR deep-dive for next council', owner: 'fairman', done: false },
+      { text: 'Draft CEO job description for review', owner: 'james', done: false, priority: 'high' },
+      { text: 'Prepare OKR deep-dive for next council', owner: 'fairman', done: false, priority: 'medium' },
     ],
     notes: '',
-    sentiment: 'positive',
-    aiInsights: [
-      { text: 'CEO search criteria aligns with 3 recent board decisions. Consider reviewing the succession framework before this meeting.', type: 'recommendation' },
-      { text: 'OKR-2 (DAF) is 22% behind pace. Recommend allocating extra agenda time for intervention planning.', type: 'risk' },
-      { text: 'Blue Spirit registration timing coincides with peak engagement period. Strong momentum window.', type: 'opportunity' },
-    ],
   },
   {
     id: 'mtg-2',
@@ -288,6 +295,11 @@ const initialMeetings: Meeting[] = [
     time: '2:00 PM MT',
     duration: '60 min',
     attendees: ['fairman', 'greg', 'gareth', 'raamayan'],
+    sentiment: 'energized',
+    aiInsights: [
+      { text: 'Capital Node pipeline is healthy at 8 deals -- needs narrowing to 5 finalists for Blue Spirit', priority: 'medium' },
+      { text: 'Nicoya pilot delayed 2 weeks -- may impact Bioregions Node quarterly targets', priority: 'high' },
+    ],
     agenda: [
       { text: 'Node status round-robin (5 min each)', source: 'Standing agenda', duration: '20 min' },
       { text: 'Cross-node dependency mapping', source: 'Auto-generated from Map Node roadmap', duration: '15 min' },
@@ -305,15 +317,10 @@ const initialMeetings: Meeting[] = [
     ],
     decisions: [],
     actionItems: [
-      { text: 'Circulate updated node dependency diagram', owner: 'fairman', done: false },
-      { text: 'Finalize top 5 deal summaries for review', owner: 'greg', done: false },
+      { text: 'Circulate updated node dependency diagram', owner: 'fairman', done: false, priority: 'medium' },
+      { text: 'Finalize top 5 deal summaries for review', owner: 'greg', done: false, priority: 'high' },
     ],
     notes: '',
-    sentiment: 'neutral',
-    aiInsights: [
-      { text: 'Nicoya pilot delay may create cascading dependencies for Map Node. Consider discussing contingency plans.', type: 'risk' },
-      { text: 'Capital Node pipeline is 60% ahead of Q1 target. Strong position for Blue Spirit presentations.', type: 'opportunity' },
-    ],
   },
   {
     id: 'mtg-3',
@@ -324,6 +331,11 @@ const initialMeetings: Meeting[] = [
     time: '9:00 AM MT',
     duration: '120 min',
     attendees: ['james', 'dave', 'fairman'],
+    sentiment: 'energized',
+    aiInsights: [
+      { text: 'Board expansion from 3 to 5 members is a major governance milestone -- criteria document needed', priority: 'high' },
+      { text: 'CEO search timeline aligns well with Blue Spirit for internal announcement', priority: 'low' },
+    ],
     agenda: [
       { text: 'Teal governance implementation progress', source: 'Standing agenda', duration: '20 min' },
       { text: 'Decision log system review', source: 'Auto-generated from Tasks (t-3)', duration: '15 min' },
@@ -346,16 +358,11 @@ const initialMeetings: Meeting[] = [
       'Board to expand from 3 to 5 members by Q4 2026',
     ],
     actionItems: [
-      { text: 'Draft board expansion criteria document', owner: 'dave', done: true },
-      { text: 'Implement decision log system in Airtable', owner: 'fairman', done: false },
-      { text: 'Prepare CEO search timeline proposal', owner: 'james', done: true },
+      { text: 'Draft board expansion criteria document', owner: 'dave', done: true, priority: 'high' },
+      { text: 'Implement decision log system in Airtable', owner: 'fairman', done: false, priority: 'medium' },
+      { text: 'Prepare CEO search timeline proposal', owner: 'james', done: true, priority: 'high' },
     ],
     notes: 'Strong alignment on Teal governance direction. Dave emphasized the importance of maintaining cultural integrity through the board expansion process. Board unanimously agreed that CEO search should prioritize systems-change experience over traditional nonprofit management.',
-    sentiment: 'positive',
-    aiInsights: [
-      { text: '3 major decisions captured. This is the highest-output board meeting in the last 90 days.', type: 'opportunity' },
-      { text: 'Board expansion to 5 members will require updated bylaws. Flag for legal review.', type: 'recommendation' },
-    ],
   },
   {
     id: 'mtg-4',
@@ -366,6 +373,11 @@ const initialMeetings: Meeting[] = [
     time: '11:00 AM MT',
     duration: '45 min',
     attendees: ['sian', 'james', 'mafe'],
+    sentiment: 'constructive',
+    aiInsights: [
+      { text: 'Registration opens in 32 days -- landing page draft still pending review', priority: 'high' },
+      { text: 'Airtable migration may affect invite list accuracy -- verify before launch', priority: 'medium' },
+    ],
     agenda: [
       { text: 'Registration page status and review', source: 'Auto-generated from Tasks (t-6)', duration: '10 min' },
       { text: 'Programming and agenda design kickoff', source: 'Auto-generated from Tasks (t-21)', duration: '15 min' },
@@ -382,15 +394,11 @@ const initialMeetings: Meeting[] = [
     ],
     decisions: [],
     actionItems: [
-      { text: 'Complete registration landing page draft', owner: 'mafe', done: false },
-      { text: 'Create Blue Spirit programming committee brief', owner: 'sian', done: false },
-      { text: 'Send vendor confirmation emails for venue and travel', owner: 'sian', done: false },
+      { text: 'Complete registration landing page draft', owner: 'mafe', done: false, priority: 'high' },
+      { text: 'Create Blue Spirit programming committee brief', owner: 'sian', done: false, priority: 'medium' },
+      { text: 'Send vendor confirmation emails for venue and travel', owner: 'sian', done: false, priority: 'low' },
     ],
     notes: '',
-    sentiment: 'neutral',
-    aiInsights: [
-      { text: 'Ticket sales at 46% capacity. Registration page launch is time-sensitive for early-bird pricing deadline.', type: 'risk' },
-    ],
   },
   {
     id: 'mtg-5',
@@ -401,6 +409,11 @@ const initialMeetings: Meeting[] = [
     time: '3:00 PM MT',
     duration: '75 min',
     attendees: ['greg', 'james', 'fairman'],
+    sentiment: 'energized',
+    aiInsights: [
+      { text: 'Mission alignment weighting increased to 40% -- strengthens thesis-of-change alignment in scoring', priority: 'medium' },
+      { text: '5 finalists selected -- 3 will present at Blue Spirit with advisory community vote', priority: 'low' },
+    ],
     agenda: [
       { text: 'Pipeline overview: 8 deals in diligence', source: 'Standing agenda', duration: '10 min' },
       { text: 'Scoring rubric calibration session', source: 'Requested by Greg Berry', duration: '20 min' },
@@ -422,15 +435,11 @@ const initialMeetings: Meeting[] = [
       'Blue Spirit will feature 3 deal presentations with community vote format',
     ],
     actionItems: [
-      { text: 'Prepare one-pager for each of the 5 finalists', owner: 'greg', done: true },
-      { text: 'Design Blue Spirit deal presentation template', owner: 'fairman', done: true },
-      { text: 'Schedule founder calls for top 3 finalists', owner: 'greg', done: false },
+      { text: 'Prepare one-pager for each of the 5 finalists', owner: 'greg', done: true, priority: 'high' },
+      { text: 'Design Blue Spirit deal presentation template', owner: 'fairman', done: true, priority: 'medium' },
+      { text: 'Schedule founder calls for top 3 finalists', owner: 'greg', done: false, priority: 'high' },
     ],
     notes: 'Rigorous session. Fairman pushed for stronger thesis-of-change alignment in scoring. Greg agreed to increase mission alignment weighting from 35% to 40%. James emphasized that community vote at Blue Spirit should be advisory, not binding, to maintain diligence integrity.',
-    sentiment: 'positive',
-    aiInsights: [
-      { text: '3 decisions made with clear ownership. Follow-through rate on this meeting type is 85%.', type: 'opportunity' },
-    ],
   },
   {
     id: 'mtg-6',
@@ -441,6 +450,11 @@ const initialMeetings: Meeting[] = [
     time: '1:00 PM MT',
     duration: '60 min',
     attendees: ['colleen', 'james', 'nipun'],
+    sentiment: 'constructive',
+    aiInsights: [
+      { text: 'DECO framework needs separate legal opinion before deployment -- potential blocker for Capital Node', priority: 'high' },
+      { text: 'Form 990 due May 15 -- draft needed by April 15 for review buffer', priority: 'medium' },
+    ],
     agenda: [
       { text: 'DAF compliance checklist progress review', source: 'Auto-generated from Tasks (t-2)', duration: '15 min' },
       { text: 'Donor acknowledgment process and IRS requirements', source: 'Requested by Colleen Galbraith', duration: '15 min' },
@@ -462,17 +476,12 @@ const initialMeetings: Meeting[] = [
       'Nipun to prepare draft Form 990 by April 15 for review',
     ],
     actionItems: [
-      { text: 'Send donor acknowledgment letters for Q1 contributions', owner: 'colleen', done: true },
-      { text: 'Engage tax attorney for DECO legal opinion', owner: 'james', done: false },
-      { text: 'Prepare draft Form 990 for review', owner: 'nipun', done: false },
-      { text: 'Complete remaining 6 DAF compliance checklist items', owner: 'colleen', done: false },
+      { text: 'Send donor acknowledgment letters for Q1 contributions', owner: 'colleen', done: true, priority: 'high' },
+      { text: 'Engage tax attorney for DECO legal opinion', owner: 'james', done: false, priority: 'high' },
+      { text: 'Prepare draft Form 990 for review', owner: 'nipun', done: false, priority: 'medium' },
+      { text: 'Complete remaining 6 DAF compliance checklist items', owner: 'colleen', done: false, priority: 'medium' },
     ],
     notes: 'Productive compliance review. Colleen flagged that the DECO framework introduces novel tax considerations that need professional legal review before any deployment. Nipun confirmed books are clean and current. James committed to engaging a tax attorney this month.',
-    sentiment: 'negative',
-    aiInsights: [
-      { text: 'DECO legal review is a blocker for 2 other tasks. Prioritize attorney engagement.', type: 'risk' },
-      { text: '3 of 4 action items are still open. Follow-up needed before next compliance checkpoint.', type: 'recommendation' },
-    ],
   },
   {
     id: 'mtg-7',
@@ -483,6 +492,11 @@ const initialMeetings: Meeting[] = [
     time: '8:00 AM MT',
     duration: '60 min',
     attendees: ['james', 'dave', 'sian', 'fairman'],
+    sentiment: 'neutral',
+    aiInsights: [
+      { text: 'Coherence rating at 7.2/10 vs 8.5 target -- pod attendance drop may be a factor', priority: 'high' },
+      { text: 'Between-event engagement is the weakest metric -- consider async community rituals', priority: 'medium' },
+    ],
     agenda: [
       { text: 'Community coherence pulse and wellbeing check', source: 'Standing agenda', duration: '15 min' },
       { text: 'Pod launch readiness review (6 pods target)', source: 'Auto-generated from Tasks (t-18)', duration: '15 min' },
@@ -499,211 +513,12 @@ const initialMeetings: Meeting[] = [
     ],
     decisions: [],
     actionItems: [
-      { text: 'Finalize pod facilitator assignments', owner: 'dave', done: false },
-      { text: 'Draft Blue Spirit opening ceremony outline', owner: 'james', done: false },
+      { text: 'Finalize pod facilitator assignments', owner: 'dave', done: false, priority: 'high' },
+      { text: 'Draft Blue Spirit opening ceremony outline', owner: 'james', done: false, priority: 'medium' },
     ],
     notes: '',
-    sentiment: 'neutral',
-    aiInsights: [
-      { text: 'Pod attendance dropped 15% last month. This meeting is critical for course correction.', type: 'risk' },
-      { text: 'Member retention improved to 82% since last sync. Positive trend worth highlighting.', type: 'opportunity' },
-    ],
   },
 ];
-
-// ─── Sub-Components ───
-
-function SentimentBadge({ sentiment }: { sentiment?: Sentiment }) {
-  if (!sentiment) return null;
-  const cfg = sentimentConfig[sentiment];
-  const SentIcon = cfg.icon;
-  return (
-    <div
-      style={{
-        display: 'inline-flex',
-        alignItems: 'center',
-        gap: 5,
-        backgroundColor: cfg.bg,
-        borderRadius: 12,
-        padding: '3px 10px 3px 8px',
-        border: `1px solid ${cfg.color}30`,
-      }}
-    >
-      <SentIcon
-        size={13}
-        style={{
-          color: cfg.color,
-          animation: 'sentimentPulse 2s ease-in-out infinite',
-        }}
-      />
-      <span style={{ fontSize: 10, fontWeight: 600, color: cfg.color }}>
-        {cfg.label}
-      </span>
-    </div>
-  );
-}
-
-function AIInsightsPanel({ insights }: { insights?: AIInsight[] }) {
-  if (!insights || insights.length === 0) return null;
-  return (
-    <div
-      style={{
-        position: 'relative',
-        borderRadius: 14,
-        padding: 1,
-        background: 'linear-gradient(135deg, rgba(139, 92, 246, 0.4), rgba(212, 165, 116, 0.4), rgba(107, 143, 113, 0.4))',
-        backgroundSize: '200% 200%',
-        animation: 'insightShimmer 6s ease-in-out infinite',
-        marginBottom: 16,
-      }}
-    >
-      <div
-        style={{
-          backgroundColor: '#131720',
-          borderRadius: 13,
-          padding: '16px 20px',
-        }}
-      >
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
-          {/* Brain SVG icon */}
-          <div
-            style={{
-              width: 28,
-              height: 28,
-              borderRadius: 8,
-              background: 'linear-gradient(135deg, rgba(139, 92, 246, 0.2), rgba(212, 165, 116, 0.2))',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-            }}
-          >
-            <Brain size={15} style={{ color: '#8b5cf6' }} />
-          </div>
-          <span style={{ fontSize: 12, fontWeight: 700, color: '#c4b5fd', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
-            AI Insights
-          </span>
-          <Sparkles size={12} style={{ color: '#d4a574', opacity: 0.6 }} />
-        </div>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          {insights.map((insight, idx) => {
-            const typeCfg = insightTypeConfig[insight.type];
-            return (
-              <div
-                key={idx}
-                style={{
-                  display: 'flex',
-                  alignItems: 'flex-start',
-                  gap: 10,
-                  padding: '10px 12px',
-                  backgroundColor: typeCfg.bg,
-                  borderRadius: 10,
-                  borderLeft: `3px solid ${typeCfg.color}`,
-                }}
-              >
-                <span
-                  style={{
-                    fontSize: 9,
-                    fontWeight: 700,
-                    textTransform: 'uppercase',
-                    letterSpacing: '0.06em',
-                    color: typeCfg.color,
-                    backgroundColor: `${typeCfg.color}20`,
-                    borderRadius: 6,
-                    padding: '2px 7px',
-                    flexShrink: 0,
-                    marginTop: 1,
-                  }}
-                >
-                  {typeCfg.label}
-                </span>
-                <span style={{ fontSize: 12, color: '#c8bfb4', lineHeight: 1.5 }}>
-                  {insight.text}
-                </span>
-              </div>
-            );
-          })}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function KeyDecisionsCallout({ decisions }: { decisions: string[] }) {
-  if (decisions.length === 0) return null;
-  return (
-    <div
-      style={{
-        marginTop: 12,
-        padding: '14px 18px',
-        borderRadius: 12,
-        backgroundColor: 'rgba(139, 92, 246, 0.06)',
-        border: '1px solid rgba(139, 92, 246, 0.2)',
-        position: 'relative',
-        overflow: 'hidden',
-      }}
-    >
-      {/* Decorative corner accent */}
-      <div
-        style={{
-          position: 'absolute',
-          top: 0,
-          right: 0,
-          width: 60,
-          height: 60,
-          background: 'radial-gradient(circle at top right, rgba(139, 92, 246, 0.12), transparent 70%)',
-        }}
-      />
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
-        <div
-          style={{
-            width: 24,
-            height: 24,
-            borderRadius: 7,
-            backgroundColor: 'rgba(139, 92, 246, 0.15)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-          }}
-        >
-          <Gavel size={13} style={{ color: '#8b5cf6' }} />
-        </div>
-        <span style={{ fontSize: 12, fontWeight: 700, color: '#c4b5fd', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-          Key Decisions
-        </span>
-        <span
-          style={{
-            fontSize: 10,
-            fontWeight: 700,
-            backgroundColor: 'rgba(139, 92, 246, 0.2)',
-            color: '#8b5cf6',
-            borderRadius: 8,
-            padding: '1px 7px',
-          }}
-        >
-          {decisions.length}
-        </span>
-      </div>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-        {decisions.map((decision, idx) => (
-          <div
-            key={idx}
-            style={{
-              display: 'flex',
-              alignItems: 'flex-start',
-              gap: 8,
-              padding: '6px 0',
-            }}
-          >
-            <CheckCircle2 size={14} style={{ color: '#8b5cf6', flexShrink: 0, marginTop: 2 }} />
-            <span style={{ fontSize: 13, color: '#d8cfc4', lineHeight: 1.5 }}>
-              {decision}
-            </span>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
 
 // ─── Component ───
 
@@ -712,34 +527,48 @@ export function MeetingIntelView() {
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [activeFilter, setActiveFilter] = useState<MeetingType | 'all'>('all');
   const [activeSection, setActiveSection] = useState<Record<string, string>>({});
-  const [mounted, setMounted] = useState(false);
-
-  useEffect(() => {
-    setMounted(true);
-  }, []);
+  const [viewTab, setViewTab] = useState<FilterTab>('all');
 
   // Derived state
   const filteredMeetings = useMemo(() => {
-    const filtered = activeFilter === 'all'
-      ? meetings
-      : meetings.filter((m) => m.type === activeFilter);
+    let filtered = meetings;
+
+    // View tab filter
+    if (viewTab === 'this-week') {
+      filtered = filtered.filter((m) => {
+        const d = new Date(m.date);
+        const now = new Date('2026-03-10');
+        const diff = (d.getTime() - now.getTime()) / (1000 * 60 * 60 * 24);
+        return diff >= -7 && diff <= 7;
+      });
+    } else if (viewTab === 'by-node') {
+      filtered = filtered.filter((m) => m.type === 'node-sync');
+    } else if (viewTab === 'action-items') {
+      filtered = filtered.filter((m) => m.actionItems.some((a) => !a.done));
+    }
+
+    // Type filter
+    if (activeFilter !== 'all') {
+      filtered = filtered.filter((m) => m.type === activeFilter);
+    }
+
+    // Sort: upcoming first, then by date descending
     return [...filtered].sort((a, b) => {
       if (a.status !== b.status) return a.status === 'upcoming' ? -1 : 1;
       return new Date(b.date).getTime() - new Date(a.date).getTime();
     });
-  }, [meetings, activeFilter]);
-
-  const upcomingMeetings = useMemo(() => meetings.filter((m) => m.status === 'upcoming'), [meetings]);
-  const completedMeetings = useMemo(() => meetings.filter((m) => m.status === 'completed'), [meetings]);
+  }, [meetings, activeFilter, viewTab]);
 
   const stats = useMemo(() => {
     const totalMeetings = meetings.length;
+    const upcomingCount = meetings.filter((m) => m.status === 'upcoming').length;
     const decisionsCount = meetings.reduce((acc, m) => acc + m.decisions.length, 0);
     const allActions = meetings.flatMap((m) => m.actionItems);
     const totalActions = allActions.length;
     const doneActions = allActions.filter((a) => a.done).length;
     const completionRate = totalActions > 0 ? Math.round((doneActions / totalActions) * 100) : 0;
-    return { totalMeetings, decisionsCount, totalActions, completionRate };
+    const highPriorityOpen = allActions.filter((a) => !a.done && a.priority === 'high').length;
+    return { totalMeetings, upcomingCount, decisionsCount, totalActions, doneActions, completionRate, highPriorityOpen };
   }, [meetings]);
 
   // Handlers
@@ -776,31 +605,29 @@ export function MeetingIntelView() {
 
   return (
     <div style={{ padding: '32px 40px', maxWidth: 1000, margin: '0 auto' }}>
-      {/* Inject keyframe animations */}
-      <style>{animationStyles}</style>
-
       {/* Header */}
       <div className="animate-fade-in" style={{ marginBottom: 32 }}>
         <div
           style={{
             display: 'flex',
             alignItems: 'center',
-            gap: 12,
+            gap: 14,
             marginBottom: 8,
           }}
         >
           <div
             style={{
-              width: 40,
-              height: 40,
-              borderRadius: 12,
-              background: 'linear-gradient(135deg, rgba(139, 92, 246, 0.2), rgba(212, 165, 116, 0.2))',
+              width: 46,
+              height: 46,
+              borderRadius: 13,
+              background: 'linear-gradient(135deg, rgba(139, 92, 246, 0.2), rgba(139, 92, 246, 0.05))',
+              border: '1px solid rgba(139, 92, 246, 0.25)',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
             }}
           >
-            <Brain size={22} style={{ color: '#8b5cf6' }} />
+            <Brain size={24} style={{ color: '#8b5cf6' }} />
           </div>
           <div>
             <h1
@@ -812,17 +639,16 @@ export function MeetingIntelView() {
                 letterSpacing: '-0.01em',
               }}
             >
-              <span className="gradient-text">Meeting Intelligence</span>
+              Meeting Intelligence
             </h1>
             <p
               style={{
                 fontSize: 14,
                 color: '#a09888',
                 margin: 0,
-                marginTop: 2,
               }}
             >
-              AI-curated agendas, pre-reads, and action tracking. Every meeting is a container for coherent decision-making.
+              AI-curated agendas, pre-reads, and action tracking for coherent decision-making.
             </p>
           </div>
         </div>
@@ -834,36 +660,29 @@ export function MeetingIntelView() {
         style={{
           display: 'grid',
           gridTemplateColumns: 'repeat(4, 1fr)',
-          gap: 16,
-          marginBottom: 28,
+          gap: 12,
+          marginBottom: 24,
           animationDelay: '0.05s',
         }}
       >
         {[
-          { label: 'Total Meetings', value: stats.totalMeetings, icon: Calendar, color: '#d4a574', trend: null },
-          { label: 'Decisions Captured', value: stats.decisionsCount, icon: Gavel, color: '#8b5cf6', trend: '+3 this week' },
-          { label: 'Action Items', value: stats.totalActions, icon: Target, color: '#6b8f71', trend: null },
-          { label: 'Completion Rate', value: `${stats.completionRate}%`, icon: BarChart3, color: '#60a5fa', trend: stats.completionRate >= 50 ? 'On track' : 'Needs push' },
-        ].map((stat) => {
+          { label: 'Total Meetings', value: stats.totalMeetings, sub: `${stats.upcomingCount} upcoming`, icon: Calendar, color: '#d4a574', subColor: '#d4a574' },
+          { label: 'Decisions Captured', value: stats.decisionsCount, sub: 'across all meetings', icon: Gavel, color: '#8b5cf6', subColor: '#6b6358' },
+          { label: 'Action Items', value: `${stats.doneActions}/${stats.totalActions}`, sub: `${stats.highPriorityOpen} high priority open`, icon: Target, color: '#6b8f71', subColor: stats.highPriorityOpen > 0 ? '#e06060' : '#6b6358' },
+          { label: 'Completion Rate', value: `${stats.completionRate}%`, sub: stats.completionRate >= 50 ? 'on track' : 'needs attention', icon: BarChart3, color: '#60a5fa', subColor: stats.completionRate >= 50 ? '#6b8f71' : '#e8b44c' },
+        ].map((stat, idx) => {
           const Icon = stat.icon;
           return (
             <div
               key={stat.label}
-              className="glow-card"
+              className="glow-card animate-fade-in"
               style={{
                 backgroundColor: '#131720',
                 border: '1px solid #1e2638',
                 borderRadius: 14,
-                padding: '18px 20px',
-                transition: 'border-color 0.2s, transform 0.2s',
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.borderColor = '#2e3a4e';
-                e.currentTarget.style.transform = 'translateY(-2px)';
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.borderColor = '#1e2638';
-                e.currentTarget.style.transform = 'translateY(0)';
+                padding: '16px 20px',
+                animationDelay: `${0.08 + idx * 0.04}s`,
+                opacity: 0,
               }}
             >
               <div
@@ -879,7 +698,7 @@ export function MeetingIntelView() {
                     width: 34,
                     height: 34,
                     borderRadius: 10,
-                    backgroundColor: `${stat.color}18`,
+                    backgroundColor: `${stat.color}15`,
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
@@ -887,10 +706,24 @@ export function MeetingIntelView() {
                 >
                   <Icon size={16} style={{ color: stat.color }} />
                 </div>
-                {stat.trend && (
-                  <span style={{ fontSize: 10, color: stat.color, fontWeight: 500 }}>
-                    {stat.trend}
-                  </span>
+                {stat.label === 'Completion Rate' && (
+                  <div style={{ width: 44, height: 44, position: 'relative' }}>
+                    <svg width="44" height="44" viewBox="0 0 44 44">
+                      <circle cx="22" cy="22" r="18" fill="none" stroke="#1e2638" strokeWidth="3" />
+                      <circle
+                        cx="22"
+                        cy="22"
+                        r="18"
+                        fill="none"
+                        stroke={stat.color}
+                        strokeWidth="3"
+                        strokeLinecap="round"
+                        strokeDasharray={`${(stats.completionRate / 100) * 113} 113`}
+                        transform="rotate(-90 22 22)"
+                        style={{ transition: 'stroke-dasharray 0.6s ease-out' }}
+                      />
+                    </svg>
+                  </div>
                 )}
               </div>
               <div
@@ -899,151 +732,94 @@ export function MeetingIntelView() {
                   fontWeight: 700,
                   color: '#f0ebe4',
                   fontVariantNumeric: 'tabular-nums',
+                  letterSpacing: '-0.02em',
                 }}
               >
                 {stat.value}
               </div>
-              <div style={{ fontSize: 11, color: '#6b6358', marginTop: 2 }}>
-                {stat.label}
-              </div>
+              <div style={{ fontSize: 11, color: '#6b6358', marginTop: 2 }}>{stat.label}</div>
+              <div style={{ fontSize: 10, color: stat.subColor, marginTop: 2 }}>{stat.sub}</div>
             </div>
           );
         })}
       </div>
 
-      {/* Meeting Timeline Overview */}
+      {/* View Tabs (All, This Week, By Node, Action Items) */}
       <div
         className="animate-fade-in"
         style={{
-          marginBottom: 28,
-          animationDelay: '0.1s',
+          display: 'flex',
+          gap: 6,
+          marginBottom: 16,
+          animationDelay: '0.12s',
+          opacity: 0,
         }}
       >
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
-          <Clock size={14} style={{ color: '#6b6358' }} />
-          <span style={{ fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#6b6358' }}>
-            Meeting Timeline
-          </span>
-        </div>
-        <div
-          style={{
-            display: 'flex',
-            gap: 0,
-            alignItems: 'stretch',
-            position: 'relative',
-            padding: '0 8px',
-          }}
-        >
-          {/* Timeline line */}
-          <div
-            style={{
-              position: 'absolute',
-              top: '50%',
-              left: 8,
-              right: 8,
-              height: 2,
-              backgroundColor: '#1e2638',
-              transform: 'translateY(-50%)',
-              zIndex: 0,
-            }}
-          />
-          {/* Timeline items */}
-          {[...meetings]
-            .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
-            .map((m, idx) => {
-              const typeCfg = meetingTypeConfig[m.type];
-              const isUpcoming = m.status === 'upcoming';
-              const TypeIcon = typeCfg.icon;
-              const totalItems = meetings.length;
-              return (
-                <div
-                  key={m.id}
-                  style={{
-                    flex: 1,
-                    display: 'flex',
-                    flexDirection: 'column',
-                    alignItems: 'center',
-                    gap: 6,
-                    zIndex: 1,
-                    cursor: 'pointer',
-                    minWidth: 0,
-                  }}
-                  onClick={() => {
-                    setExpandedId(m.id);
-                    // Scroll to card
-                    const el = document.getElementById(`meeting-card-${m.id}`);
-                    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                  }}
-                >
-                  <span
-                    style={{
-                      fontSize: 9,
-                      color: isUpcoming ? typeCfg.color : '#6b6358',
-                      fontWeight: 600,
-                      whiteSpace: 'nowrap',
-                      overflow: 'hidden',
-                      textOverflow: 'ellipsis',
-                      maxWidth: '100%',
-                      textAlign: 'center',
-                    }}
-                  >
-                    {m.date.replace(', 2026', '').replace('March', 'Mar').replace('February', 'Feb')}
-                  </span>
-                  <div
-                    style={{
-                      width: 32,
-                      height: 32,
-                      borderRadius: '50%',
-                      backgroundColor: isUpcoming ? typeCfg.bg : '#1a1f2e',
-                      border: isUpcoming ? `2px solid ${typeCfg.color}` : '2px solid #2e3a4e',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      transition: 'all 0.2s',
-                      animation: isUpcoming ? 'timelineDot 2s ease-in-out infinite' : 'none',
-                      animationDelay: `${idx * 0.3}s`,
-                    }}
-                  >
-                    <TypeIcon size={14} style={{ color: isUpcoming ? typeCfg.color : '#6b6358' }} />
-                  </div>
-                  <span
-                    style={{
-                      fontSize: 8,
-                      color: isUpcoming ? '#a09888' : '#4a443e',
-                      fontWeight: 500,
-                      whiteSpace: 'nowrap',
-                      overflow: 'hidden',
-                      textOverflow: 'ellipsis',
-                      maxWidth: '100%',
-                      textAlign: 'center',
-                    }}
-                    title={m.title}
-                  >
-                    {m.title.length > 14 ? m.title.slice(0, 14) + '...' : m.title}
-                  </span>
-                </div>
-              );
-            })}
-        </div>
+        {([
+          { key: 'all' as FilterTab, label: 'All Meetings', icon: Calendar },
+          { key: 'this-week' as FilterTab, label: 'This Week', icon: Clock },
+          { key: 'by-node' as FilterTab, label: 'By Node', icon: Zap },
+          { key: 'action-items' as FilterTab, label: 'Action Items', icon: Target },
+        ]).map((tab) => {
+          const isActive = viewTab === tab.key;
+          const TabIcon = tab.icon;
+          return (
+            <button
+              key={tab.key}
+              onClick={() => setViewTab(tab.key)}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6,
+                padding: '8px 16px',
+                borderRadius: 10,
+                border: isActive ? '1px solid rgba(212, 165, 116, 0.35)' : '1px solid #1e2638',
+                backgroundColor: isActive ? 'rgba(212, 165, 116, 0.1)' : 'transparent',
+                color: isActive ? '#d4a574' : '#6b6358',
+                fontSize: 12,
+                fontWeight: isActive ? 600 : 500,
+                cursor: 'pointer',
+                transition: 'all 0.2s',
+                fontFamily: 'inherit',
+              }}
+              onMouseEnter={(e) => {
+                if (!isActive) {
+                  e.currentTarget.style.borderColor = '#2e3a4e';
+                  e.currentTarget.style.color = '#a09888';
+                }
+              }}
+              onMouseLeave={(e) => {
+                if (!isActive) {
+                  e.currentTarget.style.borderColor = '#1e2638';
+                  e.currentTarget.style.color = '#6b6358';
+                }
+              }}
+            >
+              <TabIcon size={13} />
+              {tab.label}
+            </button>
+          );
+        })}
       </div>
 
-      {/* Filter Tabs */}
+      {/* Type Filter Pills */}
       <div
         className="animate-fade-in"
         style={{
           display: 'flex',
           alignItems: 'center',
-          gap: 8,
+          gap: 6,
           marginBottom: 24,
           flexWrap: 'wrap',
           animationDelay: '0.15s',
+          opacity: 0,
         }}
       >
         {(['all', 'wisdom-council', 'node-sync', 'board', 'standup', 'external'] as const).map((filterKey) => {
           const isActive = activeFilter === filterKey;
           const config = filterKey === 'all' ? null : meetingTypeConfig[filterKey];
-          const label = filterKey === 'all' ? 'All Meetings' : config!.label;
-          const color = filterKey === 'all' ? '#d4a574' : config!.color;
+          const label = filterKey === 'all' ? 'All Types' : config!.label;
+          const color = filterKey === 'all' ? '#a09888' : config!.color;
           const count = filterKey === 'all'
             ? meetings.length
             : meetings.filter((m) => m.type === filterKey).length;
@@ -1056,13 +832,13 @@ export function MeetingIntelView() {
                 display: 'flex',
                 alignItems: 'center',
                 gap: 6,
-                padding: '7px 14px',
-                borderRadius: 10,
-                border: isActive ? `1px solid ${color}50` : '1px solid #1e2638',
-                backgroundColor: isActive ? `${color}15` : '#131720',
-                color: isActive ? color : '#a09888',
+                padding: '6px 14px',
+                borderRadius: 20,
+                border: isActive ? `1px solid ${color}44` : '1px solid #1e2638',
+                backgroundColor: isActive ? `${color}15` : 'transparent',
+                color: isActive ? color : '#6b6358',
                 fontSize: 12,
-                fontWeight: 600,
+                fontWeight: isActive ? 600 : 400,
                 cursor: 'pointer',
                 transition: 'all 0.15s',
                 fontFamily: 'inherit',
@@ -1070,13 +846,13 @@ export function MeetingIntelView() {
               onMouseEnter={(e) => {
                 if (!isActive) {
                   e.currentTarget.style.borderColor = '#2e3a4e';
-                  e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.03)';
+                  e.currentTarget.style.color = '#a09888';
                 }
               }}
               onMouseLeave={(e) => {
                 if (!isActive) {
                   e.currentTarget.style.borderColor = '#1e2638';
-                  e.currentTarget.style.backgroundColor = '#131720';
+                  e.currentTarget.style.color = '#6b6358';
                 }
               }}
             >
@@ -1085,7 +861,7 @@ export function MeetingIntelView() {
                 style={{
                   fontSize: 10,
                   fontWeight: 700,
-                  backgroundColor: isActive ? `${color}25` : 'rgba(255,255,255,0.04)',
+                  backgroundColor: isActive ? `${color}25` : '#1e2638',
                   color: isActive ? color : '#6b6358',
                   borderRadius: 8,
                   padding: '1px 7px',
@@ -1101,14 +877,8 @@ export function MeetingIntelView() {
       </div>
 
       {/* Meeting Cards */}
-      <div
-        style={{
-          display: 'flex',
-          flexDirection: 'column',
-          gap: 16,
-        }}
-      >
-        {filteredMeetings.map((meeting, cardIdx) => {
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+        {filteredMeetings.map((meeting, meetingIdx) => {
           const isExpanded = expandedId === meeting.id;
           const typeConfig = meetingTypeConfig[meeting.type];
           const statConfig = statusConfig[meeting.status];
@@ -1116,12 +886,13 @@ export function MeetingIntelView() {
           const section = getActiveSection(meeting.id);
           const doneCount = meeting.actionItems.filter((a) => a.done).length;
           const totalActions = meeting.actionItems.length;
-          const durationMins = parseDuration(meeting.duration);
+          const relDate = getRelativeDate(meeting.date);
+          const durationMin = parseDurationMinutes(meeting.duration);
 
           return (
             <div
               key={meeting.id}
-              id={`meeting-card-${meeting.id}`}
+              className="animate-fade-in"
               style={{
                 backgroundColor: meeting.status === 'upcoming'
                   ? 'rgba(212, 165, 116, 0.03)'
@@ -1135,15 +906,14 @@ export function MeetingIntelView() {
                 boxShadow: meeting.status === 'upcoming'
                   ? '0 0 24px rgba(212, 165, 116, 0.04)'
                   : 'none',
-                opacity: mounted ? 1 : 0,
-                transform: mounted ? 'translateY(0) scale(1)' : 'translateY(20px) scale(0.98)',
-                animation: mounted ? `meetingCardEntrance 0.5s ease-out ${0.2 + cardIdx * 0.08}s both` : 'none',
+                animationDelay: `${0.2 + meetingIdx * 0.06}s`,
+                opacity: 0,
               }}
               onMouseEnter={(e) => {
                 e.currentTarget.style.borderColor = meeting.status === 'upcoming'
                   ? 'rgba(212, 165, 116, 0.3)'
                   : '#2e3a4e';
-                e.currentTarget.style.boxShadow = '0 4px 24px rgba(0,0,0,0.2)';
+                e.currentTarget.style.boxShadow = '0 4px 24px rgba(0,0,0,0.25)';
               }}
               onMouseLeave={(e) => {
                 e.currentTarget.style.borderColor = meeting.status === 'upcoming'
@@ -1171,14 +941,7 @@ export function MeetingIntelView() {
                 }}
               >
                 {/* Expand icon */}
-                <div
-                  style={{
-                    flexShrink: 0,
-                    color: '#6b6358',
-                    transition: 'transform 0.2s',
-                    transform: isExpanded ? 'rotate(0deg)' : 'rotate(0deg)',
-                  }}
-                >
+                <div style={{ flexShrink: 0, color: '#6b6358', transition: 'transform 0.2s' }}>
                   {isExpanded ? <ChevronDown size={18} /> : <ChevronRight size={18} />}
                 </div>
 
@@ -1194,25 +957,9 @@ export function MeetingIntelView() {
                     alignItems: 'center',
                     justifyContent: 'center',
                     flexShrink: 0,
-                    position: 'relative',
                   }}
                 >
                   <TypeIcon size={20} style={{ color: typeConfig.color }} />
-                  {/* Sentiment dot */}
-                  {meeting.sentiment && (
-                    <div
-                      style={{
-                        position: 'absolute',
-                        bottom: -2,
-                        right: -2,
-                        width: 12,
-                        height: 12,
-                        borderRadius: '50%',
-                        backgroundColor: sentimentConfig[meeting.sentiment].color,
-                        border: '2px solid #131720',
-                      }}
-                    />
-                  )}
                 </div>
 
                 {/* Info */}
@@ -1221,8 +968,8 @@ export function MeetingIntelView() {
                     style={{
                       display: 'flex',
                       alignItems: 'center',
-                      gap: 10,
-                      marginBottom: 4,
+                      gap: 8,
+                      marginBottom: 6,
                       flexWrap: 'wrap',
                     }}
                   >
@@ -1265,91 +1012,77 @@ export function MeetingIntelView() {
                     >
                       {statConfig.label}
                     </span>
-                    <SentimentBadge sentiment={meeting.sentiment} />
+                    {relDate && (
+                      <span
+                        style={{
+                          fontSize: 10,
+                          fontWeight: 600,
+                          color: meeting.status === 'upcoming' ? '#d4a574' : '#6b6358',
+                          backgroundColor: meeting.status === 'upcoming' ? 'rgba(212, 165, 116, 0.1)' : 'rgba(255,255,255,0.03)',
+                          borderRadius: 12,
+                          padding: '2px 10px',
+                        }}
+                      >
+                        {relDate}
+                      </span>
+                    )}
                   </div>
-                  {/* Prominent date/duration/participants row */}
                   <div
                     style={{
                       display: 'flex',
                       alignItems: 'center',
-                      gap: 16,
+                      gap: 14,
                       fontSize: 12,
-                      color: '#a09888',
+                      color: '#6b6358',
                     }}
                   >
-                    <span
-                      style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: 5,
-                        fontWeight: 600,
-                        color: meeting.status === 'upcoming' ? '#d4a574' : '#a09888',
-                      }}
-                    >
-                      <Calendar size={13} />
+                    <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                      <Calendar size={11} />
                       {meeting.date}
                     </span>
                     <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                      <Clock size={12} />
+                      <Clock size={11} />
                       {meeting.time}
                     </span>
-                    {/* Duration pill */}
-                    <span
-                      style={{
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        gap: 4,
-                        fontSize: 10,
-                        fontWeight: 600,
-                        backgroundColor: 'rgba(255,255,255,0.05)',
-                        borderRadius: 8,
-                        padding: '2px 8px',
-                        color: '#a09888',
-                      }}
-                    >
-                      {meeting.duration}
+                    <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <div
+                        style={{
+                          width: Math.min(durationMin / 2, 60),
+                          height: 4,
+                          borderRadius: 2,
+                          background: `linear-gradient(90deg, ${typeConfig.color}60, ${typeConfig.color}20)`,
+                        }}
+                      />
+                      <span style={{ fontSize: 11 }}>{meeting.duration}</span>
                     </span>
-                    {/* Participant count pill */}
-                    <span
-                      style={{
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        gap: 4,
-                        fontSize: 10,
-                        fontWeight: 600,
-                        backgroundColor: 'rgba(255,255,255,0.05)',
-                        borderRadius: 8,
-                        padding: '2px 8px',
-                        color: '#a09888',
-                      }}
-                    >
-                      <Users size={10} />
+                    <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                      <Users size={11} />
                       {meeting.attendees.length}
                     </span>
                   </div>
                 </div>
 
-                {/* Right side: Attendee avatars + quick stats */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: 16, flexShrink: 0 }}>
-                  {/* AI Insights indicator */}
+                {/* Right side */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 14, flexShrink: 0 }}>
                   {meeting.aiInsights && meeting.aiInsights.length > 0 && (
                     <div
                       style={{
                         display: 'flex',
                         alignItems: 'center',
                         gap: 4,
-                        fontSize: 10,
+                        fontSize: 11,
                         color: '#8b5cf6',
-                        fontWeight: 600,
+                        backgroundColor: 'rgba(139, 92, 246, 0.08)',
+                        borderRadius: 8,
+                        padding: '3px 8px',
                       }}
-                      title="AI insights available"
+                      title="AI Insights"
                     >
-                      <Brain size={12} />
+                      <Sparkles size={11} />
                       {meeting.aiInsights.length}
                     </div>
                   )}
 
-                  {/* Action items progress */}
                   {totalActions > 0 && (
                     <div
                       style={{
@@ -1365,7 +1098,6 @@ export function MeetingIntelView() {
                     </div>
                   )}
 
-                  {/* Decisions count */}
                   {meeting.decisions.length > 0 && (
                     <div
                       style={{
@@ -1437,28 +1169,103 @@ export function MeetingIntelView() {
 
               {/* Expanded Content */}
               {isExpanded && (
-                <div
-                  style={{
-                    borderTop: '1px solid #1e2638',
-                    animation: 'expandContent 0.35s ease-out both',
-                  }}
-                >
-                  {/* AI Insights Panel (at top of expanded content) */}
-                  {meeting.aiInsights && meeting.aiInsights.length > 0 && (
-                    <div style={{ padding: '18px 22px 0' }}>
-                      <AIInsightsPanel insights={meeting.aiInsights} />
-                    </div>
-                  )}
+                <div style={{ borderTop: '1px solid #1e2638' }}>
+                  {/* Top row: Sentiment gauge + AI Insights */}
+                  <div
+                    style={{
+                      padding: '16px 22px',
+                      borderBottom: '1px solid rgba(255,255,255,0.03)',
+                      display: 'flex',
+                      gap: 24,
+                      flexWrap: 'wrap',
+                      alignItems: 'flex-start',
+                    }}
+                  >
+                    {/* Sentiment Gauge */}
+                    {meeting.sentiment && (
+                      <div
+                        className="animate-fade-in"
+                        style={{
+                          backgroundColor: 'rgba(255,255,255,0.02)',
+                          border: '1px solid rgba(255,255,255,0.05)',
+                          borderRadius: 12,
+                          padding: '10px 16px',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          gap: 4,
+                        }}
+                      >
+                        <span style={{ fontSize: 10, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#6b6358' }}>
+                          Meeting Tone
+                        </span>
+                        <SentimentGauge sentiment={meeting.sentiment} />
+                      </div>
+                    )}
 
-                  {/* Key Decisions Callout (for completed meetings with decisions) */}
-                  {meeting.decisions.length > 0 && (
-                    <div style={{ padding: '0 22px 12px' }}>
-                      <KeyDecisionsCallout decisions={meeting.decisions} />
-                    </div>
-                  )}
+                    {/* AI Insights */}
+                    {meeting.aiInsights && meeting.aiInsights.length > 0 && (
+                      <div className="animate-fade-in" style={{ flex: 1, minWidth: 240, animationDelay: '0.1s' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
+                          <Sparkles size={13} style={{ color: '#8b5cf6' }} />
+                          <span style={{ fontSize: 10, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#8b5cf6' }}>
+                            AI Insights
+                          </span>
+                        </div>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                          {meeting.aiInsights.map((insight, idx) => {
+                            const pc = insightPriorityConfig[insight.priority];
+                            return (
+                              <div
+                                key={idx}
+                                style={{
+                                  display: 'flex',
+                                  alignItems: 'flex-start',
+                                  gap: 8,
+                                  padding: '8px 12px',
+                                  backgroundColor: pc.bg,
+                                  border: `1px solid ${pc.border}`,
+                                  borderRadius: 10,
+                                }}
+                              >
+                                <div
+                                  style={{
+                                    width: 6,
+                                    height: 6,
+                                    borderRadius: '50%',
+                                    backgroundColor: pc.color,
+                                    marginTop: 5,
+                                    flexShrink: 0,
+                                  }}
+                                />
+                                <div style={{ flex: 1, minWidth: 0 }}>
+                                  <span style={{ fontSize: 12, color: '#c8bfb4', lineHeight: 1.5 }}>
+                                    {insight.text}
+                                  </span>
+                                </div>
+                                <span
+                                  style={{
+                                    fontSize: 9,
+                                    fontWeight: 700,
+                                    textTransform: 'uppercase',
+                                    letterSpacing: '0.06em',
+                                    color: pc.color,
+                                    flexShrink: 0,
+                                    marginTop: 2,
+                                  }}
+                                >
+                                  {insight.priority}
+                                </span>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+                  </div>
 
                   {/* Attendees row */}
                   <div
+                    className="animate-fade-in"
                     style={{
                       padding: '14px 22px',
                       borderBottom: '1px solid rgba(255,255,255,0.03)',
@@ -1466,6 +1273,7 @@ export function MeetingIntelView() {
                       alignItems: 'center',
                       gap: 8,
                       flexWrap: 'wrap',
+                      animationDelay: '0.08s',
                     }}
                   >
                     <Users size={13} style={{ color: '#6b6358' }} />
@@ -1582,42 +1390,19 @@ export function MeetingIntelView() {
                     {/* Agenda */}
                     {section === 'agenda' && (
                       <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                        <div
-                          style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: 6,
-                            marginBottom: 4,
-                          }}
-                        >
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
                           <Sparkles size={14} style={{ color: '#8b5cf6' }} />
-                          <span
-                            style={{
-                              fontSize: 12,
-                              fontWeight: 600,
-                              color: '#8b5cf6',
-                            }}
-                          >
+                          <span style={{ fontSize: 12, fontWeight: 600, color: '#8b5cf6' }}>
                             Auto-Generated Agenda
                           </span>
-                          {/* Duration bar visual */}
-                          <div
-                            style={{
-                              marginLeft: 'auto',
-                              display: 'flex',
-                              alignItems: 'center',
-                              gap: 6,
-                              fontSize: 11,
-                              color: '#6b6358',
-                            }}
-                          >
-                            <Clock size={11} />
-                            {meeting.duration} total
-                          </div>
+                          <span style={{ fontSize: 11, color: '#6b6358', marginLeft: 'auto' }}>
+                            Total: {meeting.duration}
+                          </span>
                         </div>
                         {meeting.agenda.map((item, idx) => (
                           <div
                             key={idx}
+                            className="animate-fade-in"
                             style={{
                               display: 'flex',
                               gap: 14,
@@ -1625,8 +1410,12 @@ export function MeetingIntelView() {
                               backgroundColor: 'rgba(255,255,255,0.02)',
                               border: '1px solid rgba(255,255,255,0.04)',
                               borderRadius: 10,
-                              animation: `meetingCardEntrance 0.3s ease-out ${idx * 0.05}s both`,
+                              animationDelay: `${idx * 0.05}s`,
+                              opacity: 0,
+                              transition: 'background-color 0.15s',
                             }}
+                            onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.04)'; }}
+                            onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.02)'; }}
                           >
                             <div
                               style={{
@@ -1654,24 +1443,24 @@ export function MeetingIntelView() {
                                   <FileText size={10} />
                                   {item.source}
                                 </span>
-                                {item.duration && (
-                                  <span
-                                    style={{
-                                      display: 'flex',
-                                      alignItems: 'center',
-                                      gap: 4,
-                                      backgroundColor: 'rgba(139, 92, 246, 0.08)',
-                                      borderRadius: 6,
-                                      padding: '1px 6px',
-                                      color: '#a78bfa',
-                                    }}
-                                  >
-                                    <Clock size={10} />
-                                    {item.duration}
-                                  </span>
-                                )}
                               </div>
                             </div>
+                            {item.duration && (
+                              <div
+                                style={{
+                                  fontSize: 10,
+                                  fontWeight: 600,
+                                  color: '#8b5cf6',
+                                  backgroundColor: 'rgba(139, 92, 246, 0.08)',
+                                  borderRadius: 8,
+                                  padding: '2px 8px',
+                                  flexShrink: 0,
+                                  alignSelf: 'center',
+                                }}
+                              >
+                                {item.duration}
+                              </div>
+                            )}
                           </div>
                         ))}
                       </div>
@@ -1688,12 +1477,14 @@ export function MeetingIntelView() {
                           meeting.preReads.map((pr, idx) => (
                             <div
                               key={idx}
+                              className="animate-fade-in"
                               style={{
                                 padding: '16px 18px',
                                 backgroundColor: 'rgba(255,255,255,0.02)',
                                 border: '1px solid rgba(255,255,255,0.04)',
                                 borderRadius: 10,
-                                animation: `meetingCardEntrance 0.3s ease-out ${idx * 0.06}s both`,
+                                animationDelay: `${idx * 0.06}s`,
+                                opacity: 0,
                               }}
                             >
                               <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
@@ -1716,9 +1507,7 @@ export function MeetingIntelView() {
                       <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
                           <Lightbulb size={14} style={{ color: '#d4a574' }} />
-                          <span style={{ fontSize: 12, fontWeight: 600, color: '#d4a574' }}>
-                            Suggested Outcomes
-                          </span>
+                          <span style={{ fontSize: 12, fontWeight: 600, color: '#d4a574' }}>Suggested Outcomes</span>
                         </div>
                         {meeting.suggestedOutcomes.length === 0 ? (
                           <div style={{ fontSize: 13, color: '#6b6358', padding: 20, textAlign: 'center' }}>
@@ -1728,6 +1517,7 @@ export function MeetingIntelView() {
                           meeting.suggestedOutcomes.map((outcome, idx) => (
                             <div
                               key={idx}
+                              className="animate-fade-in"
                               style={{
                                 display: 'flex',
                                 alignItems: 'flex-start',
@@ -1736,13 +1526,12 @@ export function MeetingIntelView() {
                                 backgroundColor: 'rgba(212, 165, 116, 0.04)',
                                 border: '1px solid rgba(212, 165, 116, 0.1)',
                                 borderRadius: 10,
-                                animation: `meetingCardEntrance 0.3s ease-out ${idx * 0.06}s both`,
+                                animationDelay: `${idx * 0.05}s`,
+                                opacity: 0,
                               }}
                             >
                               <Lightbulb size={14} style={{ color: '#d4a574', marginTop: 2, flexShrink: 0 }} />
-                              <span style={{ fontSize: 13, color: '#c8bfb4', lineHeight: 1.5 }}>
-                                {outcome}
-                              </span>
+                              <span style={{ fontSize: 13, color: '#c8bfb4', lineHeight: 1.5 }}>{outcome}</span>
                             </div>
                           ))
                         )}
@@ -1754,9 +1543,7 @@ export function MeetingIntelView() {
                       <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
                           <Gavel size={14} style={{ color: '#8b5cf6' }} />
-                          <span style={{ fontSize: 12, fontWeight: 600, color: '#8b5cf6' }}>
-                            Decisions Captured
-                          </span>
+                          <span style={{ fontSize: 12, fontWeight: 600, color: '#8b5cf6' }}>Decisions Captured</span>
                         </div>
                         {meeting.decisions.length === 0 ? (
                           <div
@@ -1778,6 +1565,7 @@ export function MeetingIntelView() {
                           meeting.decisions.map((decision, idx) => (
                             <div
                               key={idx}
+                              className="animate-fade-in"
                               style={{
                                 display: 'flex',
                                 alignItems: 'flex-start',
@@ -1786,7 +1574,8 @@ export function MeetingIntelView() {
                                 backgroundColor: 'rgba(139, 92, 246, 0.06)',
                                 border: '1px solid rgba(139, 92, 246, 0.15)',
                                 borderRadius: 10,
-                                animation: `meetingCardEntrance 0.3s ease-out ${idx * 0.06}s both`,
+                                animationDelay: `${idx * 0.05}s`,
+                                opacity: 0,
                               }}
                             >
                               <div
@@ -1804,9 +1593,7 @@ export function MeetingIntelView() {
                               >
                                 <Gavel size={11} style={{ color: '#8b5cf6' }} />
                               </div>
-                              <span style={{ fontSize: 13, color: '#d8cfc4', lineHeight: 1.5 }}>
-                                {decision}
-                              </span>
+                              <span style={{ fontSize: 13, color: '#d8cfc4', lineHeight: 1.5 }}>{decision}</span>
                             </div>
                           ))
                         )}
@@ -1819,29 +1606,18 @@ export function MeetingIntelView() {
                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
                           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                             <Target size={14} style={{ color: '#6b8f71' }} />
-                            <span style={{ fontSize: 12, fontWeight: 600, color: '#6b8f71' }}>
-                              Action Items
-                            </span>
+                            <span style={{ fontSize: 12, fontWeight: 600, color: '#6b8f71' }}>Action Items</span>
                           </div>
                           {totalActions > 0 && (
                             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                              {/* Progress bar */}
-                              <div
-                                style={{
-                                  width: 80,
-                                  height: 4,
-                                  backgroundColor: 'rgba(255,255,255,0.06)',
-                                  borderRadius: 2,
-                                  overflow: 'hidden',
-                                }}
-                              >
+                              <div style={{ width: 80, height: 4, borderRadius: 2, backgroundColor: '#1e2638', overflow: 'hidden' }}>
                                 <div
                                   style={{
                                     width: `${(doneCount / totalActions) * 100}%`,
                                     height: '100%',
-                                    backgroundColor: '#6b8f71',
                                     borderRadius: 2,
-                                    transition: 'width 0.3s ease',
+                                    backgroundColor: doneCount === totalActions ? '#6b8f71' : '#d4a574',
+                                    transition: 'width 0.3s ease-out',
                                   }}
                                 />
                               </div>
@@ -1868,56 +1644,58 @@ export function MeetingIntelView() {
                         ) : (
                           meeting.actionItems.map((action, idx) => {
                             const ownerAvatar = getMemberAvatar(action.owner);
+                            const prioColor = action.priority === 'high' ? '#e06060' : action.priority === 'medium' ? '#e8b44c' : '#60a5fa';
                             return (
                               <div
                                 key={idx}
+                                className="animate-fade-in"
                                 style={{
                                   display: 'flex',
                                   alignItems: 'center',
                                   gap: 12,
                                   padding: '10px 14px',
-                                  backgroundColor: action.done
-                                    ? 'rgba(107, 143, 113, 0.06)'
-                                    : 'rgba(255,255,255,0.02)',
-                                  border: action.done
-                                    ? '1px solid rgba(107, 143, 113, 0.15)'
-                                    : '1px solid rgba(255,255,255,0.04)',
+                                  backgroundColor: action.done ? 'rgba(107, 143, 113, 0.06)' : 'rgba(255,255,255,0.02)',
+                                  border: action.done ? '1px solid rgba(107, 143, 113, 0.15)' : '1px solid rgba(255,255,255,0.04)',
                                   borderRadius: 10,
-                                  transition: 'all 0.2s',
-                                  animation: `meetingCardEntrance 0.3s ease-out ${idx * 0.06}s both`,
+                                  transition: 'all 0.15s',
+                                  animationDelay: `${idx * 0.04}s`,
+                                  opacity: 0,
                                 }}
                               >
-                                {/* Toggle button */}
                                 <button
                                   onClick={() => toggleActionItem(meeting.id, idx)}
                                   style={{
                                     display: 'flex',
                                     alignItems: 'center',
                                     justifyContent: 'center',
-                                    width: 24,
-                                    height: 24,
+                                    width: 22,
+                                    height: 22,
                                     borderRadius: 6,
-                                    border: action.done
-                                      ? '2px solid #6b8f71'
-                                      : '2px solid #3a3530',
-                                    backgroundColor: action.done
-                                      ? 'rgba(107, 143, 113, 0.15)'
-                                      : 'transparent',
+                                    border: 'none',
+                                    backgroundColor: 'transparent',
                                     cursor: 'pointer',
                                     padding: 0,
                                     flexShrink: 0,
                                     color: action.done ? '#6b8f71' : '#4a443e',
-                                    transition: 'all 0.2s',
+                                    transition: 'color 0.15s',
                                   }}
                                 >
-                                  {action.done ? (
-                                    <CheckCircle2 size={16} />
-                                  ) : (
-                                    <Circle size={16} />
-                                  )}
+                                  {action.done ? <CheckCircle2 size={18} /> : <Circle size={18} />}
                                 </button>
 
-                                {/* Text */}
+                                {action.priority && !action.done && (
+                                  <div
+                                    style={{
+                                      width: 6,
+                                      height: 6,
+                                      borderRadius: '50%',
+                                      backgroundColor: prioColor,
+                                      flexShrink: 0,
+                                    }}
+                                    title={`${action.priority} priority`}
+                                  />
+                                )}
+
                                 <span
                                   style={{
                                     flex: 1,
@@ -1930,35 +1708,43 @@ export function MeetingIntelView() {
                                   {action.text}
                                 </span>
 
-                                {/* Owner with avatar */}
-                                <div
-                                  style={{
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    gap: 6,
-                                    flexShrink: 0,
-                                    backgroundColor: 'rgba(255,255,255,0.03)',
-                                    borderRadius: 16,
-                                    padding: '3px 10px 3px 3px',
-                                  }}
-                                >
+                                {action.priority && !action.done && (
+                                  <span
+                                    style={{
+                                      fontSize: 9,
+                                      fontWeight: 700,
+                                      textTransform: 'uppercase',
+                                      letterSpacing: '0.04em',
+                                      color: prioColor,
+                                      backgroundColor: `${prioColor}15`,
+                                      borderRadius: 6,
+                                      padding: '2px 6px',
+                                      flexShrink: 0,
+                                    }}
+                                  >
+                                    {action.priority}
+                                  </span>
+                                )}
+
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
                                   <div
                                     style={{
-                                      width: 22,
-                                      height: 22,
+                                      width: 24,
+                                      height: 24,
                                       borderRadius: '50%',
-                                      backgroundColor: ownerAvatar.hex,
+                                      backgroundColor: action.done ? '#2a3040' : ownerAvatar.hex,
                                       display: 'flex',
                                       alignItems: 'center',
                                       justifyContent: 'center',
                                       fontSize: 8,
                                       fontWeight: 700,
                                       color: '#fff',
+                                      border: action.done ? '1px solid #3a4050' : 'none',
                                     }}
                                   >
                                     {ownerAvatar.initials}
                                   </div>
-                                  <span style={{ fontSize: 11, color: '#a09888' }}>
+                                  <span style={{ fontSize: 11, color: action.done ? '#4a443e' : '#6b6358' }}>
                                     {getMemberName(action.owner).split(' ')[0]}
                                   </span>
                                 </div>
@@ -1974,9 +1760,7 @@ export function MeetingIntelView() {
                       <div>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 10 }}>
                           <MessageSquare size={14} style={{ color: '#a09888' }} />
-                          <span style={{ fontSize: 12, fontWeight: 600, color: '#a09888' }}>
-                            Meeting Notes
-                          </span>
+                          <span style={{ fontSize: 12, fontWeight: 600, color: '#a09888' }}>Meeting Notes</span>
                         </div>
                         <textarea
                           value={meeting.notes}
@@ -1999,12 +1783,8 @@ export function MeetingIntelView() {
                             resize: 'vertical',
                             boxSizing: 'border-box',
                           }}
-                          onFocus={(e) => {
-                            e.currentTarget.style.borderColor = 'rgba(212, 165, 116, 0.3)';
-                          }}
-                          onBlur={(e) => {
-                            e.currentTarget.style.borderColor = 'rgba(255,255,255,0.06)';
-                          }}
+                          onFocus={(e) => { e.currentTarget.style.borderColor = 'rgba(212, 165, 116, 0.3)'; }}
+                          onBlur={(e) => { e.currentTarget.style.borderColor = 'rgba(255,255,255,0.06)'; }}
                         />
                         {meeting.notes && (
                           <div style={{ marginTop: 8, fontSize: 11, color: '#4a443e', textAlign: 'right' }}>
@@ -2022,6 +1802,7 @@ export function MeetingIntelView() {
 
         {filteredMeetings.length === 0 && (
           <div
+            className="animate-fade-in"
             style={{
               padding: 48,
               textAlign: 'center',
@@ -2032,7 +1813,8 @@ export function MeetingIntelView() {
             }}
           >
             <Calendar size={32} style={{ marginBottom: 12, opacity: 0.3 }} />
-            <p style={{ fontSize: 14, margin: 0 }}>No meetings match this filter</p>
+            <p style={{ fontSize: 14, margin: '0 0 4px', color: '#a09888' }}>No meetings match this filter</p>
+            <p style={{ fontSize: 12, margin: 0 }}>Try adjusting the view or type filters above.</p>
           </div>
         )}
       </div>

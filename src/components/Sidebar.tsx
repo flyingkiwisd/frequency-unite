@@ -35,6 +35,7 @@ import {
   LogOut,
 } from 'lucide-react';
 import { teamMembers } from '@/lib/data';
+import { isClerkConfigured } from '@/lib/config';
 
 type ViewType = 'dashboard' | 'nodes' | 'team' | 'okrs' | 'tasks' | 'roadmap' | 'governance' | 'events' | 'chat' | 'notes' | 'activity' | 'enrollment' | 'budget' | 'pods' | 'accountability' | 'meeting-intel' | 'what-changed' | 'knowledge-graph' | 'steward-alignment' | 'member-health' | 'cash-runway' | 'role-drift' | 'leaderboard' | 'peer-feedback' | 'ecosystem-intel' | 'steward-os';
 
@@ -82,6 +83,37 @@ const navItems: { label: string; icon: React.ElementType; view: ViewType; group:
   { label: 'Notes', icon: StickyNote, view: 'notes', group: 6 },
   { label: 'Activity', icon: Activity, view: 'activity', group: 6 },
 ];
+
+// Clerk UserButton section — renders Clerk's built-in user menu when Clerk is configured
+function ClerkUserSection({ collapsed, userName, initials }: { collapsed: boolean; userName: string; initials: string }) {
+  // Dynamic import — only resolved when Clerk is actually configured
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  const { UserButton } = require('@clerk/nextjs');
+
+  return (
+    <>
+      <div style={{ flexShrink: 0 }}>
+        <UserButton
+          appearance={{
+            elements: {
+              avatarBox: { width: 36, height: 36 },
+              userButtonPopoverCard: { backgroundColor: '#131720', borderColor: '#1e2638' },
+            },
+          }}
+        />
+      </div>
+      {!collapsed && (
+        <div style={{ overflow: 'hidden', flex: 1, minWidth: 0 }}>
+          <div style={{ fontSize: 13, fontWeight: 600, color: '#f0ebe4', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{userName}</div>
+          <div style={{ fontSize: 11, color: '#6b8f71', display: 'flex', alignItems: 'center', gap: 4, marginTop: 1 }}>
+            <span style={{ width: 6, height: 6, borderRadius: '50%', backgroundColor: '#6b8f71', display: 'inline-block' }} />
+            Online
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
 
 export function Sidebar({
   currentView,
@@ -247,43 +279,49 @@ export function Sidebar({
 
       {/* User Section */}
       <div style={{ borderTop: '1px solid #1e2638', padding: collapsed ? '16px 0' : '16px', display: 'flex', alignItems: 'center', justifyContent: collapsed ? 'center' : 'flex-start', gap: 12, flexShrink: 0 }}>
-        <div style={{ position: 'relative', flexShrink: 0 }}>
-          <div title={collapsed ? userName : undefined} style={{ width: 36, height: 36, borderRadius: '50%', background: 'linear-gradient(135deg, #c4925a, #d4a574)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 700, color: '#0b0d14', letterSpacing: '0.02em' }}>
-            {initials}
-          </div>
-          <div style={{ position: 'absolute', bottom: 0, right: 0, width: 10, height: 10, borderRadius: '50%', backgroundColor: '#6b8f71', border: '2px solid #131720' }} />
-        </div>
-        {!collapsed && (
+        {isClerkConfigured ? (
+          <ClerkUserSection collapsed={collapsed} userName={userName} initials={initials} />
+        ) : (
           <>
-            <div style={{ overflow: 'hidden', flex: 1, minWidth: 0 }}>
-              <div style={{ fontSize: 13, fontWeight: 600, color: '#f0ebe4', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{userName}</div>
-              <div style={{ fontSize: 11, color: '#6b8f71', display: 'flex', alignItems: 'center', gap: 4, marginTop: 1 }}>
-                <span style={{ width: 6, height: 6, borderRadius: '50%', backgroundColor: '#6b8f71', display: 'inline-block' }} />
-                Online
+            <div style={{ position: 'relative', flexShrink: 0 }}>
+              <div title={collapsed ? userName : undefined} style={{ width: 36, height: 36, borderRadius: '50%', background: 'linear-gradient(135deg, #c4925a, #d4a574)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 700, color: '#0b0d14', letterSpacing: '0.02em' }}>
+                {initials}
               </div>
+              <div style={{ position: 'absolute', bottom: 0, right: 0, width: 10, height: 10, borderRadius: '50%', backgroundColor: '#6b8f71', border: '2px solid #131720' }} />
             </div>
-            {onSignOut && (
-              <button
-                onClick={onSignOut}
-                title="Sign out"
-                style={{
-                  background: 'transparent',
-                  border: 'none',
-                  cursor: 'pointer',
-                  padding: 6,
-                  borderRadius: 6,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  color: '#6b6358',
-                  transition: 'background 0.15s, color 0.15s',
-                  flexShrink: 0,
-                }}
-                onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(224, 96, 96, 0.1)'; e.currentTarget.style.color = '#e06060'; }}
-                onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = '#6b6358'; }}
-              >
-                <LogOut size={16} />
-              </button>
+            {!collapsed && (
+              <>
+                <div style={{ overflow: 'hidden', flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: '#f0ebe4', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{userName}</div>
+                  <div style={{ fontSize: 11, color: '#6b8f71', display: 'flex', alignItems: 'center', gap: 4, marginTop: 1 }}>
+                    <span style={{ width: 6, height: 6, borderRadius: '50%', backgroundColor: '#6b8f71', display: 'inline-block' }} />
+                    Online
+                  </div>
+                </div>
+                {onSignOut && (
+                  <button
+                    onClick={onSignOut}
+                    title="Sign out"
+                    style={{
+                      background: 'transparent',
+                      border: 'none',
+                      cursor: 'pointer',
+                      padding: 6,
+                      borderRadius: 6,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      color: '#6b6358',
+                      transition: 'background 0.15s, color 0.15s',
+                      flexShrink: 0,
+                    }}
+                    onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(224, 96, 96, 0.1)'; e.currentTarget.style.color = '#e06060'; }}
+                    onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = '#6b6358'; }}
+                  >
+                    <LogOut size={16} />
+                  </button>
+                )}
+              </>
             )}
           </>
         )}

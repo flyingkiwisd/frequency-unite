@@ -32,6 +32,7 @@ import { EcosystemIntelView } from '@/components/views/EcosystemIntelView';
 import { StewardOSView } from '@/components/views/StewardOSView';
 import { LoginScreen } from '@/components/LoginScreen';
 import { CommandPalette } from '@/components/CommandPalette';
+import { teamMembers } from '@/lib/data';
 
 export type ViewType = 'dashboard' | 'nodes' | 'team' | 'okrs' | 'tasks' | 'roadmap' | 'governance' | 'events' | 'chat' | 'notes' | 'activity' | 'enrollment' | 'budget' | 'pods' | 'accountability' | 'meeting-intel' | 'what-changed' | 'knowledge-graph' | 'steward-alignment' | 'member-health' | 'cash-runway' | 'role-drift' | 'leaderboard' | 'peer-feedback' | 'ecosystem-intel' | 'steward-os';
 
@@ -95,12 +96,212 @@ function LoadingScreen() {
   );
 }
 
+// ─── Profile Setup Screen ───
+// Shown after first Clerk login when user hasn't linked to a team member yet
+const tailwindColorMap: Record<string, string> = {
+  'bg-amber-500': '#f59e0b', 'bg-amber-400': '#fbbf24', 'bg-rose-400': '#fb7185',
+  'bg-violet-500': '#8b5cf6', 'bg-sky-400': '#38bdf8', 'bg-emerald-500': '#10b981',
+  'bg-purple-500': '#a855f7', 'bg-pink-400': '#f472b6', 'bg-teal-400': '#2dd4bf',
+  'bg-green-500': '#22c55e', 'bg-lime-500': '#84cc16', 'bg-orange-500': '#f97316',
+  'bg-indigo-400': '#818cf8', 'bg-slate-400': '#94a3b8',
+};
+
+function ProfileSetupScreen({
+  onClaim,
+  claiming,
+  setClaiming,
+  onSignOut,
+}: {
+  onClaim: (memberId: string) => Promise<{ error: string | null }>;
+  claiming: boolean;
+  setClaiming: (v: boolean) => void;
+  onSignOut: () => Promise<void>;
+}) {
+  const [error, setError] = useState<string | null>(null);
+
+  const handleClaim = async (memberId: string) => {
+    setClaiming(true);
+    setError(null);
+    const result = await onClaim(memberId);
+    if (result.error) {
+      setError(result.error);
+      setClaiming(false);
+    }
+    // On success, AuthProvider updates teamMemberId and this screen unmounts
+  };
+
+  return (
+    <div
+      style={{
+        minHeight: '100vh',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        background: '#0b0d14',
+        fontFamily: "-apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', sans-serif",
+        position: 'relative',
+        overflow: 'hidden',
+      }}
+    >
+      {/* Background effects */}
+      <div style={{ position: 'absolute', inset: 0, background: 'radial-gradient(ellipse 80% 50% at 50% -20%, rgba(212, 165, 116, 0.12), transparent), radial-gradient(ellipse 60% 40% at 80% 50%, rgba(139, 92, 246, 0.08), transparent)' }} />
+
+      <div
+        style={{
+          position: 'relative',
+          zIndex: 10,
+          width: '100%',
+          maxWidth: 580,
+          margin: '0 20px',
+          padding: '48px 40px 40px',
+          background: 'rgba(15, 18, 28, 0.75)',
+          backdropFilter: 'blur(24px)',
+          border: '1px solid rgba(212, 165, 116, 0.12)',
+          borderRadius: 24,
+          boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)',
+        }}
+      >
+        {/* Logo */}
+        <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 24 }}>
+          <svg width="64" height="64" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <circle cx="32" cy="32" r="28" fill="url(#pGrad)" opacity="0.12" />
+            <path d="M10 32 Q18 14 32 32 Q46 50 54 32" stroke="#d4a574" strokeWidth="3.5" fill="none" strokeLinecap="round" />
+            <circle cx="32" cy="32" r="4" fill="#d4a574" />
+            <circle cx="32" cy="32" r="2" fill="#0b0d14" />
+            <defs>
+              <radialGradient id="pGrad" cx="32" cy="32" r="28">
+                <stop stopColor="#d4a574" />
+                <stop offset="1" stopColor="#8b5cf6" />
+              </radialGradient>
+            </defs>
+          </svg>
+        </div>
+
+        <h1 style={{ textAlign: 'center', fontSize: 22, fontWeight: 700, color: '#f0ebe4', marginBottom: 8 }}>
+          Welcome to Frequency
+        </h1>
+        <p style={{ textAlign: 'center', fontSize: 13, color: '#a09888', marginBottom: 8 }}>
+          Select your steward profile to complete setup
+        </p>
+        <p style={{ textAlign: 'center', fontSize: 11, color: 'rgba(160, 152, 136, 0.5)', marginBottom: 24, fontStyle: 'italic' }}>
+          This links your account to your team member identity
+        </p>
+
+        <div style={{ height: 1, background: 'linear-gradient(90deg, transparent, rgba(212, 165, 116, 0.15), transparent)', marginBottom: 24 }} />
+
+        {error && (
+          <div style={{ textAlign: 'center', fontSize: 12, color: '#e06060', marginBottom: 16, padding: '8px 16px', background: 'rgba(224, 96, 96, 0.1)', borderRadius: 8, border: '1px solid rgba(224, 96, 96, 0.2)' }}>
+            {error}
+          </div>
+        )}
+
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(4, 1fr)',
+            gap: 12,
+            marginBottom: 32,
+            maxHeight: 340,
+            overflowY: 'auto',
+            padding: 4,
+            opacity: claiming ? 0.5 : 1,
+            pointerEvents: claiming ? 'none' : 'auto',
+            transition: 'opacity 0.2s',
+          }}
+        >
+          {teamMembers.map((member) => {
+            const hex = tailwindColorMap[member.color] || '#d4a574';
+            return (
+              <button
+                key={member.id}
+                onClick={() => handleClaim(member.id)}
+                style={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  gap: 8,
+                  padding: '12px 4px',
+                  background: 'transparent',
+                  border: '1px solid transparent',
+                  borderRadius: 16,
+                  cursor: 'pointer',
+                  transition: 'all 0.2s',
+                  fontFamily: 'inherit',
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.background = 'rgba(255, 255, 255, 0.03)';
+                  e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.06)';
+                  e.currentTarget.style.transform = 'translateY(-4px)';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.background = 'transparent';
+                  e.currentTarget.style.borderColor = 'transparent';
+                  e.currentTarget.style.transform = 'translateY(0)';
+                }}
+              >
+                <div
+                  style={{
+                    width: 52,
+                    height: 52,
+                    borderRadius: '50%',
+                    background: `linear-gradient(135deg, ${hex}, ${hex}cc)`,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    fontSize: 14,
+                    fontWeight: 700,
+                    color: 'white',
+                    boxShadow: '0 4px 12px rgba(0, 0, 0, 0.3)',
+                  }}
+                >
+                  {member.avatar}
+                </div>
+                <span style={{ fontSize: 10, fontWeight: 500, color: 'rgba(160, 152, 136, 0.5)', textAlign: 'center', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 80 }}>
+                  {member.name.split(' ')[0]}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+
+        {claiming && (
+          <div style={{ textAlign: 'center', fontSize: 13, color: '#d4a574', marginBottom: 16 }}>
+            Linking your profile...
+          </div>
+        )}
+
+        <div style={{ textAlign: 'center' }}>
+          <button
+            onClick={onSignOut}
+            style={{
+              background: 'transparent',
+              border: '1px solid rgba(224, 96, 96, 0.2)',
+              borderRadius: 8,
+              padding: '8px 20px',
+              fontSize: 12,
+              color: '#a09888',
+              cursor: 'pointer',
+              fontFamily: 'inherit',
+              transition: 'all 0.2s',
+            }}
+            onMouseEnter={(e) => { e.currentTarget.style.borderColor = 'rgba(224, 96, 96, 0.4)'; e.currentTarget.style.color = '#e06060'; }}
+            onMouseLeave={(e) => { e.currentTarget.style.borderColor = 'rgba(224, 96, 96, 0.2)'; e.currentTarget.style.color = '#a09888'; }}
+          >
+            Sign out
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function Home() {
-  const { user, teamMemberId, loading, signOut } = useAuth();
+  const { user, teamMemberId, loading, signOut, needsProfileSetup, claimTeamMember, isDemo } = useAuth();
   const [currentView, setCurrentView] = useState<ViewType>('dashboard');
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
   const [viewTransition, setViewTransition] = useState(false);
+  const [claimingProfile, setClaimingProfile] = useState(false);
   const mainRef = useRef<HTMLElement>(null);
 
   const handleKeyDown = useCallback((e: KeyboardEvent) => {
@@ -121,6 +322,11 @@ export default function Home() {
 
   if (!user) {
     return <LoginScreen onLogin={() => {}} />;
+  }
+
+  // Profile setup — Clerk user exists but hasn't linked to a team member yet
+  if (needsProfileSetup && !isDemo) {
+    return <ProfileSetupScreen onClaim={claimTeamMember} claiming={claimingProfile} setClaiming={setClaimingProfile} onSignOut={signOut} />;
   }
 
   const handleNavigate = (view: string) => {

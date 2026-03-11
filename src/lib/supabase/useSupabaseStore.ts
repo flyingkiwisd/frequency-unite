@@ -1,22 +1,13 @@
 'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { createBrowserClient } from '@supabase/ssr';
-import type { SupabaseClient } from '@supabase/supabase-js';
+import { useAuth } from '@/lib/supabase/AuthProvider';
 
-const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL ?? '';
-const SUPABASE_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? '';
-const isConfigured = SUPABASE_URL.length > 0 && SUPABASE_KEY.length > 0 && !SUPABASE_URL.includes('placeholder');
-
-function getClient(): SupabaseClient | null {
-  if (!isConfigured) return null;
-  try {
-    return createBrowserClient(SUPABASE_URL, SUPABASE_KEY);
-  } catch {
-    return null;
-  }
-}
-
+/**
+ * Hook for per-user JSONB data persistence via Supabase.
+ * Gets the authenticated Supabase client and user ID from AuthContext
+ * (which uses a Clerk JWT when Clerk is configured, or null in demo mode).
+ */
 export function useSupabaseStore<T>(
   tableName: string,
   defaultData: T
@@ -27,25 +18,15 @@ export function useSupabaseStore<T>(
   resetAll: () => void;
   loading: boolean;
 } {
+  const { supabase, user } = useAuth();
+  const userId = user?.id ?? null;
+
   const [data, setDataState] = useState<T>(defaultData);
   const [hasEdits, setHasEdits] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [userId, setUserId] = useState<string | null>(null);
   const debounceRef = useRef<NodeJS.Timeout | null>(null);
-  const [supabase] = useState(() => getClient());
 
-  // Get current user
-  useEffect(() => {
-    if (!supabase) {
-      setLoading(false);
-      return;
-    }
-    supabase.auth.getUser().then(({ data: { user } }) => {
-      setUserId(user?.id ?? null);
-    });
-  }, [supabase]);
-
-  // Load from Supabase
+  // Load from Supabase on mount
   useEffect(() => {
     if (!supabase || !userId) {
       setLoading(false);

@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
+import { isClerkConfigured } from "@/lib/config";
+import { ClerkProvider } from "@clerk/nextjs";
 import { AuthProvider } from "@/lib/supabase/AuthProvider";
 
 const geistSans = Geist({
@@ -23,15 +25,29 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const body = (
+    <body
+      className={`${geistSans.variable} ${geistMono.variable} antialiased`}
+    >
+      <AuthProvider>
+        {children}
+      </AuthProvider>
+    </body>
+  );
+
+  if (isClerkConfigured) {
+    return (
+      <ClerkProvider>
+        <html lang="en" className="dark">
+          {body}
+        </html>
+      </ClerkProvider>
+    );
+  }
+
   return (
     <html lang="en" className="dark">
-      <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
-      >
-        <AuthProvider>
-          {children}
-        </AuthProvider>
-      </body>
+      {body}
     </html>
   );
 }

@@ -1,9 +1,17 @@
-import { type NextRequest } from 'next/server';
-import { updateSession } from '@/lib/supabase/middleware';
+import { clerkMiddleware, createRouteMatcher } from '@clerk/nextjs/server';
 
-export async function middleware(request: NextRequest) {
-  return await updateSession(request);
-}
+const isProtectedRoute = createRouteMatcher(['/(.*)']);
+
+export default clerkMiddleware(async (auth, req) => {
+  // Only enforce auth when Clerk is configured with real keys
+  const clerkKey = process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY ?? '';
+  const isClerkActive =
+    clerkKey.length > 0 && !clerkKey.includes('placeholder');
+
+  if (isClerkActive && isProtectedRoute(req)) {
+    await auth.protect();
+  }
+});
 
 export const config = {
   matcher: [
