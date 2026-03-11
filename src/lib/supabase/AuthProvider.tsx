@@ -220,11 +220,44 @@ function DemoAuthProvider({ children }: { children: React.ReactNode }) {
 }
 
 // ═══════════════════════════════════════════
+// SSR-safe Clerk wrapper — defers hook usage until after hydration
+// (prevents build error: "useAuth can only be used within ClerkProvider")
+// ═══════════════════════════════════════════
+const LOADING_VALUE: AuthContextType = {
+  user: null,
+  teamMemberId: null,
+  loading: true,
+  isDemo: false,
+  needsProfileSetup: false,
+  signOut: async () => {},
+  demoLogin: () => {},
+  claimTeamMember: async () => ({ error: 'Not ready' }),
+  supabase: null,
+};
+
+function ClerkAuthProviderSafe({ children }: { children: React.ReactNode }) {
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+
+  if (!mounted) {
+    // During SSG/SSR (build time), skip Clerk hooks — return loading state
+    return (
+      <AuthContext.Provider value={LOADING_VALUE}>
+        {children}
+      </AuthContext.Provider>
+    );
+  }
+
+  // After hydration, safe to use Clerk hooks
+  return <ClerkAuthProvider>{children}</ClerkAuthProvider>;
+}
+
+// ═══════════════════════════════════════════
 // Top-level provider — picks Clerk or Demo
 // ═══════════════════════════════════════════
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   if (isClerkConfigured) {
-    return <ClerkAuthProvider>{children}</ClerkAuthProvider>;
+    return <ClerkAuthProviderSafe>{children}</ClerkAuthProviderSafe>;
   }
   return <DemoAuthProvider>{children}</DemoAuthProvider>;
 }
