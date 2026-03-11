@@ -1065,6 +1065,301 @@ export function GovernanceView() {
         </div>
       </section>
 
+      {/* ── Board of Stewards (9-Seat Structure) ── */}
+      <section style={{ marginBottom: 48 }}>
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 8,
+            marginBottom: 6,
+          }}
+        >
+          <Users size={18} style={{ color: '#d4a574' }} />
+          <h2
+            style={{
+              fontSize: 18,
+              fontWeight: 600,
+              color: '#e8c9a0',
+              margin: 0,
+            }}
+          >
+            Board of Stewards
+          </h2>
+        </div>
+        <p
+          style={{
+            fontSize: 12,
+            color: '#6b6358',
+            margin: '0 0 20px 26px',
+            letterSpacing: '0.02em',
+          }}
+        >
+          9 seats &middot; 2-year terms &middot; Elected by steward nominations
+        </p>
+
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(3, 1fr)',
+            gap: 12,
+          }}
+        >
+          {([
+            { seat: 1, name: 'Founder Seat', type: 'Reserved' as const, holder: 'James Hodges', color: '#d4a574' },
+            { seat: 2, name: 'Change Agent', type: 'Elected' as const, holder: 'Open', color: '#8b5cf6' },
+            { seat: 3, name: 'Wealth Steward', type: 'Elected' as const, holder: 'Open', color: '#6b8f71' },
+            { seat: 4, name: 'Wisdom Keeper', type: 'Elected' as const, holder: 'Open', color: '#60a5fa' },
+            { seat: 5, name: 'Change Agent', type: 'Elected' as const, holder: 'Open', color: '#8b5cf6' },
+            { seat: 6, name: 'Wealth Steward', type: 'Elected' as const, holder: 'Open', color: '#6b8f71' },
+            { seat: 7, name: 'Change Agent', type: 'Elected' as const, holder: 'Open', color: '#8b5cf6' },
+            { seat: 8, name: 'Wisdom Keeper', type: 'Elected' as const, holder: 'Open', color: '#60a5fa' },
+            { seat: 9, name: 'At-Large', type: 'Nominated' as const, holder: 'Open', color: '#fb923c' },
+          ]).map((s, idx) => {
+            const isFilled = s.holder !== 'Open';
+            const typeColors: Record<string, { bg: string; text: string }> = {
+              Reserved: { bg: 'rgba(212, 165, 116, 0.15)', text: '#d4a574' },
+              Elected: { bg: 'rgba(139, 92, 246, 0.12)', text: '#a78bfa' },
+              Nominated: { bg: 'rgba(251, 146, 60, 0.12)', text: '#fb923c' },
+            };
+            const badge = typeColors[s.type];
+            return (
+              <AnimatedCard key={s.seat} index={idx + 10}>
+                <div
+                  style={{
+                    backgroundColor: '#131720',
+                    border: '1px solid #1e2638',
+                    borderLeft: `3px solid ${s.color}`,
+                    borderRadius: 12,
+                    padding: '14px 16px',
+                    position: 'relative',
+                    opacity: isFilled ? 1 : 0.7,
+                    transition: 'border-color 0.2s, transform 0.2s, opacity 0.2s, box-shadow 0.2s',
+                    boxShadow: isFilled ? `0 0 16px ${s.color}15` : 'none',
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.borderColor = `${s.color}50`;
+                    e.currentTarget.style.transform = 'translateY(-2px)';
+                    e.currentTarget.style.opacity = '1';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.borderColor = '#1e2638';
+                    e.currentTarget.style.transform = 'translateY(0)';
+                    e.currentTarget.style.opacity = isFilled ? '1' : '0.7';
+                  }}
+                >
+                  {/* Seat number */}
+                  <span
+                    style={{
+                      fontSize: 10,
+                      fontWeight: 600,
+                      color: '#6b6358',
+                      letterSpacing: '0.06em',
+                      textTransform: 'uppercase',
+                    }}
+                  >
+                    Seat {s.seat}
+                  </span>
+
+                  {/* Seat name */}
+                  <div
+                    style={{
+                      fontSize: 13,
+                      fontWeight: 600,
+                      color: '#f0ebe4',
+                      margin: '6px 0 8px',
+                    }}
+                  >
+                    {s.name}
+                  </div>
+
+                  {/* Type badge */}
+                  <span
+                    style={{
+                      display: 'inline-block',
+                      fontSize: 9,
+                      fontWeight: 600,
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.08em',
+                      color: badge.text,
+                      backgroundColor: badge.bg,
+                      borderRadius: 10,
+                      padding: '2px 8px',
+                      marginBottom: 8,
+                    }}
+                  >
+                    {s.type}
+                  </span>
+
+                  {/* Holder */}
+                  <div
+                    style={{
+                      fontSize: 12,
+                      fontWeight: isFilled ? 500 : 400,
+                      color: isFilled ? '#f0ebe4' : '#6b6358',
+                      fontStyle: isFilled ? 'normal' : 'italic',
+                    }}
+                  >
+                    {s.holder}
+                  </div>
+                </div>
+              </AnimatedCard>
+            );
+          })}
+        </div>
+      </section>
+
+      {/* ── Coherence Accountability Policy ── */}
+      <section style={{ marginBottom: 48 }}>
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 8,
+            marginBottom: 6,
+          }}
+        >
+          <Shield size={18} style={{ color: '#6b8f71' }} />
+          <h2
+            style={{
+              fontSize: 18,
+              fontWeight: 600,
+              color: '#e8c9a0',
+              margin: 0,
+            }}
+          >
+            Coherence Accountability Policy
+          </h2>
+        </div>
+        <p
+          style={{
+            fontSize: 12,
+            color: '#6b6358',
+            margin: '0 0 20px 26px',
+            letterSpacing: '0.02em',
+          }}
+        >
+          When a steward falls out of alignment
+        </p>
+
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+            gap: 0,
+            alignItems: 'stretch',
+          }}
+        >
+          {([
+            {
+              step: 1,
+              title: 'Private Conversation',
+              description: 'Direct, compassionate dialogue between parties. Most issues resolve here.',
+              color: '#6b8f71',
+            },
+            {
+              step: 2,
+              title: 'Formal Acknowledgement',
+              description: 'Documented conversation with a witness. Clear agreements and timelines set.',
+              color: '#f59e0b',
+            },
+            {
+              step: 3,
+              title: 'Transition with Dignity',
+              description: 'If coherence cannot be restored, a graceful transition is offered.',
+              color: '#ef4444',
+            },
+          ]).map((s, idx) => (
+            <AnimatedCard key={s.step} index={idx + 19}>
+              <div style={{ display: 'flex', alignItems: 'stretch', height: '100%' }}>
+                <div
+                  style={{
+                    backgroundColor: '#131720',
+                    border: '1px solid #1e2638',
+                    borderRadius: 14,
+                    padding: '22px 20px',
+                    flex: 1,
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    textAlign: 'center',
+                    transition: 'border-color 0.2s, transform 0.2s',
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.borderColor = `${s.color}50`;
+                    e.currentTarget.style.transform = 'translateY(-2px)';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.borderColor = '#1e2638';
+                    e.currentTarget.style.transform = 'translateY(0)';
+                  }}
+                >
+                  {/* Step number circle */}
+                  <div
+                    style={{
+                      width: 36,
+                      height: 36,
+                      borderRadius: '50%',
+                      backgroundColor: `${s.color}20`,
+                      border: `2px solid ${s.color}60`,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      fontSize: 14,
+                      fontWeight: 700,
+                      color: s.color,
+                      marginBottom: 14,
+                      flexShrink: 0,
+                    }}
+                  >
+                    {s.step}
+                  </div>
+
+                  {/* Title */}
+                  <div
+                    style={{
+                      fontSize: 14,
+                      fontWeight: 600,
+                      color: '#f0ebe4',
+                      marginBottom: 8,
+                    }}
+                  >
+                    {s.title}
+                  </div>
+
+                  {/* Description */}
+                  <p
+                    style={{
+                      fontSize: 12,
+                      color: '#a09888',
+                      lineHeight: 1.6,
+                      margin: 0,
+                    }}
+                  >
+                    {s.description}
+                  </p>
+                </div>
+
+                {/* Connecting arrow between cards (not after last) */}
+                {idx < 2 && (
+                  <div
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      padding: '0 4px',
+                      flexShrink: 0,
+                    }}
+                  >
+                    <ArrowRight size={18} style={{ color: '#2e3a4e' }} />
+                  </div>
+                )}
+              </div>
+            </AnimatedCard>
+          ))}
+        </div>
+      </section>
+
       {/* Decision-to-Implementation Tracker */}
       <section style={{ marginBottom: 48 }}>
         <div

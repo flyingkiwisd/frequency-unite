@@ -3,7 +3,7 @@
 import { useState, useMemo, useCallback } from 'react';
 import {
   Users, CheckCircle2, Target, Network, TrendingUp, Calendar,
-  Plus, Circle, ChevronRight, Zap, ListTodo, X, Sparkles, Bot, Trophy,
+  Plus, Circle, ChevronRight, ChevronDown, Zap, ListTodo, X, Sparkles, Bot, Trophy, BookOpen,
 } from 'lucide-react';
 import { useFrequencyData } from '@/lib/supabase/DataProvider';
 import { useAuth } from '@/lib/supabase/AuthProvider';
@@ -60,6 +60,7 @@ export function DashboardView({ onNavigate }: { onNavigate?: (view: string) => v
   /* ── Accountability Tracker ── */
   const [doneMap, setDoneMap] = useState<DoneMap>(() => loadDoneMap());
   const [showAddForm, setShowAddForm] = useState(false);
+  const [tenetsOpen, setTenetsOpen] = useState(false);
   const [newTitle, setNewTitle] = useState('');
 
   const todayTasks = useMemo(() =>
@@ -240,6 +241,64 @@ export function DashboardView({ onNavigate }: { onNavigate?: (view: string) => v
             <span style={{ fontSize: 11, color: C.textSec }}>{s.text}</span>
           </div>
         ))}
+      </div>
+
+      {/* ── 4a. Tenets of Council ── */}
+      <div style={{ ...card, borderLeft: '3px solid #8b5cf6', padding: 0, overflow: 'hidden' }}>
+        <button
+          onClick={() => setTenetsOpen(o => !o)}
+          style={{
+            width: '100%', display: 'flex', alignItems: 'center', gap: 10,
+            padding: '12px 20px', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit',
+          }}
+        >
+          <BookOpen size={14} style={{ color: '#8b5cf6', flexShrink: 0 }} />
+          <span style={{ fontSize: 13, fontWeight: 600, color: C.text, flex: 1, textAlign: 'left' }}>Tenets of Council</span>
+          <ChevronDown size={14} style={{ color: C.textSec, transition: 'transform 0.2s', transform: tenetsOpen ? 'rotate(180deg)' : 'rotate(0deg)' }} />
+        </button>
+        {tenetsOpen && (
+          <div style={{ padding: '0 20px 14px', display: 'flex', flexDirection: 'column', gap: 6 }}>
+            {[
+              'Coherence before action. Mothership first. Always.',
+              'We operate from trust, not suspicion.',
+              'Responsibility-weighted voice \u2014 greater responsibility, greater say.',
+              'Decisions are logged, transparent, and accountable.',
+              'The sacred is not reducible to the measurable.',
+              'Subsidiarity \u2014 decisions at the lowest competent level.',
+              'We honor both Being (Right Side) and Doing (Left Side).',
+            ].map((t, i) => (
+              <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
+                <div style={{
+                  width: 16, height: 16, borderRadius: '50%', flexShrink: 0,
+                  backgroundColor: 'rgba(139,92,246,0.15)', border: '1px solid rgba(139,92,246,0.3)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  fontSize: 9, fontWeight: 700, color: '#8b5cf6', lineHeight: 1,
+                }}>{i + 1}</div>
+                <span style={{ fontSize: 11, color: C.textSec, lineHeight: 1.4 }}>{t}</span>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* ── 4b. Priority Pyramid ── */}
+      <div style={{ ...card, padding: '14px 20px' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
+          {([
+            { label: 'Member-Led Initiatives', color: '#6b8f71', width: '50%', num: 3 },
+            { label: 'Three Core Nodes', color: '#8b5cf6', width: '75%', num: 2 },
+            { label: 'Mothership Stability', color: '#d4a574', width: '100%', num: 1 },
+          ] as const).map((tier) => (
+            <div key={tier.num} style={{
+              width: tier.width, backgroundColor: 'rgba(19,23,32,0.9)',
+              borderLeft: `3px solid ${tier.color}`, borderRadius: 4,
+              padding: '6px 12px', display: 'flex', alignItems: 'center', gap: 8,
+            }}>
+              <span style={{ fontSize: 10, fontWeight: 700, color: tier.color, flexShrink: 0 }}>P{tier.num}</span>
+              <span style={{ fontSize: 11, color: C.textSec }}>{tier.label}</span>
+            </div>
+          ))}
+        </div>
       </div>
 
       {/* ── 5. AI Advisor Quick-Ask ── */}
