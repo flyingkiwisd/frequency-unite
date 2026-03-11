@@ -183,6 +183,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
 
   // ─── Tasks Mutations ───
   const updateTask = useCallback(async (id: string, updates: Partial<Task>) => {
+    const prevTasks = tasks;
     // Optimistic update
     setTasks(prev => prev.map(t => t.id === id ? { ...t, ...updates } : t));
 
@@ -198,12 +199,16 @@ export function DataProvider({ children }: { children: ReactNode }) {
     if (updates.node !== undefined) dbUpdates.node = updates.node;
     if (updates.category !== undefined) dbUpdates.category = updates.category;
 
+    if (Object.keys(dbUpdates).length === 0) return;
+
     try {
-      await client.from('tasks').update(dbUpdates).eq('id', id);
+      const { error } = await client.from('tasks').update(dbUpdates).eq('id', id);
+      if (error) throw error;
     } catch (err) {
-      console.error('Failed to update task in Supabase:', id, err);
+      console.error('Failed to update task, rolling back:', err);
+      setTasks(prevTasks);
     }
-  }, [getWriteClient]);
+  }, [tasks, getWriteClient]);
 
   const createTask = useCallback(async (task: Omit<Task, 'id'>) => {
     const newId = `t-${Date.now()}`;
@@ -230,11 +235,21 @@ export function DataProvider({ children }: { children: ReactNode }) {
   }, [getWriteClient]);
 
   const deleteTask = useCallback(async (id: string) => {
+    const prevTasks = tasks;
+    // Optimistic delete
     setTasks(prev => prev.filter(t => t.id !== id));
+
     const client = getWriteClient();
     if (!client) return;
-    await client.from('tasks').delete().eq('id', id);
-  }, [getWriteClient]);
+
+    try {
+      const { error } = await client.from('tasks').delete().eq('id', id);
+      if (error) throw error;
+    } catch (err) {
+      console.error('Failed to delete task, rolling back:', err);
+      setTasks(prevTasks);
+    }
+  }, [tasks, getWriteClient]);
 
   // ─── OKR Mutations ───
   const updateOKRStatus = useCallback(async (id: string, status: OKR['status']) => {

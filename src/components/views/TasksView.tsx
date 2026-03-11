@@ -145,7 +145,7 @@ const priorityConfig: Record<Task['priority'], { label: string; color: string; b
 };
 
 const statusOrder: Task['status'][] = ['todo', 'in-progress', 'done', 'blocked'];
-const statusCycle: Task['status'][] = ['todo', 'in-progress', 'done', 'blocked'];
+const statusCycle: Task['status'][] = ['todo', 'in-progress', 'done'];
 const priorityCycle: Task['priority'][] = ['critical', 'high', 'medium', 'low'];
 
 type FilterTab = 'all' | 'by-priority' | 'by-node' | 'by-status';
@@ -177,6 +177,7 @@ function daysUntil(deadline: string): number {
 }
 
 function getNextStatus(current: Task['status']): Task['status'] {
+  if (current === 'blocked') return 'todo';
   const idx = statusCycle.indexOf(current);
   return statusCycle[(idx + 1) % statusCycle.length];
 }
@@ -1416,7 +1417,7 @@ export function TasksView() {
                     style={{ display: 'flex', alignItems: 'center', gap: 3 }}
                   >
                     <button
-                      onClick={(e) => { e.stopPropagation(); deleteTask(task.id); setConfirmDeleteRowId(null); }}
+                      onClick={async (e) => { e.stopPropagation(); try { await deleteTask(task.id); } catch (err) { console.error('Failed to delete task:', err); } setConfirmDeleteRowId(null); }}
                       style={{
                         background: 'rgba(201, 84, 74, 0.15)',
                         border: 'none',

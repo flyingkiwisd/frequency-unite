@@ -19,10 +19,9 @@ import { LeaderboardView } from '@/components/views/LeaderboardView';
 import { LoginScreen } from '@/components/LoginScreen';
 import { CommandPalette } from '@/components/CommandPalette';
 import { DataProvider } from '@/lib/supabase/DataProvider';
-import { teamMembers } from '@/lib/data';
+import { teamMembers, viewTypes } from '@/lib/data';
+import type { ViewType } from '@/lib/data';
 import { tailwindColorMap } from '@/lib/constants';
-
-export type ViewType = 'dashboard' | 'team' | 'chat' | 'okrs' | 'tasks' | 'governance' | 'roadmap' | 'events' | 'nodes' | 'budget' | 'advisor' | 'leaderboard';
 
 function LoadingScreen() {
   return (
@@ -284,6 +283,8 @@ export default function Home() {
   const [viewTransition, setViewTransition] = useState(false);
   const [claimingProfile, setClaimingProfile] = useState(false);
   const mainRef = useRef<HTMLElement>(null);
+  const transitionRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const fadeRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const handleKeyDown = useCallback((e: KeyboardEvent) => {
     if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
@@ -310,19 +311,28 @@ export default function Home() {
     return <ProfileSetupScreen onClaim={claimTeamMember} claiming={claimingProfile} setClaiming={setClaimingProfile} onSignOut={signOut} />;
   }
 
-  const handleNavigate = (view: string) => {
+  const handleNavigate = useCallback((view: string) => {
+    if (!viewTypes.includes(view as ViewType)) {
+      console.warn(`Invalid view: "${view}"`);
+      return;
+    }
     if (view === currentView) return;
+
+    // Clear any pending transition timeouts to prevent race conditions on rapid clicks
+    if (transitionRef.current) clearTimeout(transitionRef.current);
+    if (fadeRef.current) clearTimeout(fadeRef.current);
+
     // Trigger transition
     setViewTransition(true);
-    setTimeout(() => {
+    transitionRef.current = setTimeout(() => {
       setCurrentView(view as ViewType);
       setCommandPaletteOpen(false);
       // Scroll to top
       if (mainRef.current) mainRef.current.scrollTop = 0;
       // End transition
-      setTimeout(() => setViewTransition(false), 20);
+      fadeRef.current = setTimeout(() => setViewTransition(false), 20);
     }, 150);
-  };
+  }, [currentView]);
 
   const handleViewChange = (view: ViewType) => {
     handleNavigate(view);
@@ -331,7 +341,7 @@ export default function Home() {
   const renderView = () => {
     switch (currentView) {
       case 'dashboard': return <DashboardView onNavigate={handleNavigate} />;
-      case 'team': return <TeamView />;
+      case 'team': return <TeamView onNavigate={handleNavigate} />;
       case 'chat': return <ChatView />;
       case 'okrs': return <OKRView />;
       case 'tasks': return <TasksView />;

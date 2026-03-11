@@ -177,11 +177,15 @@ export function EventsView() {
   }), [events]);
 
   // Cycle status: upcoming -> planning -> completed -> upcoming
-  const handleStatusCycle = useCallback((event: FrequencyEvent) => {
+  const handleStatusCycle = useCallback(async (event: FrequencyEvent) => {
     const currentIdx = statusCycle.indexOf(event.status);
     const nextIdx = (currentIdx + 1) % statusCycle.length;
     const newStatus = statusCycle[nextIdx];
-    updateEvent(event.id, { status: newStatus });
+    try {
+      await updateEvent(event.id, { status: newStatus });
+    } catch (err) {
+      console.error('Failed to update event:', err);
+    }
   }, [updateEvent]);
 
   return (

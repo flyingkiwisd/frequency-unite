@@ -45,22 +45,37 @@ export function LeaderboardView() {
   const { teamMembers, tasks, okrs, nodes } = useFrequencyData();
   const [timeFilter, setTimeFilter] = useState<TimeFilter>('all');
 
-  const ranked = useMemo(() =>
-    computeScores(teamMembers, tasks, okrs).sort((a, b) => b.score - a.score),
-    [teamMembers, tasks, okrs],
-  );
+  const ranked = useMemo(() => {
+    let filteredTasks = tasks;
+
+    if (timeFilter !== 'all') {
+      const now = new Date();
+      const cutoff = new Date();
+      if (timeFilter === 'week') {
+        cutoff.setDate(now.getDate() - 7);
+      } else if (timeFilter === 'month') {
+        cutoff.setDate(now.getDate() - 30);
+      }
+      filteredTasks = tasks.filter(t => {
+        if (!t.deadline) return false;
+        return new Date(t.deadline) >= cutoff;
+      });
+    }
+
+    return computeScores(teamMembers, filteredTasks, okrs).sort((a, b) => b.score - a.score);
+  }, [teamMembers, tasks, okrs, timeFilter]);
   const top3 = ranked.slice(0, 3);
 
   const stats = useMemo(() => {
-    const totalDone = tasks.filter((t) => t.status === 'done').length;
-    const total = tasks.length;
+    const totalDone = ranked.reduce((s, r) => s + r.tasksDone, 0);
+    const total = ranked.reduce((s, r) => s + r.tasksTotal, 0);
     const rate = total > 0 ? Math.round((totalDone / total) * 100) : 0;
     const active = ranked.filter((r) => r.hasActiveTasks).length;
     const eng = teamMembers.length > 0 ? Math.round((active / teamMembers.length) * 100) : 0;
     const sorted = [...nodes].sort((a, b) => b.progress - a.progress);
     const topNode = sorted.length > 0 ? sorted[0] : null;
     return { totalDone, rate, eng, topNode };
-  }, [tasks, ranked, teamMembers, nodes]);
+  }, [ranked, teamMembers, nodes]);
 
   const filters: { key: TimeFilter; label: string }[] = [
     { key: 'week', label: 'This Week' }, { key: 'month', label: 'This Month' }, { key: 'all', label: 'All Time' },

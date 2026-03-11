@@ -24,6 +24,7 @@ import {
   X,
 } from 'lucide-react';
 import { useFrequencyData } from '@/lib/supabase/DataProvider';
+import { useAuth } from '@/lib/supabase/AuthProvider';
 import type { ChatChannel } from '@/lib/data';
 
 const iconMap: Record<string, React.ElementType> = {
@@ -101,9 +102,6 @@ function getLastMessagePreview(
   return `${name}: ${text}`;
 }
 
-/* ── "You" sender detection (James Hodges = the user) ── */
-const CURRENT_USER = 'James Hodges';
-
 function getInitials(name: string): string {
   return name
     .split(' ')
@@ -114,7 +112,16 @@ function getInitials(name: string): string {
 }
 
 export function ChatView() {
-  const { chatChannels, chatMessages, sendChatMessage } = useFrequencyData();
+  const { chatChannels, chatMessages, sendChatMessage, teamMembers } = useFrequencyData();
+  const { teamMemberId } = useAuth();
+
+  const currentUser = useMemo(() => {
+    const member = teamMembers.find(m => m.id === teamMemberId);
+    return {
+      name: member?.name || 'Anonymous',
+      initials: member ? member.name.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase() : 'AN',
+    };
+  }, [teamMembers, teamMemberId]);
 
   const [selectedChannel, setSelectedChannel] = useState('core-team');
   const [prevChannel, setPrevChannel] = useState('core-team');
@@ -165,8 +172,8 @@ export function ChatView() {
     setMessageInput('');
     await sendChatMessage({
       channel: selectedChannel,
-      sender: CURRENT_USER,
-      senderAvatar: 'JH',
+      sender: currentUser.name,
+      senderAvatar: currentUser.initials,
       message: text,
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
     });
@@ -770,7 +777,7 @@ export function ChatView() {
             channelMsgs.map((msg, idx) => {
               const prevMsg = idx > 0 ? channelMsgs[idx - 1] : null;
               const isSameSender = prevMsg?.sender === msg.sender;
-              const isCurrentUser = msg.sender === CURRENT_USER;
+              const isCurrentUser = msg.sender === currentUser.name;
               const avatarColor = avatarColors[msg.senderAvatar] || '#6b6358';
 
               return (
@@ -973,7 +980,7 @@ export function ChatView() {
                           e.currentTarget.style.textDecoration = 'none';
                         }}
                       >
-                        {msg.reactions.reduce((sum, r) => sum + r.count, 0)} replies
+                        {msg.reactions.reduce((sum, r) => sum + r.count, 0)} reactions
                       </button>
                     )}
                   </div>
@@ -983,62 +990,6 @@ export function ChatView() {
           )}
           <div ref={messagesEndRef} />
         </div>
-
-        {/* Typing Indicator */}
-        {selectedChannel === 'core-team' && (
-          <div
-            style={{
-              padding: '6px 24px 8px',
-              flexShrink: 0,
-            }}
-          >
-            <div
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: 8,
-                fontSize: 12,
-                color: '#6b6358',
-                backgroundColor: 'rgba(255,255,255,0.02)',
-                borderRadius: 16,
-                padding: '5px 14px',
-                border: '1px solid #1e263840',
-              }}
-            >
-              {/* Mini avatar */}
-              <div
-                style={{
-                  width: 18,
-                  height: 18,
-                  borderRadius: '50%',
-                  backgroundColor: '#f472b6',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  fontSize: 8,
-                  fontWeight: 700,
-                  color: '#0b0d14',
-                }}
-              >
-                SH
-              </div>
-              <span style={{ fontWeight: 600, color: '#a09888' }}>Sian</span>
-              <span>is typing</span>
-              <span
-                style={{
-                  display: 'inline-flex',
-                  gap: 3,
-                  marginLeft: 2,
-                  alignItems: 'center',
-                }}
-              >
-                <span className="typing-dot" />
-                <span className="typing-dot" />
-                <span className="typing-dot" />
-              </span>
-            </div>
-          </div>
-        )}
 
         {/* Message Input */}
         <div
@@ -1088,8 +1039,7 @@ export function ChatView() {
             >
               <Paperclip size={18} />
             </button>
-            <input
-              type="text"
+            <textarea
               value={messageInput}
               onChange={(e) => setMessageInput(e.target.value)}
               onKeyDown={(e) => {
@@ -1099,6 +1049,7 @@ export function ChatView() {
                 }
               }}
               placeholder={`Message #${currentChannel?.name ?? 'channel'}...`}
+              rows={1}
               style={{
                 flex: 1,
                 background: 'transparent',
@@ -1108,6 +1059,14 @@ export function ChatView() {
                 fontSize: 13,
                 fontFamily: 'inherit',
                 padding: '2px 0',
+                resize: 'none',
+                minHeight: 24,
+                maxHeight: 96,
+              }}
+              onInput={e => {
+                const t = e.target as HTMLTextAreaElement;
+                t.style.height = '24px';
+                t.style.height = Math.min(t.scrollHeight, 96) + 'px';
               }}
             />
             <button

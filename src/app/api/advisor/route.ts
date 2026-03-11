@@ -75,13 +75,36 @@ RULES:
 
 You will receive the current state of Frequency's data as context with each message. Use this to give grounded, specific advice.`;
 
-// TODO: Add rate limiting via middleware (e.g. next-rate-limit or upstash/ratelimit)
-// to prevent abuse of the Anthropic API endpoint.
+// Simple in-memory rate limiter
+const rateLimitMap = new Map<string, { count: number; resetAt: number }>();
+const RATE_LIMIT = 20; // requests per window
+const RATE_WINDOW = 60_000; // 1 minute
+
+function checkRateLimit(key: string): boolean {
+  const now = Date.now();
+  const entry = rateLimitMap.get(key);
+  if (!entry || now > entry.resetAt) {
+    rateLimitMap.set(key, { count: 1, resetAt: now + RATE_WINDOW });
+    return true;
+  }
+  if (entry.count >= RATE_LIMIT) return false;
+  entry.count++;
+  return true;
+}
 
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
     const { messages, context } = body;
+
+    // Rate limiting
+    const clientIp = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'unknown';
+    if (!checkRateLimit(clientIp)) {
+      return NextResponse.json(
+        { error: 'Rate limit exceeded. Please wait a moment before trying again.' },
+        { status: 429 }
+      );
+    }
 
     // Resolve API key: user-provided key takes precedence, then env var fallback
     const userKey = typeof body.apiKey === 'string' && body.apiKey.startsWith('sk-ant-') ? body.apiKey : null;
@@ -109,6 +132,16 @@ export async function POST(request: NextRequest) {
       if (typeof msg.role !== 'string' || typeof msg.content !== 'string') {
         return NextResponse.json(
           { error: 'Each message must have a "role" and "content" string.' },
+          { status: 400 }
+        );
+      }
+    }
+
+    const allowedRoles = ['user', 'assistant'];
+    for (const msg of messages) {
+      if (!allowedRoles.includes(msg.role)) {
+        return NextResponse.json(
+          { error: `Invalid message role: "${msg.role}". Only "user" and "assistant" are allowed.` },
           { status: 400 }
         );
       }

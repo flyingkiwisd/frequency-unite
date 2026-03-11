@@ -42,10 +42,6 @@ function daysUntil(dateStr: string): number | null {
 }
 
 type DoneMap = Record<string, boolean>;
-function loadDoneMap(): DoneMap {
-  try { const r = localStorage.getItem(`frequency-acc-${todayStr()}`); return r ? JSON.parse(r) : {}; } catch { return {}; }
-}
-function saveDoneMap(m: DoneMap) { localStorage.setItem(`frequency-acc-${todayStr()}`, JSON.stringify(m)); }
 
 const STATUS_CYCLE: Task['status'][] = ['todo', 'in-progress', 'done'];
 const STATUS_BADGE: Record<string, { bg: string; text: string; label: string }> = {
@@ -78,7 +74,10 @@ export function DashboardView({ onNavigate }: { onNavigate?: (view: string) => v
   const [flashId, setFlashId] = useState<string | null>(null);
 
   /* ── Priorities ── */
-  const [doneMap, setDoneMap] = useState<DoneMap>(() => loadDoneMap());
+  const doneMapKey = `frequency-acc-${ownerId}-${todayStr()}`;
+  const [doneMap, setDoneMap] = useState<DoneMap>(() => {
+    try { const r = localStorage.getItem(doneMapKey); return r ? JSON.parse(r) : {}; } catch { return {}; }
+  });
   const [showAddForm, setShowAddForm] = useState(false);
   const [newTitle, setNewTitle] = useState('');
 
@@ -155,11 +154,15 @@ export function DashboardView({ onNavigate }: { onNavigate?: (view: string) => v
   const toggleDone = useCallback((id: string) => {
     setDoneMap(prev => {
       const next = { ...prev, [id]: !prev[id] };
-      saveDoneMap(next);
-      if (next[id]) updateTask(id, { status: 'done' });
+      try { localStorage.setItem(doneMapKey, JSON.stringify(next)); } catch { /* */ }
+      if (next[id]) {
+        updateTask(id, { status: 'done' });
+      } else {
+        updateTask(id, { status: 'in-progress' });
+      }
       return next;
     });
-  }, [updateTask]);
+  }, [updateTask, ownerId]);
 
   const handleAddCommitment = useCallback(async () => {
     if (!newTitle.trim()) return;

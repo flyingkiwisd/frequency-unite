@@ -24,10 +24,9 @@ import {
 } from 'lucide-react';
 import { UserButton } from '@clerk/nextjs';
 import { teamMembers } from '@/lib/data';
+import type { ViewType } from '@/lib/data';
 import { tailwindColorMap } from '@/lib/constants';
 import { isClerkConfigured } from '@/lib/config';
-
-type ViewType = 'dashboard' | 'team' | 'chat' | 'okrs' | 'tasks' | 'governance' | 'roadmap' | 'events' | 'nodes' | 'budget' | 'advisor' | 'leaderboard';
 
 interface SidebarProps {
   currentView: string;

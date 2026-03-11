@@ -39,12 +39,49 @@ interface InlineAdvisorProps {
   storageKeySuffix?: string;
 }
 
-/* ─── Inline formatting ─── */
-function fmtInline(text: string): string {
-  return text
-    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
-    .replace(/`([^`]+)`/g, '<code style="background:rgba(0,0,0,0.3);padding:1px 5px;border-radius:4px;font-size:12px;font-family:monospace;color:#c8c2b8">$1</code>')
-    .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer" style="color:#d4a574;text-decoration:underline">$1</a>');
+/* ─── Safe inline formatting component (XSS-safe replacement for dangerouslySetInnerHTML) ─── */
+function SafeInline({ text }: { text: string }) {
+  const parts: React.ReactNode[] = [];
+  let remaining = text;
+  let key = 0;
+
+  while (remaining.length > 0) {
+    // Bold
+    const boldMatch = remaining.match(/\*\*(.+?)\*\*/);
+    // Code
+    const codeMatch = remaining.match(/`([^`]+)`/);
+    // Link
+    const linkMatch = remaining.match(/\[([^\]]+)\]\(([^)]+)\)/);
+
+    // Find earliest match
+    const matches = [
+      boldMatch ? { type: 'bold', match: boldMatch, index: boldMatch.index! } : null,
+      codeMatch ? { type: 'code', match: codeMatch, index: codeMatch.index! } : null,
+      linkMatch ? { type: 'link', match: linkMatch, index: linkMatch.index! } : null,
+    ].filter(Boolean).sort((a, b) => a!.index - b!.index);
+
+    if (matches.length === 0) {
+      parts.push(remaining);
+      break;
+    }
+
+    const first = matches[0]!;
+    if (first.index > 0) {
+      parts.push(remaining.slice(0, first.index));
+    }
+
+    if (first.type === 'bold') {
+      parts.push(<strong key={key++}>{first.match[1]}</strong>);
+    } else if (first.type === 'code') {
+      parts.push(<code key={key++} style={{background:'rgba(0,0,0,0.3)',padding:'1px 5px',borderRadius:4,fontSize:12,fontFamily:'monospace',color:'#c8c2b8'}}>{first.match[1]}</code>);
+    } else if (first.type === 'link') {
+      parts.push(<a key={key++} href={first.match[2]} target="_blank" rel="noopener noreferrer" style={{color:'#d4a574',textDecoration:'underline'}}>{first.match[1]}</a>);
+    }
+
+    remaining = remaining.slice(first.index + first.match[0].length);
+  }
+
+  return <>{parts}</>;
 }
 
 function formatResponse(content: string): React.ReactNode[] {
@@ -80,7 +117,7 @@ function formatResponse(content: string): React.ReactNode[] {
         <div key={`agent-${i}`} style={{ display: 'flex', alignItems: 'flex-start', gap: 6, margin: '8px 0 2px' }}>
           <Icon size={12} style={{ color: info?.color || C.accent, flexShrink: 0, marginTop: 2 }} />
           <span style={{ fontSize: 11, fontWeight: 700, color: info?.color || C.accent, letterSpacing: '0.04em' }}>{name}</span>
-          {rest && <span style={{ fontSize: 12, color: C.text }} dangerouslySetInnerHTML={{ __html: fmtInline(rest) }} />}
+          {rest && <span style={{ fontSize: 12, color: C.text }}><SafeInline text={rest} /></span>}
         </div>
       );
       continue;
@@ -98,7 +135,7 @@ function formatResponse(content: string): React.ReactNode[] {
       parts.push(
         <div key={`li-${i}`} style={{ display: 'flex', gap: 6, marginLeft: 4, margin: '2px 0' }}>
           <span style={{ fontSize: 11, fontWeight: 600, color: C.accent, flexShrink: 0 }}>{numMatch[1]}.</span>
-          <span style={{ fontSize: 12, color: C.text, lineHeight: 1.5 }} dangerouslySetInnerHTML={{ __html: fmtInline(numMatch[2]) }} />
+          <span style={{ fontSize: 12, color: C.text, lineHeight: 1.5 }}><SafeInline text={numMatch[2]} /></span>
         </div>
       );
       continue;
@@ -109,7 +146,7 @@ function formatResponse(content: string): React.ReactNode[] {
       parts.push(
         <div key={`bl-${i}`} style={{ display: 'flex', gap: 6, marginLeft: 4, margin: '2px 0' }}>
           <span style={{ color: C.accent, fontSize: 10, marginTop: 3 }}>•</span>
-          <span style={{ fontSize: 12, color: C.text, lineHeight: 1.5 }} dangerouslySetInnerHTML={{ __html: fmtInline(line.trim().slice(2)) }} />
+          <span style={{ fontSize: 12, color: C.text, lineHeight: 1.5 }}><SafeInline text={line.trim().slice(2)} /></span>
         </div>
       );
       continue;
@@ -119,7 +156,7 @@ function formatResponse(content: string): React.ReactNode[] {
     if (!line.trim()) { parts.push(<div key={`sp-${i}`} style={{ height: 6 }} />); continue; }
 
     // Normal paragraph
-    parts.push(<p key={`p-${i}`} style={{ fontSize: 12, color: C.text, lineHeight: 1.5, margin: '2px 0' }} dangerouslySetInnerHTML={{ __html: fmtInline(line) }} />);
+    parts.push(<p key={`p-${i}`} style={{ fontSize: 12, color: C.text, lineHeight: 1.5, margin: '2px 0' }}><SafeInline text={line} /></p>);
   }
   return parts;
 }

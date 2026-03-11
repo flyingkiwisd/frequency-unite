@@ -974,6 +974,12 @@ export const roadmapPhases = [
   },
 ];
 
+// ─── View Types ───
+
+export type ViewType = 'dashboard' | 'team' | 'chat' | 'okrs' | 'tasks' | 'governance' | 'roadmap' | 'events' | 'nodes' | 'budget' | 'advisor' | 'leaderboard';
+
+export const viewTypes: ViewType[] = ['dashboard', 'team', 'chat', 'okrs', 'tasks', 'governance', 'roadmap', 'events', 'nodes', 'budget', 'advisor', 'leaderboard'];
+
 // ─── Export PDF helper ───
 
 export const exportPdf = async (element: HTMLElement, filename: string) => {

@@ -592,6 +592,17 @@ export function GovernanceView() {
   const [activeCategory, setActiveCategory] = useState<string>('all');
   const [showLogModal, setShowLogModal] = useState(false);
 
+  // Close modal on Escape key
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setShowLogModal(false);
+      }
+    };
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, []);
+
   const allCategories = ['all', ...Object.keys(categoryConfig)] as const;
 
   const filteredDecisions =
@@ -699,7 +710,7 @@ export function GovernanceView() {
               }}
             >
               <Download size={14} />
-              Export PDF
+              Export as Image
             </button>
           </div>
         </div>

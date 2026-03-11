@@ -162,7 +162,10 @@ function getCompletedCount(
 }
 
 function getActivePhaseIndex(roadmapPhases: { status: string }[]): number {
-  return roadmapPhases.findIndex((p) => p.status === 'active');
+  const activeIdx = roadmapPhases.findIndex((p) => p.status === 'active');
+  if (activeIdx >= 0) return activeIdx;
+  // Fallback: find first non-completed phase
+  return roadmapPhases.findIndex((p) => p.status === 'upcoming');
 }
 
 // ─── Component ───
@@ -315,7 +318,7 @@ export function RoadmapView() {
         )
       : 0;
 
-  const activePhaseNum = activePhaseIndex + 1;
+  const activePhaseNum = activePhaseIndex >= 0 ? activePhaseIndex + 1 : null;
 
   return (
     <div style={{ padding: 'clamp(16px, 4vw, 40px)', maxWidth: 'min(1000px, 90vw)', margin: '0 auto' }}>
@@ -397,7 +400,7 @@ export function RoadmapView() {
               <span
                 style={{ fontSize: 14, fontWeight: 700, color: '#f0ebe4' }}
               >
-                Phase {activePhaseNum} of {roadmapPhases.length} active
+                {activePhaseNum !== null ? `Phase ${activePhaseNum} of ${roadmapPhases.length} active` : 'No active phase'}
               </span>
               <span
                 style={{
@@ -544,7 +547,7 @@ export function RoadmapView() {
             x1="25"
             y1="0"
             x2="25"
-            y2="100%"
+            y2="9999"
             stroke="url(#timelineGrad)"
             strokeWidth="2"
             strokeDasharray="6 4"

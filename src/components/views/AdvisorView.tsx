@@ -52,12 +52,49 @@ function getSuggestions(msgs: Message[]): string[] {
   return s.slice(0, 3);
 }
 
-// ─── Inline formatting helper ───
-function fmtInline(text: string): string {
-  return text
-    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
-    .replace(/`([^`]+)`/g, '<code style="background:rgba(0,0,0,0.3);padding:1px 5px;border-radius:4px;font-size:12px;font-family:monospace;color:#c8c2b8">$1</code>')
-    .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer" style="color:#d4a574;text-decoration:underline">$1</a>');
+// ─── Safe inline formatting component (XSS-safe replacement for dangerouslySetInnerHTML) ───
+function SafeInline({ text }: { text: string }) {
+  const parts: React.ReactNode[] = [];
+  let remaining = text;
+  let key = 0;
+
+  while (remaining.length > 0) {
+    // Bold
+    const boldMatch = remaining.match(/\*\*(.+?)\*\*/);
+    // Code
+    const codeMatch = remaining.match(/`([^`]+)`/);
+    // Link
+    const linkMatch = remaining.match(/\[([^\]]+)\]\(([^)]+)\)/);
+
+    // Find earliest match
+    const matches = [
+      boldMatch ? { type: 'bold', match: boldMatch, index: boldMatch.index! } : null,
+      codeMatch ? { type: 'code', match: codeMatch, index: codeMatch.index! } : null,
+      linkMatch ? { type: 'link', match: linkMatch, index: linkMatch.index! } : null,
+    ].filter(Boolean).sort((a, b) => a!.index - b!.index);
+
+    if (matches.length === 0) {
+      parts.push(remaining);
+      break;
+    }
+
+    const first = matches[0]!;
+    if (first.index > 0) {
+      parts.push(remaining.slice(0, first.index));
+    }
+
+    if (first.type === 'bold') {
+      parts.push(<strong key={key++}>{first.match[1]}</strong>);
+    } else if (first.type === 'code') {
+      parts.push(<code key={key++} style={{background:'rgba(0,0,0,0.3)',padding:'1px 5px',borderRadius:4,fontSize:12,fontFamily:'monospace',color:'#c8c2b8'}}>{first.match[1]}</code>);
+    } else if (first.type === 'link') {
+      parts.push(<a key={key++} href={first.match[2]} target="_blank" rel="noopener noreferrer" style={{color:'#d4a574',textDecoration:'underline'}}>{first.match[1]}</a>);
+    }
+
+    remaining = remaining.slice(first.index + first.match[0].length);
+  }
+
+  return <>{parts}</>;
 }
 
 const codePre: React.CSSProperties = {
@@ -118,7 +155,7 @@ function formatAgentResponse(content: string): React.ReactNode[] {
       parts.push(
         <div key={`n-${i}`} style={{ display: 'flex', gap: 8, marginLeft: 4, marginBottom: 4 }}>
           <span style={{ color: '#d4a574', flexShrink: 0, fontWeight: 600, fontSize: 13, minWidth: 18 }}>{nm[1]}.</span>
-          <span style={{ fontSize: 13, color: '#e0dbd4', lineHeight: 1.6 }} dangerouslySetInnerHTML={{ __html: fmtInline(nm[2]) }} />
+          <span style={{ fontSize: 13, color: '#e0dbd4', lineHeight: 1.6 }}><SafeInline text={nm[2]} /></span>
         </div>
       );
       return;
@@ -128,11 +165,11 @@ function formatAgentResponse(content: string): React.ReactNode[] {
       parts.push(
         <div key={`b-${i}`} style={{ display: 'flex', gap: 8, marginLeft: 8, marginBottom: 4 }}>
           <span style={{ color: '#d4a574', flexShrink: 0 }}>{'\u2022'}</span>
-          <span style={{ fontSize: 13, color: '#e0dbd4', lineHeight: 1.6 }} dangerouslySetInnerHTML={{ __html: fmtInline(line.replace(/^[\s]*[-•]\s*/, '')) }} />
+          <span style={{ fontSize: 13, color: '#e0dbd4', lineHeight: 1.6 }}><SafeInline text={line.replace(/^[\s]*[-•]\s*/, '')} /></span>
         </div>
       );
     } else if (line.trim().length > 0) {
-      parts.push(<p key={`l-${i}`} style={{ fontSize: 13, color: '#e0dbd4', lineHeight: 1.6, margin: '4px 0' }} dangerouslySetInnerHTML={{ __html: fmtInline(line) }} />);
+      parts.push(<p key={`l-${i}`} style={{ fontSize: 13, color: '#e0dbd4', lineHeight: 1.6, margin: '4px 0' }}><SafeInline text={line} /></p>);
     } else {
       parts.push(<div key={`s-${i}`} style={{ height: 8 }} />);
     }

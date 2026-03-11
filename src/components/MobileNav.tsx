@@ -19,8 +19,7 @@ import {
   Trophy,
 } from 'lucide-react';
 import { useState, useEffect, useRef, useCallback } from 'react';
-
-type ViewType = 'dashboard' | 'team' | 'chat' | 'okrs' | 'tasks' | 'governance' | 'roadmap' | 'events' | 'nodes' | 'budget' | 'advisor' | 'leaderboard';
+import type { ViewType } from '@/lib/data';
 
 interface MobileNavProps {
   currentView: string;

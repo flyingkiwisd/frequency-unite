@@ -259,7 +259,7 @@ function parseHoursToNumber(hrs: string | undefined): number {
 
 /* ─── Component ─── */
 
-export function TeamView() {
+export function TeamView({ onNavigate }: { onNavigate?: (view: string) => void }) {
   const { teamMembers } = useFrequencyData();
   const [filter, setFilter] = useState<TierFilter>('all');
   const [expandedId, setExpandedId] = useState<string | null>(null);
@@ -1008,6 +1008,7 @@ export function TeamView() {
                         className="p-1.5 rounded-md transition-colors hover:bg-white/5"
                         title="Send Email"
                         style={{ color: '#6b6358' }}
+                        onClick={() => window.open(`mailto:${member.name.toLowerCase().replace(' ', '.')}@frequency.community`)}
                       >
                         <Mail size={13} />
                       </button>
@@ -1015,13 +1016,15 @@ export function TeamView() {
                         className="p-1.5 rounded-md transition-colors hover:bg-white/5"
                         title="Open Chat"
                         style={{ color: '#6b6358' }}
+                        onClick={() => onNavigate?.('chat')}
                       >
                         <MessageSquare size={13} />
                       </button>
                       <button
                         className="p-1.5 rounded-md transition-colors hover:bg-white/5"
-                        title="View Steward OS"
+                        title="View profile (coming soon)"
                         style={{ color: '#6b6358' }}
+                        onClick={() => {/* Profile view - coming soon */}}
                       >
                         <ExternalLink size={13} />
                       </button>

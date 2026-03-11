@@ -32,7 +32,6 @@ const CASH_IN_BANK = 210000;
 const MONTHLY_BURN = 25000;
 const RUNWAY_MONTHS = CASH_IN_BANK / MONTHLY_BURN; // 8.4
 const MONTHLY_REVENUE = 18000;
-const NET_MONTHLY = MONTHLY_REVENUE - MONTHLY_BURN;
 
 const runwayColor = (months: number) => {
   if (months > 6) return '#6b8f71';
@@ -183,10 +182,15 @@ const alertStyles = {
    ================================================================ */
 const fmt = (n: number) => {
   if (isNaN(n)) return '$0';
-  return n >= 1000 ? `$${(n / 1000).toFixed(n % 1000 === 0 ? 0 : 1)}K` : `$${n}`;
+  const abs = Math.abs(n);
+  const sign = n < 0 ? '-' : '';
+  return abs >= 1000 ? `${sign}$${(abs / 1000).toFixed(abs % 1000 === 0 ? 0 : 1)}K` : `${sign}$${abs}`;
 };
 
-const fmtFull = (n: number) => `$${n.toLocaleString()}`;
+const fmtFull = (n: number) => {
+  if (n < 0) return `-$${Math.abs(n).toLocaleString()}`;
+  return `$${n.toLocaleString()}`;
+};
 
 /* ================================================================
    SVG Donut Chart Component
@@ -283,35 +287,6 @@ function DonutChart({
   );
 }
 
-/* ================================================================
-   Animated Counter Hook
-   ================================================================ */
-function useAnimatedNumber(target: number, duration: number = 1200) {
-  const [value, setValue] = useState(0);
-  const mountedRef = useRef(true);
-
-  useEffect(() => {
-    mountedRef.current = true;
-    return () => { mountedRef.current = false; };
-  }, []);
-
-  useEffect(() => {
-    const startTime = performance.now();
-    let rafId: number;
-    const animate = (now: number) => {
-      if (!mountedRef.current) return;
-      const elapsed = now - startTime;
-      const progress = Math.min(elapsed / duration, 1);
-      const eased = 1 - Math.pow(1 - progress, 3);
-      setValue(Math.round(target * eased));
-      if (progress < 1) rafId = requestAnimationFrame(animate);
-    };
-    rafId = requestAnimationFrame(animate);
-    return () => cancelAnimationFrame(rafId);
-  }, [target, duration]);
-
-  return value;
-}
 
 /* ================================================================
    Metric Card Component

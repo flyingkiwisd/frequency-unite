@@ -303,7 +303,7 @@ function QuarterComparisonChart({ okrData }: { okrData: OKR[] }) {
     const map: Record<string, { total: number; count: number }> = {};
     okrData.forEach((okr) => {
       if (!map[okr.quarter]) map[okr.quarter] = { total: 0, count: 0 };
-      const avg = okr.keyResults.reduce((sum, kr) => sum + kr.progress, 0) / okr.keyResults.length;
+      const avg = okr.keyResults.length > 0 ? okr.keyResults.reduce((sum, kr) => sum + kr.progress, 0) / okr.keyResults.length : 0;
       map[okr.quarter].total += avg;
       map[okr.quarter].count += 1;
     });
@@ -501,7 +501,7 @@ export function OKRView() {
       if (okr.status === 'on-track') onTrack++;
       else if (okr.status === 'at-risk') atRisk++;
       else behind++;
-      totalProgress += okr.keyResults.reduce((sum, kr) => sum + kr.progress, 0) / okr.keyResults.length;
+      totalProgress += okr.keyResults.length > 0 ? okr.keyResults.reduce((sum, kr) => sum + kr.progress, 0) / okr.keyResults.length : 0;
     });
     return { total, onTrack, atRisk, behind, avgProgress: total > 0 ? Math.round(totalProgress / total) : 0 };
   }, [filteredOkrs]);
@@ -676,9 +676,9 @@ export function OKRView() {
           )}
           {filteredOkrs.map((okr, cardIndex) => {
             const badge = statusBadge(okr.status);
-            const overallProgress = Math.round(
+            const overallProgress = okr.keyResults.length > 0 ? Math.round(
               okr.keyResults.reduce((sum, kr) => sum + kr.progress, 0) / okr.keyResults.length
-            );
+            ) : 0;
             const confidence = localEdits.confidence[okr.id] ?? 0;
 
             const pulseClass = okr.status === 'at-risk'

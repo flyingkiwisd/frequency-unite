@@ -141,6 +141,8 @@ function statusStyle(status: Node['status']): { bg: string; text: string; label:
       return { bg: 'rgba(96, 165, 250, 0.15)', text: '#60a5fa', label: 'Pilot' };
     case 'planned':
       return { bg: 'rgba(107, 99, 88, 0.15)', text: '#6b6358', label: 'Planned' };
+    default:
+      return { bg: 'rgba(107, 99, 88, 0.15)', text: '#6b6358', label: 'Unknown' };
   }
 }
 
@@ -152,6 +154,8 @@ function priorityStyle(priority: Node['priority']): { bg: string; text: string; 
       return { bg: 'rgba(212, 165, 116, 0.12)', text: '#d4a574', label: 'High' };
     case 'medium':
       return { bg: 'rgba(96, 165, 250, 0.12)', text: '#60a5fa', label: 'Medium' };
+    default:
+      return { bg: 'rgba(107, 99, 88, 0.12)', text: '#6b6358', label: 'Normal' };
   }
 }
 
@@ -164,6 +168,8 @@ function statusIcon(status: Node['status']): React.ElementType {
     case 'pilot':
       return FlaskConical;
     case 'planned':
+      return Clock;
+    default:
       return Clock;
   }
 }
@@ -621,7 +627,7 @@ export function NodesView() {
             }}
           >
             <Download size={14} />
-            Export PDF
+            Export as Image
           </button>
 
           {/* Overall progress ring */}
