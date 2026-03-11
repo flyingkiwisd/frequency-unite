@@ -16,14 +16,13 @@ import { ChatView } from '@/components/views/ChatView';
 import { BudgetView } from '@/components/views/BudgetView';
 import { AdvisorView } from '@/components/views/AdvisorView';
 import { LeaderboardView } from '@/components/views/LeaderboardView';
-import { StewardProfileView } from '@/components/views/StewardProfileView';
 import { LoginScreen } from '@/components/LoginScreen';
 import { CommandPalette } from '@/components/CommandPalette';
 import { DataProvider } from '@/lib/supabase/DataProvider';
 import { teamMembers } from '@/lib/data';
 import { tailwindColorMap } from '@/lib/constants';
 
-export type ViewType = 'profile' | 'dashboard' | 'team' | 'chat' | 'okrs' | 'tasks' | 'governance' | 'roadmap' | 'events' | 'nodes' | 'budget' | 'advisor' | 'leaderboard';
+export type ViewType = 'dashboard' | 'team' | 'chat' | 'okrs' | 'tasks' | 'governance' | 'roadmap' | 'events' | 'nodes' | 'budget' | 'advisor' | 'leaderboard';
 
 function LoadingScreen() {
   return (
@@ -279,7 +278,7 @@ function ProfileSetupScreen({
 
 export default function Home() {
   const { user, teamMemberId, loading, signOut, needsProfileSetup, claimTeamMember, isDemo, demoLogin } = useAuth();
-  const [currentView, setCurrentView] = useState<ViewType>('profile');
+  const [currentView, setCurrentView] = useState<ViewType>('dashboard');
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
   const [viewTransition, setViewTransition] = useState(false);
@@ -331,7 +330,6 @@ export default function Home() {
 
   const renderView = () => {
     switch (currentView) {
-      case 'profile': return <StewardProfileView memberId={teamMemberId || 'james'} onNavigate={handleNavigate} />;
       case 'dashboard': return <DashboardView onNavigate={handleNavigate} />;
       case 'team': return <TeamView />;
       case 'chat': return <ChatView />;
@@ -344,7 +342,7 @@ export default function Home() {
       case 'budget': return <BudgetView />;
       case 'advisor': return <AdvisorView />;
       case 'leaderboard': return <LeaderboardView />;
-      default: return <StewardProfileView memberId={teamMemberId || 'james'} onNavigate={handleNavigate} />;
+      default: return <DashboardView onNavigate={handleNavigate} />;
     }
   };
 

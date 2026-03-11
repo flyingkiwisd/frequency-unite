@@ -37,8 +37,7 @@ interface SearchResult {
 }
 
 const navigationItems: SearchResult[] = [
-  { id: 'nav-profile', icon: <Users className="w-4 h-4" />, title: 'My Profile', subtitle: 'Your personal steward dashboard', category: 'Navigation', action: 'profile' },
-  { id: 'nav-dashboard', icon: <LayoutDashboard className="w-4 h-4" />, title: 'Dashboard', subtitle: 'Overview and key metrics', category: 'Navigation', action: 'dashboard' },
+  { id: 'nav-dashboard', icon: <LayoutDashboard className="w-4 h-4" />, title: 'Dashboard', subtitle: 'Your personal command center & key metrics', category: 'Navigation', action: 'dashboard' },
   { id: 'nav-team', icon: <Users className="w-4 h-4" />, title: 'Team', subtitle: 'Core team, board, and node leads', category: 'Navigation', action: 'team' },
   { id: 'nav-chat', icon: <MessageCircle className="w-4 h-4" />, title: 'Chat', subtitle: 'Team communication channels', category: 'Navigation', action: 'chat' },
   { id: 'nav-okrs', icon: <Target className="w-4 h-4" />, title: 'OKRs & KPIs', subtitle: 'Objectives, key results, and metrics', category: 'Navigation', action: 'okrs' },

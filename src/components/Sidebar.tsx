@@ -17,7 +17,6 @@ import {
   Calendar,
   Wallet,
   LogOut,
-  User,
   Sparkles,
   Trophy,
   Check,
@@ -28,7 +27,7 @@ import { teamMembers } from '@/lib/data';
 import { tailwindColorMap } from '@/lib/constants';
 import { isClerkConfigured } from '@/lib/config';
 
-type ViewType = 'profile' | 'dashboard' | 'team' | 'chat' | 'okrs' | 'tasks' | 'governance' | 'roadmap' | 'events' | 'nodes' | 'budget' | 'advisor' | 'leaderboard';
+type ViewType = 'dashboard' | 'team' | 'chat' | 'okrs' | 'tasks' | 'governance' | 'roadmap' | 'events' | 'nodes' | 'budget' | 'advisor' | 'leaderboard';
 
 interface SidebarProps {
   currentView: string;
@@ -43,8 +42,6 @@ interface SidebarProps {
 
 
 const navItems: { label: string; icon: React.ElementType; view: ViewType; group: number }[] = [
-  // Personal
-  { label: 'My Profile', icon: User, view: 'profile', group: 0 },
   // Core Operations
   { label: 'Dashboard', icon: LayoutDashboard, view: 'dashboard', group: 1 },
   { label: 'Team', icon: Users, view: 'team', group: 1 },
@@ -121,7 +118,7 @@ export function Sidebar({
 
   const activeMembers = teamMembers.filter(m => m.status === 'active');
 
-  const groups = [0, 1, 2, 3, 4, 5];
+  const groups = [1, 2, 3, 4, 5];
 
   return (
     <aside

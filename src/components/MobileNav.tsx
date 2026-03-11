@@ -15,13 +15,12 @@ import {
   Wallet,
   X,
   ChevronDown,
-  User,
   Sparkles,
   Trophy,
 } from 'lucide-react';
 import { useState, useEffect, useRef, useCallback } from 'react';
 
-type ViewType = 'profile' | 'dashboard' | 'team' | 'chat' | 'okrs' | 'tasks' | 'governance' | 'roadmap' | 'events' | 'nodes' | 'budget' | 'advisor' | 'leaderboard';
+type ViewType = 'dashboard' | 'team' | 'chat' | 'okrs' | 'tasks' | 'governance' | 'roadmap' | 'events' | 'nodes' | 'budget' | 'advisor' | 'leaderboard';
 
 interface MobileNavProps {
   currentView: string;
@@ -30,14 +29,13 @@ interface MobileNavProps {
 }
 
 const primaryTabs: { label: string; icon: React.ElementType; view: ViewType }[] = [
-  { label: 'Me', icon: User, view: 'profile' },
   { label: 'Home', icon: LayoutDashboard, view: 'dashboard' },
   { label: 'Tasks', icon: CheckSquare, view: 'tasks' },
   { label: 'OKRs', icon: Target, view: 'okrs' },
+  { label: 'Chat', icon: MessageCircle, view: 'chat' },
 ];
 
 const moreTabs: { label: string; icon: React.ElementType; view: ViewType }[] = [
-  { label: 'Chat', icon: MessageCircle, view: 'chat' },
   { label: 'Team', icon: Users, view: 'team' },
   { label: 'Governance', icon: Scale, view: 'governance' },
   { label: 'Roadmap', icon: Map, view: 'roadmap' },

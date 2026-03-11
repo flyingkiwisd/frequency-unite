@@ -1,13 +1,15 @@
 'use client';
 
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback, useEffect } from 'react';
 import {
   CheckCircle2, Plus, Circle, ChevronRight, ChevronDown, X, BookOpen,
+  Target, Briefcase, Shield, Calendar, AlertCircle, Check, Clock, Flame,
 } from 'lucide-react';
 import { useFrequencyData } from '@/lib/supabase/DataProvider';
 import { useAuth } from '@/lib/supabase/AuthProvider';
 import { InlineAdvisor } from '@/components/InlineAdvisor';
 import { getMemberColor } from '@/lib/constants';
+import type { Task, OKR } from '@/lib/data';
 
 /* ─── Theme ─── */
 const C = {
@@ -26,20 +28,39 @@ function getGreeting(): string {
   const h = new Date().getHours();
   return h < 12 ? 'Good morning' : h < 17 ? 'Good afternoon' : 'Good evening';
 }
-function todayKey() { return `frequency-accountability-${new Date().toISOString().slice(0, 10)}`; }
+function todayStr() { return new Date().toISOString().slice(0, 10); }
 function formatDate() {
   return new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
+}
+function daysUntil(dateStr: string): number | null {
+  const now = new Date(); now.setHours(0, 0, 0, 0);
+  const t = new Date(dateStr);
+  if (isNaN(t.getTime())) return null;
+  return Math.ceil((t.getTime() - now.getTime()) / 86400000);
 }
 
 type DoneMap = Record<string, boolean>;
 function loadDoneMap(): DoneMap {
-  try { const r = localStorage.getItem(todayKey()); return r ? JSON.parse(r) : {}; } catch { return {}; }
+  try { const r = localStorage.getItem(`frequency-acc-${todayStr()}`); return r ? JSON.parse(r) : {}; } catch { return {}; }
 }
-function saveDoneMap(m: DoneMap) { localStorage.setItem(todayKey(), JSON.stringify(m)); }
+function saveDoneMap(m: DoneMap) { localStorage.setItem(`frequency-acc-${todayStr()}`, JSON.stringify(m)); }
+
+const STATUS_CYCLE: Task['status'][] = ['todo', 'in-progress', 'done'];
+const STATUS_BADGE: Record<string, { bg: string; text: string; label: string }> = {
+  'todo': { bg: 'rgba(107,99,88,0.15)', text: '#6b6358', label: 'To Do' },
+  'in-progress': { bg: 'rgba(245,158,11,0.15)', text: '#f59e0b', label: 'In Progress' },
+  'done': { bg: 'rgba(107,143,113,0.15)', text: '#6b8f71', label: 'Done' },
+  'blocked': { bg: 'rgba(239,68,68,0.12)', text: '#f87171', label: 'Blocked' },
+};
+const OKR_STATUS: Record<string, { bg: string; text: string; label: string }> = {
+  'on-track': { bg: 'rgba(34,197,94,0.12)', text: '#4ade80', label: 'On Track' },
+  'at-risk': { bg: 'rgba(245,158,11,0.12)', text: '#fbbf24', label: 'At Risk' },
+  'behind': { bg: 'rgba(239,68,68,0.12)', text: '#f87171', label: 'Behind' },
+};
 
 /* ─── Component ─── */
 export function DashboardView({ onNavigate }: { onNavigate?: (view: string) => void }) {
-  const { okrs, tasks, teamMembers, dataSource, updateTask, createTask } = useFrequencyData();
+  const { okrs, tasks, teamMembers, events, dataSource, updateTask, createTask } = useFrequencyData();
   const { teamMemberId } = useAuth();
   const ownerId = teamMemberId ?? 'james';
   const navigate = useCallback((view: string) => { onNavigate?.(view); }, [onNavigate]);
@@ -47,30 +68,52 @@ export function DashboardView({ onNavigate }: { onNavigate?: (view: string) => v
   /* ── Member info ── */
   const member = useMemo(() => teamMembers.find(t => t.id === teamMemberId), [teamMemberId, teamMembers]);
   const firstName = member ? member.name.split(' ')[0] : 'there';
-  const memberColor = member ? getMemberColor(member.color) : C.accent;
+  const hex = member ? getMemberColor(member.color) : C.accent;
 
   /* ── Tab state ── */
   const [activeTab, setActiveTab] = useState<'today' | 'week' | 'month'>('today');
   const [tenetsOpen, setTenetsOpen] = useState(false);
+  const [flashId, setFlashId] = useState<string | null>(null);
 
   /* ── Priorities ── */
   const [doneMap, setDoneMap] = useState<DoneMap>(() => loadDoneMap());
   const [showAddForm, setShowAddForm] = useState(false);
   const [newTitle, setNewTitle] = useState('');
 
+  /* ── Non-Negotiables checks ── */
+  const [nonNegChecks, setNonNegChecks] = useState<Record<string, boolean>>({});
+  useEffect(() => {
+    if (!member) return;
+    const key = `frequency-nonneg-${ownerId}-${todayStr()}`;
+    try { const s = localStorage.getItem(key); if (s) setNonNegChecks(JSON.parse(s)); } catch { /* */ }
+  }, [ownerId, member]);
+  const toggleNonNeg = useCallback((idx: number) => {
+    setNonNegChecks(prev => {
+      const next = { ...prev, [idx]: !prev[idx] };
+      try { localStorage.setItem(`frequency-nonneg-${ownerId}-${todayStr()}`, JSON.stringify(next)); } catch { /* */ }
+      return next;
+    });
+  }, [ownerId]);
+
+  /* ── My tasks ── */
+  const allMyTasks = useMemo(() => tasks.filter(t => t.owner === ownerId), [tasks, ownerId]);
+  const activeTasks = useMemo(() => allMyTasks.filter(t => t.status !== 'done'), [allMyTasks]);
+  const criticalTasks = useMemo(() => activeTasks.filter(t => t.priority === 'critical'), [activeTasks]);
+  const completionRate = allMyTasks.length > 0 ? Math.round((allMyTasks.filter(t => t.status === 'done').length / allMyTasks.length) * 100) : 0;
+
   const myTasks = useMemo(() => {
-    const mine = tasks.filter(t => t.owner === ownerId && t.status !== 'done');
+    const mine = activeTasks;
     if (activeTab === 'today') {
       return mine.filter(t => t.status === 'in-progress' || t.priority === 'critical' || t.priority === 'high').slice(0, 6);
     }
     if (activeTab === 'week') {
-      return mine.sort((a, b) => {
+      return [...mine].sort((a, b) => {
         const p: Record<string, number> = { critical: 0, high: 1, medium: 2, low: 3 };
         return (p[a.priority] ?? 3) - (p[b.priority] ?? 3);
       }).slice(0, 10);
     }
     return mine.slice(0, 15);
-  }, [tasks, ownerId, activeTab]);
+  }, [activeTasks, activeTab]);
 
   const completedCount = useMemo(() =>
     myTasks.filter(t => doneMap[t.id] || t.status === 'done').length, [myTasks, doneMap]);
@@ -91,55 +134,137 @@ export function DashboardView({ onNavigate }: { onNavigate?: (view: string) => v
     await createTask({
       title: newTitle.trim(), owner: ownerId,
       status: 'in-progress', priority: 'high',
-      deadline: new Date().toISOString().slice(0, 10), category: 'Daily',
+      deadline: todayStr(), category: 'Daily',
     });
     setNewTitle(''); setShowAddForm(false);
   }, [newTitle, ownerId, createTask]);
 
-  /* ── OKR summary for weekly view ── */
-  const myOkrs = useMemo(() =>
-    okrs.filter(o => o.keyResults.some(kr => kr.owner === ownerId)).slice(0, 3),
-    [okrs, ownerId]);
+  const cycleStatus = useCallback(async (task: Task, e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (task.status === 'blocked') return;
+    const idx = STATUS_CYCLE.indexOf(task.status);
+    const next = STATUS_CYCLE[(idx + 1) % STATUS_CYCLE.length];
+    setFlashId(task.id);
+    await updateTask(task.id, { status: next });
+    setTimeout(() => setFlashId(null), 400);
+  }, [updateTask]);
+
+  /* ── KRs by OKR ── */
+  const krsByOkr = useMemo(() => {
+    const groups: { okr: OKR; krs: { text: string; progress: number; owner: string }[] }[] = [];
+    okrs.forEach(okr => {
+      const krs = okr.keyResults.filter(kr => kr.owner === ownerId);
+      if (krs.length > 0) groups.push({ okr, krs });
+    });
+    return groups;
+  }, [okrs, ownerId]);
+  const totalKRs = krsByOkr.reduce((s, g) => s + g.krs.length, 0);
+
+  /* ── Upcoming events ── */
+  const upcomingEvents = useMemo(() =>
+    events.filter(e => e.status === 'upcoming' || e.status === 'planning')
+      .map(e => ({ ...e, _days: daysUntil(e.date) }))
+      .filter(e => e._days !== null && e._days >= 0 && e._days <= 30)
+      .sort((a, b) => (a._days ?? 0) - (b._days ?? 0)),
+    [events]);
+
+  /* ── Capacity ── */
+  const loadColor = activeTasks.length < 5 ? '#4ade80' : activeTasks.length <= 8 ? '#f59e0b' : '#f87171';
+  const loadPct = Math.min(100, Math.round((activeTasks.length / 12) * 100));
+
+  const statusBadge = (task: Task) => {
+    const s = STATUS_BADGE[task.status] || STATUS_BADGE['todo'];
+    const flash = flashId === task.id;
+    return (
+      <span onClick={(e) => cycleStatus(task, e)} title="Click to cycle status" style={{
+        padding: '2px 8px', borderRadius: 6, fontSize: 10, fontWeight: 600,
+        background: s.bg, color: s.text, cursor: 'pointer', transition: 'all 0.25s ease',
+        transform: flash ? 'scale(1.15)' : 'scale(1)', display: 'inline-block',
+      }}>{s.label}</span>
+    );
+  };
 
   return (
-    <div style={{ maxWidth: 720, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 24 }}>
+    <div style={{ maxWidth: 720, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 20 }}>
 
-      {/* ── 1. Hero Greeting (Amphibian style) ── */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-        {/* Avatar */}
-        <div style={{
-          width: 56, height: 56, borderRadius: 16, flexShrink: 0,
-          backgroundColor: memberColor, display: 'flex', alignItems: 'center', justifyContent: 'center',
-          fontSize: 20, fontWeight: 700, color: '#0b0d14', letterSpacing: '-0.02em',
-        }}>
-          {member ? member.name.split(' ').map(w => w[0]).join('').slice(0, 2) : 'JH'}
-        </div>
-        <div style={{ flex: 1 }}>
-          <h1 style={{ fontSize: 26, fontWeight: 700, color: C.text, margin: 0, lineHeight: 1.2 }}>
-            {getGreeting()}, {firstName}
-          </h1>
-          <p style={{ fontSize: 13, color: C.textSec, margin: '4px 0 0' }}>
-            {member?.role || 'Steward'} · {member?.shortRole || 'Frequency'}
-          </p>
-        </div>
-        <div style={{ textAlign: 'right', flexShrink: 0 }}>
-          <div style={{ fontSize: 13, color: C.textSec }}>{formatDate()}</div>
+      {/* ── 1. Hero Greeting + Profile ── */}
+      <div style={{ ...card, padding: '28px 24px 20px', borderTop: `3px solid ${hex}` }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 16 }}>
+          {/* Avatar */}
           <div style={{
-            display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 10, fontWeight: 600,
-            textTransform: 'uppercase', letterSpacing: '0.05em', marginTop: 4,
-            color: dataSource === 'supabase' ? C.success : C.warning,
-            backgroundColor: dataSource === 'supabase' ? 'rgba(107,143,113,0.12)' : 'rgba(245,158,11,0.12)',
-            border: `1px solid ${dataSource === 'supabase' ? 'rgba(107,143,113,0.25)' : 'rgba(245,158,11,0.25)'}`,
-            borderRadius: 999, padding: '2px 8px',
+            width: 56, height: 56, borderRadius: 16, flexShrink: 0,
+            backgroundColor: hex, display: 'flex', alignItems: 'center', justifyContent: 'center',
+            fontSize: 20, fontWeight: 700, color: '#0b0d14',
           }}>
-            <div style={{ width: 5, height: 5, borderRadius: '50%', backgroundColor: dataSource === 'supabase' ? C.success : C.warning }} />
-            {dataSource === 'supabase' ? 'Live' : 'Demo'}
+            {member ? member.name.split(' ').map(w => w[0]).join('').slice(0, 2) : 'JH'}
           </div>
+          <div style={{ flex: 1 }}>
+            <h1 style={{ fontSize: 24, fontWeight: 700, color: C.text, margin: 0, lineHeight: 1.2 }}>
+              {getGreeting()}, {firstName}
+            </h1>
+            <p style={{ fontSize: 13, color: hex, fontWeight: 600, margin: '2px 0 0' }}>
+              {member?.role || 'Steward'}
+            </p>
+            <p style={{ fontSize: 12, color: C.textSec, margin: '2px 0 0' }}>
+              {member?.roleOneSentence || ''}
+            </p>
+          </div>
+          <div style={{ textAlign: 'right', flexShrink: 0 }}>
+            <div style={{ fontSize: 12, color: C.textSec }}>{formatDate()}</div>
+            {member?.hoursPerWeek && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 4, justifyContent: 'flex-end', marginTop: 4 }}>
+                <Clock size={11} style={{ color: C.textSec }} />
+                <span style={{ fontSize: 11, color: C.textSec }}>{member.hoursPerWeek} hrs/week</span>
+              </div>
+            )}
+            <div style={{
+              display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 10, fontWeight: 600,
+              textTransform: 'uppercase', letterSpacing: '0.05em', marginTop: 4,
+              color: dataSource === 'supabase' ? C.success : C.warning,
+              backgroundColor: dataSource === 'supabase' ? 'rgba(107,143,113,0.12)' : 'rgba(245,158,11,0.12)',
+              border: `1px solid ${dataSource === 'supabase' ? 'rgba(107,143,113,0.25)' : 'rgba(245,158,11,0.25)'}`,
+              borderRadius: 999, padding: '2px 8px',
+            }}>
+              <div style={{ width: 5, height: 5, borderRadius: '50%', backgroundColor: dataSource === 'supabase' ? C.success : C.warning }} />
+              {dataSource === 'supabase' ? 'Live' : 'Demo'}
+            </div>
+          </div>
+        </div>
+
+        {/* Capacity + Quick Stats */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12 }}>
+          <span style={{ fontSize: 11, color: loadColor, fontWeight: 600 }}>
+            {activeTasks.length} active tasks
+          </span>
+          {criticalTasks.length > 0 && (
+            <span style={{ padding: '1px 7px', borderRadius: 6, fontSize: 10, fontWeight: 600, background: 'rgba(239,68,68,0.12)', color: '#f87171' }}>
+              {criticalTasks.length} critical
+            </span>
+          )}
+          <div style={{ flex: 1, maxWidth: 140, height: 4, borderRadius: 2, background: 'rgba(160,152,136,0.08)', overflow: 'hidden' }}>
+            <div style={{ height: '100%', borderRadius: 2, background: loadColor, width: `${loadPct}%`, transition: 'width 0.4s ease' }} />
+          </div>
+          <span style={{ fontSize: 11, color: C.textSec }}>{completionRate}% complete</span>
+        </div>
+
+        {/* Stats row */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(80px, 1fr))', gap: 8, paddingTop: 12, borderTop: `1px solid ${C.border}` }}>
+          {[
+            { label: 'Active', value: activeTasks.length, color: '#60a5fa' },
+            { label: 'Critical', value: criticalTasks.length, color: '#f87171' },
+            { label: 'My KRs', value: totalKRs, color: hex },
+            { label: 'Done Rate', value: `${completionRate}%`, color: '#4ade80' },
+          ].map(s => (
+            <div key={s.label} style={{ textAlign: 'center' }}>
+              <div style={{ fontSize: 18, fontWeight: 700, color: C.text }}>{s.value}</div>
+              <div style={{ fontSize: 9, color: C.textSec, textTransform: 'uppercase', letterSpacing: '0.05em' }}>{s.label}</div>
+            </div>
+          ))}
         </div>
       </div>
 
       {/* ── 2. Tab Selector ── */}
-      <div style={{ display: 'flex', gap: 0, borderBottom: `1px solid ${C.border}`, marginBottom: -8 }}>
+      <div style={{ display: 'flex', gap: 0, borderBottom: `1px solid ${C.border}`, marginBottom: -4 }}>
         {(['today', 'week', 'month'] as const).map(tab => (
           <button key={tab} onClick={() => setActiveTab(tab)}
             style={{
@@ -148,7 +273,6 @@ export function DashboardView({ onNavigate }: { onNavigate?: (view: string) => v
               borderBottom: activeTab === tab ? `2px solid ${C.accent}` : '2px solid transparent',
               background: 'none', border: 'none', borderBottomWidth: 2, borderBottomStyle: 'solid',
               cursor: 'pointer', fontFamily: 'inherit', transition: 'all 0.15s',
-              textTransform: 'capitalize',
             }}>
             {tab === 'today' ? 'Today' : tab === 'week' ? 'This Week' : 'This Month'}
           </button>
@@ -157,11 +281,13 @@ export function DashboardView({ onNavigate }: { onNavigate?: (view: string) => v
 
       {/* ── 3. Top Priorities ── */}
       <div style={card}>
-        {/* Header with hit rate */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-          <span style={{ fontSize: 16, fontWeight: 600, color: C.text }}>
-            {activeTab === 'today' ? 'Top Priorities' : activeTab === 'week' ? 'Weekly Focus' : 'Monthly Goals'}
-          </span>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <Flame size={16} style={{ color: hex }} />
+            <span style={{ fontSize: 15, fontWeight: 600, color: C.text }}>
+              {activeTab === 'today' ? 'Top Priorities' : activeTab === 'week' ? 'Weekly Focus' : 'Monthly Goals'}
+            </span>
+          </div>
           <div style={{
             display: 'flex', alignItems: 'center', gap: 8,
             padding: '4px 12px', borderRadius: 999,
@@ -172,7 +298,6 @@ export function DashboardView({ onNavigate }: { onNavigate?: (view: string) => v
           </div>
         </div>
 
-        {/* Numbered priority list */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
           {myTasks.length === 0 ? (
             <p style={{ fontSize: 13, color: C.textSec, textAlign: 'center', padding: '20px 0', margin: 0 }}>
@@ -183,118 +308,157 @@ export function DashboardView({ onNavigate }: { onNavigate?: (view: string) => v
             return (
               <div key={t.id} style={{
                 display: 'flex', alignItems: 'center', gap: 12, padding: '10px 8px',
-                borderRadius: 10, transition: 'background-color 0.15s',
-                opacity: isDone ? 0.5 : 1,
-              }}
-                onMouseEnter={e => { e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.02)'; }}
-                onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'transparent'; }}
-              >
-                {/* Number */}
-                <span style={{
-                  fontSize: 12, fontWeight: 600, color: C.textSec, width: 18, textAlign: 'right', flexShrink: 0,
-                }}>{i + 1}.</span>
-
-                {/* Check circle */}
-                <button onClick={() => toggleDone(t.id)} style={{
-                  background: 'none', border: 'none', cursor: 'pointer', padding: 0,
-                  display: 'flex', flexShrink: 0,
-                }}>
-                  {isDone
-                    ? <CheckCircle2 size={20} style={{ color: C.success }} />
-                    : <Circle size={20} style={{ color: 'rgba(160,152,136,0.4)' }} />
-                  }
+                borderRadius: 10, opacity: isDone ? 0.5 : 1,
+              }}>
+                <span style={{ fontSize: 12, fontWeight: 600, color: C.textSec, width: 18, textAlign: 'right', flexShrink: 0 }}>{i + 1}.</span>
+                <button onClick={() => toggleDone(t.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, display: 'flex', flexShrink: 0 }}>
+                  {isDone ? <CheckCircle2 size={20} style={{ color: C.success }} /> : <Circle size={20} style={{ color: 'rgba(160,152,136,0.4)' }} />}
                 </button>
-
-                {/* Title */}
-                <span style={{
-                  flex: 1, fontSize: 14, color: C.text, lineHeight: 1.4,
-                  textDecoration: isDone ? 'line-through' : 'none',
-                }}>
-                  {t.title}
-                </span>
-
-                {/* Priority badge (subtle) */}
-                {t.priority === 'critical' && (
-                  <span style={{
-                    fontSize: 9, fontWeight: 700, padding: '2px 6px', borderRadius: 4,
-                    backgroundColor: 'rgba(239,68,68,0.12)', color: '#ef4444',
-                    textTransform: 'uppercase', letterSpacing: '0.04em',
-                  }}>urgent</span>
-                )}
+                <span style={{ flex: 1, fontSize: 14, color: C.text, lineHeight: 1.4, textDecoration: isDone ? 'line-through' : 'none' }}>{t.title}</span>
+                {statusBadge(t)}
               </div>
             );
           })}
         </div>
 
-        {/* Add commitment */}
         {showAddForm ? (
           <div style={{ display: 'flex', gap: 8, marginTop: 16, paddingLeft: 38 }}>
             <input value={newTitle} onChange={e => setNewTitle(e.target.value)}
               onKeyDown={e => e.key === 'Enter' && handleAddCommitment()}
               placeholder="What are you committing to?" autoFocus
-              style={{
-                flex: 1, fontSize: 13, padding: '8px 12px', borderRadius: 10,
-                border: `1px solid ${C.border}`, backgroundColor: 'rgba(11,13,20,0.6)',
-                color: C.text, outline: 'none', fontFamily: 'inherit',
-              }} />
-            <button onClick={handleAddCommitment} style={{
-              padding: '8px 14px', borderRadius: 10, border: 'none',
-              backgroundColor: C.accent, color: '#0b0d14', fontSize: 12, fontWeight: 600,
-              cursor: 'pointer', fontFamily: 'inherit',
-            }}>Add</button>
-            <button onClick={() => { setShowAddForm(false); setNewTitle(''); }} style={{
-              padding: 8, borderRadius: 10, border: `1px solid ${C.border}`,
-              backgroundColor: 'transparent', color: C.textSec, cursor: 'pointer',
-              display: 'flex', alignItems: 'center',
-            }}><X size={14} /></button>
+              style={{ flex: 1, fontSize: 13, padding: '8px 12px', borderRadius: 10, border: `1px solid ${C.border}`, backgroundColor: 'rgba(11,13,20,0.6)', color: C.text, outline: 'none', fontFamily: 'inherit' }} />
+            <button onClick={handleAddCommitment} style={{ padding: '8px 14px', borderRadius: 10, border: 'none', backgroundColor: C.accent, color: '#0b0d14', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>Add</button>
+            <button onClick={() => { setShowAddForm(false); setNewTitle(''); }} style={{ padding: 8, borderRadius: 10, border: `1px solid ${C.border}`, backgroundColor: 'transparent', color: C.textSec, cursor: 'pointer', display: 'flex', alignItems: 'center' }}><X size={14} /></button>
           </div>
         ) : (
-          <button onClick={() => setShowAddForm(true)} style={{
-            display: 'flex', alignItems: 'center', gap: 6, marginTop: 14, paddingLeft: 38,
-            background: 'none', border: 'none', cursor: 'pointer', fontSize: 12,
-            color: C.accent, fontFamily: 'inherit', padding: '0 0 0 38px',
-          }}>
+          <button onClick={() => setShowAddForm(true)} style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 14, paddingLeft: 38, background: 'none', border: 'none', cursor: 'pointer', fontSize: 12, color: C.accent, fontFamily: 'inherit' }}>
             <Plus size={14} /> Add commitment
           </button>
         )}
 
-        {/* Footer text */}
-        <div style={{ marginTop: 16, paddingTop: 14, borderTop: `1px solid ${C.border}`, paddingLeft: 38 }}>
-          <p style={{ fontSize: 12, color: C.textSec, margin: 0, lineHeight: 1.5 }}>
+        <div style={{ marginTop: 14, paddingTop: 12, borderTop: `1px solid ${C.border}`, paddingLeft: 38 }}>
+          <p style={{ fontSize: 12, color: C.textSec, margin: 0 }}>
             These priorities should ladder up to your OKRs.{' '}
-            <button onClick={() => navigate('okrs')} style={{
-              background: 'none', border: 'none', cursor: 'pointer', color: C.accent,
-              fontSize: 12, fontFamily: 'inherit', padding: 0, fontWeight: 500,
-            }}>
+            <button onClick={() => navigate('okrs')} style={{ background: 'none', border: 'none', cursor: 'pointer', color: C.accent, fontSize: 12, fontFamily: 'inherit', padding: 0, fontWeight: 500 }}>
               View OKRs <ChevronRight size={11} style={{ verticalAlign: 'middle' }} />
             </button>
           </p>
         </div>
+      </div>
 
-        {/* Weekly OKR snapshot (only on week/month tab) */}
-        {activeTab !== 'today' && myOkrs.length > 0 && (
-          <div style={{ marginTop: 16, paddingLeft: 38 }}>
-            <p style={{ fontSize: 11, fontWeight: 600, color: C.textSec, marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Your OKRs</p>
-            {myOkrs.map(okr => {
-              const avg = Math.round(okr.keyResults.reduce((s, kr) => s + kr.progress, 0) / Math.max(okr.keyResults.length, 1));
-              const color = okr.status === 'on-track' ? C.success : okr.status === 'at-risk' ? C.warning : C.danger;
+      {/* ── 4. My Key Results ── */}
+      {krsByOkr.length > 0 && (
+        <div style={card}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <Target size={16} style={{ color: hex }} />
+              <span style={{ fontSize: 14, fontWeight: 600, color: C.text }}>My Key Results</span>
+              <span style={{ fontSize: 11, color: C.textSec }}>({totalKRs} KRs)</span>
+            </div>
+            <button onClick={() => navigate('okrs')} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 11, color: C.textSec, fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 2 }}>
+              View all <ChevronRight size={12} />
+            </button>
+          </div>
+          {krsByOkr.map(({ okr, krs }) => {
+            const okrS = OKR_STATUS[okr.status] || OKR_STATUS['on-track'];
+            return (
+              <div key={okr.id} style={{ marginBottom: 12 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+                  <span style={{ fontSize: 11, color: C.textSec, fontWeight: 600, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {okr.objective}
+                  </span>
+                  <span style={{ padding: '2px 7px', borderRadius: 6, fontSize: 9, fontWeight: 600, background: okrS.bg, color: okrS.text, flexShrink: 0 }}>{okrS.label}</span>
+                </div>
+                {krs.map((kr, i) => (
+                  <div key={`${okr.id}-${i}`} style={{ padding: '8px 12px', borderRadius: 8, marginBottom: 4, background: 'rgba(28,34,48,0.4)', border: '1px solid rgba(30,38,56,0.3)' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+                      <span style={{ fontSize: 12, color: C.text, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{kr.text}</span>
+                      <span style={{ fontSize: 12, fontWeight: 700, color: hex, marginLeft: 12, flexShrink: 0 }}>{kr.progress}%</span>
+                    </div>
+                    <div style={{ height: 3, borderRadius: 2, background: 'rgba(160,152,136,0.08)', overflow: 'hidden' }}>
+                      <div style={{ height: '100%', borderRadius: 2, background: kr.progress >= 70 ? '#4ade80' : kr.progress >= 40 ? hex : '#f87171', width: `${kr.progress}%`, transition: 'width 0.4s ease' }} />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* ── 5. Domains & Non-Negotiables ── */}
+      {member && (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 16 }}>
+          {/* Domains */}
+          <div style={card}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+              <Briefcase size={14} style={{ color: hex }} />
+              <span style={{ fontSize: 13, fontWeight: 700, color: C.text }}>Domains</span>
+            </div>
+            {member.domains.map((d, i) => (
+              <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 8, marginBottom: 6 }}>
+                <div style={{ width: 4, height: 4, borderRadius: '50%', background: hex, marginTop: 6, flexShrink: 0 }} />
+                <span style={{ fontSize: 12, color: C.textSec, lineHeight: 1.5 }}>{d}</span>
+              </div>
+            ))}
+          </div>
+
+          {/* Non-Negotiables */}
+          <div style={card}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <Shield size={14} style={{ color: '#8b5cf6' }} />
+                <span style={{ fontSize: 13, fontWeight: 700, color: C.text }}>Non-Negotiables</span>
+              </div>
+              <span style={{ fontSize: 10, color: C.textSec }}>daily check</span>
+            </div>
+            {member.nonNegotiables.map((item, i) => {
+              const checked = !!nonNegChecks[i];
               return (
-                <div key={okr.id} style={{ marginBottom: 10 }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
-                    <span style={{ fontSize: 12, color: C.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1, paddingRight: 8 }}>{okr.objective}</span>
-                    <span style={{ fontSize: 11, fontWeight: 600, color, flexShrink: 0 }}>{avg}%</span>
+                <div key={i} onClick={() => toggleNonNeg(i)} style={{ display: 'flex', alignItems: 'flex-start', gap: 10, marginBottom: 6, cursor: 'pointer', padding: '3px 0' }}>
+                  <div style={{
+                    width: 18, height: 18, borderRadius: 4, flexShrink: 0, marginTop: 1,
+                    background: checked ? 'rgba(139,92,246,0.2)' : 'rgba(160,152,136,0.08)',
+                    border: `1px solid ${checked ? '#8b5cf6' : '#6b6358'}44`,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.2s',
+                  }}>
+                    {checked && <Check size={12} style={{ color: '#8b5cf6' }} />}
                   </div>
-                  <div style={{ height: 3, borderRadius: 2, backgroundColor: 'rgba(30,38,56,0.6)', overflow: 'hidden' }}>
-                    <div style={{ height: '100%', borderRadius: 2, backgroundColor: color, width: `${avg}%`, transition: 'width 0.4s ease' }} />
-                  </div>
+                  <span style={{ fontSize: 12, lineHeight: 1.5, color: checked ? '#8b5cf6' : C.textSec, textDecoration: checked ? 'line-through' : 'none', transition: 'all 0.2s' }}>{item}</span>
                 </div>
               );
             })}
           </div>
-        )}
-      </div>
+        </div>
+      )}
 
-      {/* ── 4. AI Advisor (prominent, like Amphibian) ── */}
+      {/* ── 6. Upcoming Events ── */}
+      {upcomingEvents.length > 0 && (
+        <div style={card}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <Calendar size={14} style={{ color: '#4ade80' }} />
+              <span style={{ fontSize: 13, fontWeight: 700, color: C.text }}>Upcoming Events</span>
+            </div>
+            <button onClick={() => navigate('events')} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 11, color: C.textSec, fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 2 }}>
+              View all <ChevronRight size={12} />
+            </button>
+          </div>
+          {upcomingEvents.slice(0, 4).map(e => (
+            <div key={e.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 0', borderBottom: `1px solid ${C.border}` }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span style={{ fontSize: 13, color: C.text }}>{e.name}</span>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span style={{ padding: '2px 8px', borderRadius: 6, fontSize: 10, fontWeight: 600, background: 'rgba(74,222,128,0.1)', color: '#4ade80' }}>in {e._days}d</span>
+                <span style={{ fontSize: 11, color: C.textSec }}>{e.location}</span>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* ── 7. AI Advisor ── */}
       <InlineAdvisor
         title={`${firstName}, here are some things to consider today`}
         titleIcon="lightbulb"
@@ -309,15 +473,12 @@ export function DashboardView({ onNavigate }: { onNavigate?: (view: string) => v
         ]}
       />
 
-      {/* ── 5. Tenets of Council (compact collapsible) ── */}
+      {/* ── 8. Tenets of Council ── */}
       <div style={{ ...card, borderLeft: '3px solid #8b5cf6', padding: 0, overflow: 'hidden' }}>
-        <button
-          onClick={() => setTenetsOpen(o => !o)}
-          style={{
-            width: '100%', display: 'flex', alignItems: 'center', gap: 10,
-            padding: '12px 20px', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit',
-          }}
-        >
+        <button onClick={() => setTenetsOpen(o => !o)} style={{
+          width: '100%', display: 'flex', alignItems: 'center', gap: 10,
+          padding: '12px 20px', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit',
+        }}>
           <BookOpen size={14} style={{ color: '#8b5cf6', flexShrink: 0 }} />
           <span style={{ fontSize: 13, fontWeight: 600, color: C.text, flex: 1, textAlign: 'left' }}>Tenets of Council</span>
           <ChevronDown size={14} style={{ color: C.textSec, transition: 'transform 0.2s', transform: tenetsOpen ? 'rotate(180deg)' : 'rotate(0deg)' }} />
@@ -347,14 +508,14 @@ export function DashboardView({ onNavigate }: { onNavigate?: (view: string) => v
         )}
       </div>
 
-      {/* ── 6. Priority Pyramid (compact) ── */}
+      {/* ── 9. Priority Pyramid ── */}
       <div style={{ ...card, padding: '14px 20px' }}>
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
           {([
             { label: 'Member-Led Initiatives', color: '#6b8f71', width: '50%', num: 3 },
             { label: 'Three Core Nodes', color: '#8b5cf6', width: '75%', num: 2 },
             { label: 'Mothership Stability', color: '#d4a574', width: '100%', num: 1 },
-          ] as const).map((tier) => (
+          ] as const).map(tier => (
             <div key={tier.num} style={{
               width: tier.width, backgroundColor: 'rgba(19,23,32,0.9)',
               borderLeft: `3px solid ${tier.color}`, borderRadius: 4,
