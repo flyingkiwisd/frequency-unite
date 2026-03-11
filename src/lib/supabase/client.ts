@@ -1,8 +1,18 @@
 import { createBrowserClient } from '@supabase/ssr';
 
+const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL ?? '';
+const SUPABASE_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? '';
+
+export const isSupabaseConfigured =
+  SUPABASE_URL.length > 0 &&
+  SUPABASE_KEY.length > 0 &&
+  !SUPABASE_URL.includes('placeholder');
+
 export function createClient() {
-  return createBrowserClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-  );
+  if (!isSupabaseConfigured) return null;
+  try {
+    return createBrowserClient(SUPABASE_URL, SUPABASE_KEY);
+  } catch {
+    return null;
+  }
 }

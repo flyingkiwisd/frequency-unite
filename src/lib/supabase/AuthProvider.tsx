@@ -16,11 +16,17 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-function createSupabaseClient(): SupabaseClient {
-  return createBrowserClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-  );
+const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL ?? '';
+const SUPABASE_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? '';
+const isSupabaseConfigured = SUPABASE_URL.length > 0 && SUPABASE_KEY.length > 0 && !SUPABASE_URL.includes('placeholder');
+
+function createSupabaseClient(): SupabaseClient | null {
+  if (!isSupabaseConfigured) return null;
+  try {
+    return createBrowserClient(SUPABASE_URL, SUPABASE_KEY);
+  } catch {
+    return null;
+  }
 }
 
 async function resolveTeamMemberId(
@@ -46,6 +52,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   // Initialize session on mount
   useEffect(() => {
+    if (!supabase) {
+      setLoading(false);
+      return;
+    }
+
     const initSession = async () => {
       try {
         const { data: { session: currentSession } } = await supabase.auth.getSession();
@@ -69,6 +80,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   // Listen for auth state changes
   useEffect(() => {
+    if (!supabase) return;
+
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, newSession) => {
         setSession(newSession);
@@ -94,6 +107,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const signIn = useCallback(
     async (email: string, password: string): Promise<{ error: string | null }> => {
+      if (!supabase) return { error: 'Supabase is not configured. Add environment variables.' };
       const { error } = await supabase.auth.signInWithPassword({ email, password });
 
       if (error) {
@@ -111,6 +125,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       password: string,
       selectedTeamMemberId: string
     ): Promise<{ error: string | null }> => {
+      if (!supabase) return { error: 'Supabase is not configured. Add environment variables.' };
       const { data, error } = await supabase.auth.signUp({ email, password });
 
       if (error) {
@@ -139,7 +154,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   );
 
   const signOutHandler = useCallback(async () => {
-    await supabase.auth.signOut();
+    if (supabase) await supabase.auth.signOut();
     setUser(null);
     setSession(null);
     setTeamMemberId(null);

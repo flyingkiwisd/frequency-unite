@@ -13,17 +13,24 @@ import type {
   ChatMessage,
 } from '@/lib/data';
 
+const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL ?? '';
+const SUPABASE_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? '';
+const isConfigured = SUPABASE_URL.length > 0 && SUPABASE_KEY.length > 0 && !SUPABASE_URL.includes('placeholder');
+
 function getClient() {
-  return createBrowserClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-  );
+  if (!isConfigured) return null;
+  try {
+    return createBrowserClient(SUPABASE_URL, SUPABASE_KEY);
+  } catch {
+    return null;
+  }
 }
 
 // ─── Team Members ───
 
 export async function fetchTeamMembers(): Promise<TeamMember[]> {
   const supabase = getClient();
+  if (!supabase) throw new Error('Supabase not configured');
   const { data, error } = await supabase.from('team_members').select('*');
   if (error) throw error;
   return (data || []).map((row) => ({
@@ -47,6 +54,7 @@ export async function fetchTeamMembers(): Promise<TeamMember[]> {
 
 export async function fetchNodes(): Promise<Node[]> {
   const supabase = getClient();
+  if (!supabase) throw new Error('Supabase not configured');
   const { data, error } = await supabase.from('nodes').select('*');
   if (error) throw error;
   return (data || []).map((row) => ({
@@ -69,6 +77,7 @@ export async function fetchNodes(): Promise<Node[]> {
 
 export async function fetchOKRs(): Promise<OKR[]> {
   const supabase = getClient();
+  if (!supabase) throw new Error('Supabase not configured');
   const { data, error } = await supabase
     .from('okrs')
     .select('*, okr_key_results(*)');
@@ -95,6 +104,7 @@ export async function fetchOKRs(): Promise<OKR[]> {
 
 export async function fetchKPIs(): Promise<KPI[]> {
   const supabase = getClient();
+  if (!supabase) throw new Error('Supabase not configured');
   const { data, error } = await supabase.from('kpis').select('*');
   if (error) throw error;
   return (data || []).map((row) => ({
@@ -111,6 +121,7 @@ export async function fetchKPIs(): Promise<KPI[]> {
 
 export async function fetchGovernanceDecisions(): Promise<GovernanceDecision[]> {
   const supabase = getClient();
+  if (!supabase) throw new Error('Supabase not configured');
   const { data, error } = await supabase
     .from('governance_decisions')
     .select('*');
@@ -130,6 +141,7 @@ export async function fetchGovernanceDecisions(): Promise<GovernanceDecision[]> 
 
 export async function fetchEvents(): Promise<FrequencyEvent[]> {
   const supabase = getClient();
+  if (!supabase) throw new Error('Supabase not configured');
   const { data, error } = await supabase.from('events').select('*');
   if (error) throw error;
   return (data || []).map((row) => ({
@@ -148,6 +160,7 @@ export async function fetchEvents(): Promise<FrequencyEvent[]> {
 
 export async function fetchTasks(): Promise<Task[]> {
   const supabase = getClient();
+  if (!supabase) throw new Error('Supabase not configured');
   const { data, error } = await supabase.from('tasks').select('*');
   if (error) throw error;
   return (data || []).map((row) => ({
@@ -166,6 +179,7 @@ export async function fetchTasks(): Promise<Task[]> {
 
 export async function fetchChatChannels(): Promise<ChatChannel[]> {
   const supabase = getClient();
+  if (!supabase) throw new Error('Supabase not configured');
   const { data, error } = await supabase.from('chat_channels').select('*');
   if (error) throw error;
   return (data || []).map((row) => ({
@@ -182,6 +196,7 @@ export async function fetchChatChannels(): Promise<ChatChannel[]> {
 
 export async function fetchChatMessages(): Promise<ChatMessage[]> {
   const supabase = getClient();
+  if (!supabase) throw new Error('Supabase not configured');
   const { data, error } = await supabase.from('chat_messages').select('*');
   if (error) throw error;
   return (data || []).map((row) => ({
@@ -199,6 +214,7 @@ export async function fetchChatMessages(): Promise<ChatMessage[]> {
 
 export async function fetchRoadmapPhases() {
   const supabase = getClient();
+  if (!supabase) throw new Error('Supabase not configured');
   const { data, error } = await supabase
     .from('roadmap_phases')
     .select('*')
