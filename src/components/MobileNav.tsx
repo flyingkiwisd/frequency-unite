@@ -17,10 +17,11 @@ import {
   ChevronDown,
   User,
   Sparkles,
+  Trophy,
 } from 'lucide-react';
 import { useState, useEffect, useRef, useCallback } from 'react';
 
-type ViewType = 'profile' | 'dashboard' | 'team' | 'chat' | 'okrs' | 'tasks' | 'governance' | 'roadmap' | 'events' | 'nodes' | 'budget' | 'advisor';
+type ViewType = 'profile' | 'dashboard' | 'team' | 'chat' | 'okrs' | 'tasks' | 'governance' | 'roadmap' | 'events' | 'nodes' | 'budget' | 'advisor' | 'leaderboard';
 
 interface MobileNavProps {
   currentView: string;
@@ -43,6 +44,7 @@ const moreTabs: { label: string; icon: React.ElementType; view: ViewType }[] = [
   { label: 'Events', icon: Calendar, view: 'events' },
   { label: 'Nodes', icon: Network, view: 'nodes' },
   { label: 'Budget', icon: Wallet, view: 'budget' },
+  { label: 'Leaderboard', icon: Trophy, view: 'leaderboard' },
   { label: 'AI Advisor', icon: Sparkles, view: 'advisor' },
 ];
 

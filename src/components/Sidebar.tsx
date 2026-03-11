@@ -18,12 +18,13 @@ import {
   LogOut,
   User,
   Sparkles,
+  Trophy,
 } from 'lucide-react';
 import { UserButton } from '@clerk/nextjs';
 import { teamMembers } from '@/lib/data';
 import { isClerkConfigured } from '@/lib/config';
 
-type ViewType = 'profile' | 'dashboard' | 'team' | 'chat' | 'okrs' | 'tasks' | 'governance' | 'roadmap' | 'events' | 'nodes' | 'budget' | 'advisor';
+type ViewType = 'profile' | 'dashboard' | 'team' | 'chat' | 'okrs' | 'tasks' | 'governance' | 'roadmap' | 'events' | 'nodes' | 'budget' | 'advisor' | 'leaderboard';
 
 interface SidebarProps {
   currentView: string;
@@ -52,6 +53,8 @@ const navItems: { label: string; icon: React.ElementType; view: ViewType; group:
   { label: 'Nodes', icon: Network, view: 'nodes', group: 3 },
   // Finance
   { label: 'Budget', icon: Wallet, view: 'budget', group: 4 },
+  // Performance
+  { label: 'Leaderboard', icon: Trophy, view: 'leaderboard', group: 5 },
   // AI Advisory
   { label: 'AI Advisor', icon: Sparkles, view: 'advisor', group: 5 },
 ];

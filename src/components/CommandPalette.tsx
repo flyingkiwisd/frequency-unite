@@ -17,6 +17,7 @@ import {
   Scale,
   Wallet,
   Sparkles,
+  Trophy,
 } from 'lucide-react';
 import { teamMembers, nodes, okrs, kpis } from '@/lib/data';
 
@@ -47,6 +48,7 @@ const navigationItems: SearchResult[] = [
   { id: 'nav-events', icon: <Calendar className="w-4 h-4" />, title: 'Events', subtitle: 'Gatherings and retreats', category: 'Navigation', action: 'events' },
   { id: 'nav-nodes', icon: <Network className="w-4 h-4" />, title: 'Nodes', subtitle: 'Node ecosystem and progress', category: 'Navigation', action: 'nodes' },
   { id: 'nav-budget', icon: <Wallet className="w-4 h-4" />, title: 'Budget', subtitle: 'Financial overview and tracking', category: 'Navigation', action: 'budget' },
+  { id: 'nav-leaderboard', icon: <Trophy className="w-4 h-4" />, title: 'Leaderboard', subtitle: 'Team performance and accountability rankings', category: 'Navigation', action: 'leaderboard' },
   { id: 'nav-advisor', icon: <Sparkles className="w-4 h-4" />, title: 'AI Advisor', subtitle: 'Frequency Advisory Board — 8 AI agents', category: 'Navigation', action: 'advisor' },
 ];
 

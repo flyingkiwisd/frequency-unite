@@ -15,13 +15,15 @@ import { EventsView } from '@/components/views/EventsView';
 import { ChatView } from '@/components/views/ChatView';
 import { BudgetView } from '@/components/views/BudgetView';
 import { AdvisorView } from '@/components/views/AdvisorView';
+import { LeaderboardView } from '@/components/views/LeaderboardView';
 import { StewardProfileView } from '@/components/views/StewardProfileView';
 import { LoginScreen } from '@/components/LoginScreen';
 import { CommandPalette } from '@/components/CommandPalette';
 import { DataProvider } from '@/lib/supabase/DataProvider';
 import { teamMembers } from '@/lib/data';
+import { tailwindColorMap } from '@/lib/constants';
 
-export type ViewType = 'profile' | 'dashboard' | 'team' | 'chat' | 'okrs' | 'tasks' | 'governance' | 'roadmap' | 'events' | 'nodes' | 'budget' | 'advisor';
+export type ViewType = 'profile' | 'dashboard' | 'team' | 'chat' | 'okrs' | 'tasks' | 'governance' | 'roadmap' | 'events' | 'nodes' | 'budget' | 'advisor' | 'leaderboard';
 
 function LoadingScreen() {
   return (
@@ -85,13 +87,6 @@ function LoadingScreen() {
 
 // ─── Profile Setup Screen ───
 // Shown after first Clerk login when user hasn't linked to a team member yet
-const tailwindColorMap: Record<string, string> = {
-  'bg-amber-500': '#f59e0b', 'bg-amber-400': '#fbbf24', 'bg-rose-400': '#fb7185',
-  'bg-violet-500': '#8b5cf6', 'bg-sky-400': '#38bdf8', 'bg-emerald-500': '#10b981',
-  'bg-purple-500': '#a855f7', 'bg-pink-400': '#f472b6', 'bg-teal-400': '#2dd4bf',
-  'bg-green-500': '#22c55e', 'bg-lime-500': '#84cc16', 'bg-orange-500': '#f97316',
-  'bg-indigo-400': '#818cf8', 'bg-slate-400': '#94a3b8',
-};
 
 function ProfileSetupScreen({
   onClaim,
@@ -348,6 +343,7 @@ export default function Home() {
       case 'nodes': return <NodesView />;
       case 'budget': return <BudgetView />;
       case 'advisor': return <AdvisorView />;
+      case 'leaderboard': return <LeaderboardView />;
       default: return <StewardProfileView memberId={teamMemberId || 'james'} onNavigate={handleNavigate} />;
     }
   };
