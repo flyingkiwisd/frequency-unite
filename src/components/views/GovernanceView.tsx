@@ -24,6 +24,7 @@ import {
 } from 'lucide-react';
 import { exportPdf, type GovernanceDecision } from '@/lib/data';
 import { useFrequencyData } from '@/lib/supabase/DataProvider';
+import { InlineAdvisor } from '@/components/InlineAdvisor';
 
 /* ── colour configs ── */
 
@@ -1906,6 +1907,23 @@ export function GovernanceView() {
           createGovernanceDecision(decision);
         }}
       />
+
+      {/* AI Advisor — Governance Context */}
+      <div style={{ marginTop: 32 }}>
+        <InlineAdvisor
+          title="Governance Advisor"
+          titleIcon="sparkles"
+          compact={true}
+          defaultCollapsed={true}
+          storageKeySuffix="governance"
+          suggestedPrompts={[
+            'Help me think through a governance decision',
+            'What does the Coherence Accountability Policy say about this?',
+            'Which Tenet of Council applies here?',
+            'Who has decision authority for this?',
+          ]}
+        />
+      </div>
     </div>
   );
 }

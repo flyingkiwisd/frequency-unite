@@ -22,6 +22,7 @@ import {
 import { useFrequencyData } from '@/lib/supabase/DataProvider';
 import { tailwindColorMap } from '@/lib/constants';
 import type { Task, OKR } from '@/lib/data';
+import { InlineAdvisor } from '@/components/InlineAdvisor';
 
 // ─── Status cycling config ───
 const STATUS_CYCLE: Task['status'][] = ['todo', 'in-progress', 'done'];
@@ -605,6 +606,23 @@ export function StewardProfileView({ memberId, onNavigate }: { memberId: string;
           ))}
         </div>
       )}
+
+        {/* AI Advisor — Personal Context */}
+        <div style={{ marginTop: 32 }}>
+          <InlineAdvisor
+            title="Your Personal Advisor"
+            titleIcon="lightbulb"
+            compact={true}
+            defaultCollapsed={true}
+            storageKeySuffix="profile"
+            suggestedPrompts={[
+              'What should I personally focus on today?',
+              'Am I taking on too much right now?',
+              'What blind spots should I watch for?',
+              'How can I make the biggest impact this week?',
+            ]}
+          />
+        </div>
     </div>
   );
 }

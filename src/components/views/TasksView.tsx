@@ -24,6 +24,7 @@ import {
 } from 'lucide-react';
 import { useFrequencyData } from '@/lib/supabase/DataProvider';
 import type { Task, TeamMember } from '@/lib/data';
+import { InlineAdvisor } from '@/components/InlineAdvisor';
 
 // ─── CSS Keyframes (injected once) ───
 
@@ -1481,6 +1482,23 @@ export function TasksView() {
           onCreate={createTask}
         />
       )}
+
+      {/* AI Advisor — Tasks Context */}
+      <div style={{ marginTop: 32 }}>
+        <InlineAdvisor
+          title="Task Advisor"
+          titleIcon="bot"
+          compact={true}
+          defaultCollapsed={true}
+          storageKeySuffix="tasks"
+          suggestedPrompts={[
+            'Which tasks should I prioritize this week?',
+            'Who on the team is overloaded right now?',
+            'What blocked tasks need unblocking?',
+            'Suggest task assignments based on capacity',
+          ]}
+        />
+      </div>
     </div>
   );
 }

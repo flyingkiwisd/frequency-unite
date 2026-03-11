@@ -3,10 +3,11 @@
 import { useState, useMemo, useCallback } from 'react';
 import {
   Users, CheckCircle2, Target, Network, TrendingUp, Calendar,
-  Plus, Circle, ChevronRight, ChevronDown, Zap, ListTodo, X, Sparkles, Bot, Trophy, BookOpen,
+  Plus, Circle, ChevronRight, ChevronDown, Zap, ListTodo, X, Sparkles, Trophy, BookOpen,
 } from 'lucide-react';
 import { useFrequencyData } from '@/lib/supabase/DataProvider';
 import { useAuth } from '@/lib/supabase/AuthProvider';
+import { InlineAdvisor } from '@/components/InlineAdvisor';
 
 /* ─── Theme ─── */
 const C = {
@@ -301,29 +302,18 @@ export function DashboardView({ onNavigate }: { onNavigate?: (view: string) => v
         </div>
       </div>
 
-      {/* ── 5. AI Advisor Quick-Ask ── */}
-      <div style={{ ...card, borderLeft: '3px solid #8b5cf6', display: 'flex', alignItems: 'center', gap: 16 }}>
-        <div style={{ width: 42, height: 42, borderRadius: 14, background: 'linear-gradient(135deg, rgba(212,165,116,0.15), rgba(139,92,246,0.15))', border: '1px solid rgba(139,92,246,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-          <Sparkles size={20} style={{ color: '#d4a574' }} />
-        </div>
-        <div style={{ flex: 1 }}>
-          <div style={{ fontSize: 13, fontWeight: 600, color: C.text, marginBottom: 4 }}>AI Advisory Board</div>
-          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-            {['What should I focus on?', 'Risk assessment', 'Team capacity'].map((q, i) => (
-              <button key={i} onClick={() => navigate('advisor')} style={{ fontSize: 10, padding: '4px 10px', borderRadius: 999, background: 'rgba(139,92,246,0.08)', border: '1px solid rgba(139,92,246,0.15)', color: '#a09888', cursor: 'pointer', fontFamily: 'inherit', transition: 'all 0.15s' }}
-                onMouseEnter={e => { e.currentTarget.style.borderColor = 'rgba(212,165,116,0.3)'; e.currentTarget.style.color = '#d4a574'; }}
-                onMouseLeave={e => { e.currentTarget.style.borderColor = 'rgba(139,92,246,0.15)'; e.currentTarget.style.color = '#a09888'; }}>
-                {q}
-              </button>
-            ))}
-          </div>
-        </div>
-        <button onClick={() => navigate('advisor')} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 16px', borderRadius: 10, background: 'linear-gradient(135deg, rgba(212,165,116,0.12), rgba(139,92,246,0.12))', border: '1px solid rgba(212,165,116,0.2)', color: C.accent, fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', transition: 'all 0.2s', flexShrink: 0 }}
-          onMouseEnter={e => { e.currentTarget.style.background = 'linear-gradient(135deg, rgba(212,165,116,0.2), rgba(139,92,246,0.2))'; }}
-          onMouseLeave={e => { e.currentTarget.style.background = 'linear-gradient(135deg, rgba(212,165,116,0.12), rgba(139,92,246,0.12))'; }}>
-          <Bot size={14} /> Ask Now <ChevronRight size={12} />
-        </button>
-      </div>
+      {/* ── 5. AI Advisor (inline, like Amphibian) ── */}
+      <InlineAdvisor
+        title={`${userName}, here are some things to consider today`}
+        titleIcon="lightbulb"
+        storageKeySuffix="dashboard"
+        suggestedPrompts={[
+          'What should my #1 priority be today and why?',
+          'Where am I most at risk of dropping the ball?',
+          'Give me a brutally honest assessment — am I on track?',
+          'What hard conversation should I be having that I\'m avoiding?',
+        ]}
+      />
 
       {/* ── 6. Quick Actions Grid ── */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(100px, 1fr))', gap: 10 }}>

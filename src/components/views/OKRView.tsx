@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import { useFrequencyData } from '@/lib/supabase/DataProvider';
 import type { OKR, KPI } from '@/lib/data';
+import { InlineAdvisor } from '@/components/InlineAdvisor';
 
 // ─── CSS Keyframes (injected once) ───
 
@@ -898,6 +899,23 @@ export function OKRView() {
           onClick={() => setShowQuarterDropdown(false)}
         />
       )}
+
+      {/* AI Advisor — OKR Context */}
+      <div style={{ marginTop: 32 }}>
+        <InlineAdvisor
+          title="OKR Advisor"
+          titleIcon="sparkles"
+          compact={true}
+          defaultCollapsed={true}
+          storageKeySuffix="okrs"
+          suggestedPrompts={[
+            'Which OKRs are at risk and what should we do?',
+            'Are our key results ambitious enough?',
+            'How should we adjust targets for next quarter?',
+            'What OKRs are missing from our strategy?',
+          ]}
+        />
+      </div>
     </div>
   );
 }
