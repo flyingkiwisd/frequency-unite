@@ -572,7 +572,7 @@ export function OKRView() {
       <SummaryBar stats={summaryStats} />
 
       {/* ── Summary Stats Row ── */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(170px, 1fr))', gap: 12, marginBottom: 28 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(170px, 100%), 1fr))', gap: 12, marginBottom: 28 }}>
         {[
           { label: 'Total OKRs', value: summaryStats.total, color: '#8b5cf6' },
           { label: 'On Track', value: summaryStats.onTrack, color: '#6b8f71' },
@@ -659,6 +659,20 @@ export function OKRView() {
         </h2>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+          {filteredOkrs.length === 0 && (
+            <div style={{
+              textAlign: 'center',
+              padding: '48px 24px',
+              color: '#6b6358',
+              fontSize: 14,
+              fontWeight: 500,
+              backgroundColor: '#131720',
+              border: '1px solid #1e2638',
+              borderRadius: 14,
+            }}>
+              No OKRs for this quarter
+            </div>
+          )}
           {filteredOkrs.map((okr, cardIndex) => {
             const badge = statusBadge(okr.status);
             const overallProgress = Math.round(

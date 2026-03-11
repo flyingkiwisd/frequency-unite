@@ -3,7 +3,7 @@
 import { useState, useMemo, useCallback } from 'react';
 import {
   Users, CheckCircle2, Target, Network, TrendingUp, Calendar,
-  Plus, Circle, ChevronRight, Zap, MessageCircle, ListTodo, X, Sparkles, Send, Bot, Trophy,
+  Plus, Circle, ChevronRight, Zap, ListTodo, X, Sparkles, Bot, Trophy,
 } from 'lucide-react';
 import { useFrequencyData } from '@/lib/supabase/DataProvider';
 import { useAuth } from '@/lib/supabase/AuthProvider';
@@ -36,7 +36,8 @@ function loadDoneMap(): DoneMap {
 }
 function saveDoneMap(m: DoneMap) { localStorage.setItem(todayKey(), JSON.stringify(m)); }
 
-const signalColor = (l: string) => l === 'danger' ? C.danger : l === 'warning' ? C.warning : C.success;
+const SIGNAL_COLORS: Record<string, string> = { danger: C.danger, warning: C.warning, success: C.success };
+const signalColor = (l: string) => SIGNAL_COLORS[l] ?? C.success;
 const statusDot = (s: string) => s === 'in-progress' ? C.warning : s === 'blocked' ? C.danger : s === 'todo' ? C.textSec : C.success;
 const priStyle = (p: string) => p === 'critical'
   ? { color: C.danger, bg: 'rgba(239,68,68,0.12)' }
@@ -44,9 +45,11 @@ const priStyle = (p: string) => p === 'critical'
   : { color: C.textSec, bg: 'rgba(160,152,136,0.12)' };
 
 /* ─── Component ─── */
-export function DashboardView({ onNavigate }: { onNavigate: (view: string) => void }) {
+export function DashboardView({ onNavigate }: { onNavigate?: (view: string) => void }) {
   const { okrs, nodes, events, teamMembers, tasks, dataSource, updateTask, createTask } = useFrequencyData();
   const { teamMemberId } = useAuth();
+  const ownerId = teamMemberId ?? 'james';
+  const navigate = useCallback((view: string) => { onNavigate?.(view); }, [onNavigate]);
 
   const userName = useMemo(() => {
     if (!teamMemberId) return 'there';
@@ -55,7 +58,7 @@ export function DashboardView({ onNavigate }: { onNavigate: (view: string) => vo
   }, [teamMemberId, teamMembers]);
 
   /* ── Accountability Tracker ── */
-  const [doneMap, setDoneMap] = useState<DoneMap>(loadDoneMap);
+  const [doneMap, setDoneMap] = useState<DoneMap>(() => loadDoneMap());
   const [showAddForm, setShowAddForm] = useState(false);
   const [newTitle, setNewTitle] = useState('');
 
@@ -78,12 +81,12 @@ export function DashboardView({ onNavigate }: { onNavigate: (view: string) => vo
   const handleAddCommitment = useCallback(async () => {
     if (!newTitle.trim()) return;
     await createTask({
-      title: newTitle.trim(), owner: teamMemberId || 'james',
+      title: newTitle.trim(), owner: ownerId,
       status: 'in-progress', priority: 'high',
       deadline: new Date().toISOString().slice(0, 10), category: 'Daily',
     });
     setNewTitle(''); setShowAddForm(false);
-  }, [newTitle, teamMemberId, createTask]);
+  }, [newTitle, ownerId, createTask]);
 
   /* ── KPI calculations ── */
   const activeMembers = teamMembers.filter(m => m.status === 'active').length;
@@ -166,7 +169,9 @@ export function DashboardView({ onNavigate }: { onNavigate: (view: string) => vo
         </div>
         {/* Task list */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          {todayTasks.map(t => {
+          {todayTasks.length === 0 ? (
+            <p style={{ fontSize: 13, color: C.textSec, textAlign: 'center', padding: '16px 0', margin: 0 }}>No tasks yet</p>
+          ) : todayTasks.map(t => {
             const isDone = doneMap[t.id] || t.status === 'done';
             const ps = priStyle(t.priority);
             return (
@@ -197,7 +202,7 @@ export function DashboardView({ onNavigate }: { onNavigate: (view: string) => vo
       </div>
 
       {/* ── 3. Hero KPIs Row ── */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 14 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 14 }}>
         {([
           { label: 'Active Members', value: activeMembers, icon: Users, color: C.accent, trend: '+2' },
           { label: 'Task Completion', value: `${taskRate}%`, icon: CheckCircle2, color: C.success, trend: `${doneTasks}/${tasks.length}` },
@@ -246,7 +251,7 @@ export function DashboardView({ onNavigate }: { onNavigate: (view: string) => vo
           <div style={{ fontSize: 13, fontWeight: 600, color: C.text, marginBottom: 4 }}>AI Advisory Board</div>
           <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
             {['What should I focus on?', 'Risk assessment', 'Team capacity'].map((q, i) => (
-              <button key={i} onClick={() => onNavigate('advisor')} style={{ fontSize: 10, padding: '4px 10px', borderRadius: 999, background: 'rgba(139,92,246,0.08)', border: '1px solid rgba(139,92,246,0.15)', color: '#a09888', cursor: 'pointer', fontFamily: 'inherit', transition: 'all 0.15s' }}
+              <button key={i} onClick={() => navigate('advisor')} style={{ fontSize: 10, padding: '4px 10px', borderRadius: 999, background: 'rgba(139,92,246,0.08)', border: '1px solid rgba(139,92,246,0.15)', color: '#a09888', cursor: 'pointer', fontFamily: 'inherit', transition: 'all 0.15s' }}
                 onMouseEnter={e => { e.currentTarget.style.borderColor = 'rgba(212,165,116,0.3)'; e.currentTarget.style.color = '#d4a574'; }}
                 onMouseLeave={e => { e.currentTarget.style.borderColor = 'rgba(139,92,246,0.15)'; e.currentTarget.style.color = '#a09888'; }}>
                 {q}
@@ -254,7 +259,7 @@ export function DashboardView({ onNavigate }: { onNavigate: (view: string) => vo
             ))}
           </div>
         </div>
-        <button onClick={() => onNavigate('advisor')} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 16px', borderRadius: 10, background: 'linear-gradient(135deg, rgba(212,165,116,0.12), rgba(139,92,246,0.12))', border: '1px solid rgba(212,165,116,0.2)', color: C.accent, fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', transition: 'all 0.2s', flexShrink: 0 }}
+        <button onClick={() => navigate('advisor')} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 16px', borderRadius: 10, background: 'linear-gradient(135deg, rgba(212,165,116,0.12), rgba(139,92,246,0.12))', border: '1px solid rgba(212,165,116,0.2)', color: C.accent, fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', transition: 'all 0.2s', flexShrink: 0 }}
           onMouseEnter={e => { e.currentTarget.style.background = 'linear-gradient(135deg, rgba(212,165,116,0.2), rgba(139,92,246,0.2))'; }}
           onMouseLeave={e => { e.currentTarget.style.background = 'linear-gradient(135deg, rgba(212,165,116,0.12), rgba(139,92,246,0.12))'; }}>
           <Bot size={14} /> Ask Now <ChevronRight size={12} />
@@ -262,7 +267,7 @@ export function DashboardView({ onNavigate }: { onNavigate: (view: string) => vo
       </div>
 
       {/* ── 6. Quick Actions Grid ── */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 10 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(100px, 1fr))', gap: 10 }}>
         {([
           { label: 'Add Task', icon: Plus, view: 'tasks' },
           { label: 'Review OKRs', icon: Target, view: 'okrs' },
@@ -274,7 +279,7 @@ export function DashboardView({ onNavigate }: { onNavigate: (view: string) => vo
         ] as const).map((a, i) => {
           const Icon = a.icon;
           return (
-            <button key={i} onClick={() => onNavigate(a.view)}
+            <button key={i} onClick={() => navigate(a.view)}
               style={{ ...card, padding: '14px 10px', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8, transition: 'border-color 0.2s, transform 0.2s', fontFamily: 'inherit' }}
               onMouseEnter={e => { e.currentTarget.style.borderColor = C.accent; e.currentTarget.style.transform = 'translateY(-2px)'; }}
               onMouseLeave={e => { e.currentTarget.style.borderColor = C.border; e.currentTarget.style.transform = 'translateY(0)'; }}>
@@ -286,12 +291,12 @@ export function DashboardView({ onNavigate }: { onNavigate: (view: string) => vo
       </div>
 
       {/* ── 6. Active Work Preview ── */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 14 }}>
         {/* Left: Top 5 Tasks */}
         <div style={card}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
             <span style={{ fontSize: 14, fontWeight: 600, color: C.text }}>Top Tasks</span>
-            <button onClick={() => onNavigate('tasks')} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 11, color: C.textSec, fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 2 }}>
+            <button onClick={() => navigate('tasks')} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 11, color: C.textSec, fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 2 }}>
               View all <ChevronRight size={12} />
             </button>
           </div>
@@ -312,12 +317,14 @@ export function DashboardView({ onNavigate }: { onNavigate: (view: string) => vo
         <div style={card}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
             <span style={{ fontSize: 14, fontWeight: 600, color: C.text }}>OKR Progress</span>
-            <button onClick={() => onNavigate('okrs')} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 11, color: C.textSec, fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 2 }}>
+            <button onClick={() => navigate('okrs')} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 11, color: C.textSec, fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 2 }}>
               View all <ChevronRight size={12} />
             </button>
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-            {topOkrs.map(okr => {
+            {topOkrs.length === 0 ? (
+              <p style={{ fontSize: 13, color: C.textSec, textAlign: 'center', padding: '16px 0', margin: 0 }}>No OKRs active</p>
+            ) : topOkrs.map(okr => {
               const avg = Math.round(okr.keyResults.reduce((s, kr) => s + kr.progress, 0) / okr.keyResults.length);
               const oc = okr.status === 'on-track' ? C.success : okr.status === 'at-risk' ? C.warning : C.danger;
               return (

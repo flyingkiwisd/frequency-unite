@@ -13,7 +13,6 @@ import {
   Filter,
   LayoutGrid,
   List,
-  Flag,
   Tag,
   User,
   CalendarDays,
@@ -581,6 +580,7 @@ function TaskCard({
   onUpdateTask: (id: string, updates: Partial<Task>) => Promise<void>;
   onDeleteTask: (id: string) => Promise<void>;
 }) {
+  const [confirmDelete, setConfirmDelete] = useState(false);
   const pConfig = priorityConfig[task.priority];
   const PriorityIcon = pConfig.icon;
 
@@ -607,9 +607,7 @@ function TaskCard({
 
   const handleDelete = (e: React.MouseEvent) => {
     e.stopPropagation();
-    if (window.confirm(`Delete task "${task.title}"?`)) {
-      onDeleteTask(task.id);
-    }
+    setConfirmDelete(true);
   };
 
   const sConfig = statusConfig[task.status];
@@ -643,31 +641,80 @@ function TaskCard({
       }}
     >
       {/* Delete button — visible on hover */}
-      <button
-        className="task-delete-btn"
-        onClick={handleDelete}
-        title="Delete task"
-        style={{
-          position: 'absolute',
-          top: 8,
-          right: 8,
-          background: 'rgba(201, 84, 74, 0.1)',
-          border: 'none',
-          borderRadius: 6,
-          padding: 4,
-          cursor: 'pointer',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          color: '#c9544a',
-          transition: 'background 0.15s, color 0.15s',
-          zIndex: 2,
-        }}
-        onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(201, 84, 74, 0.25)'; }}
-        onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(201, 84, 74, 0.1)'; }}
-      >
-        <Trash2 size={12} />
-      </button>
+      {confirmDelete ? (
+        <div
+          onClick={(e) => e.stopPropagation()}
+          style={{
+            position: 'absolute',
+            top: 6,
+            right: 6,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 4,
+            zIndex: 2,
+            backgroundColor: '#131720',
+            border: '1px solid rgba(201, 84, 74, 0.3)',
+            borderRadius: 6,
+            padding: '3px 6px',
+          }}
+        >
+          <span style={{ fontSize: 10, color: '#c9544a', fontWeight: 600 }}>Delete?</span>
+          <button
+            onClick={(e) => { e.stopPropagation(); onDeleteTask(task.id); }}
+            style={{
+              background: 'rgba(201, 84, 74, 0.15)',
+              border: 'none',
+              borderRadius: 4,
+              padding: '2px 6px',
+              cursor: 'pointer',
+              fontSize: 10,
+              fontWeight: 600,
+              color: '#ef4444',
+              fontFamily: 'inherit',
+            }}
+          >Yes</button>
+          <button
+            onClick={(e) => { e.stopPropagation(); setConfirmDelete(false); }}
+            style={{
+              background: 'rgba(107, 99, 88, 0.15)',
+              border: 'none',
+              borderRadius: 4,
+              padding: '2px 6px',
+              cursor: 'pointer',
+              fontSize: 10,
+              fontWeight: 600,
+              color: '#a09888',
+              fontFamily: 'inherit',
+            }}
+          >No</button>
+        </div>
+      ) : (
+        <button
+          className="task-delete-btn"
+          onClick={handleDelete}
+          title="Delete task"
+          style={{
+            position: 'absolute',
+            top: 8,
+            right: 8,
+            background: 'rgba(201, 84, 74, 0.1)',
+            border: 'none',
+            borderRadius: 6,
+            padding: 4,
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            color: '#c9544a',
+            transition: 'background 0.15s, color 0.15s',
+            zIndex: 2,
+          }}
+          onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(201, 84, 74, 0.25)'; }}
+          onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(201, 84, 74, 0.1)'; }}
+        >
+          <Trash2 size={12} />
+        </button>
+      )}
 
       {/* Title */}
       <p style={{ fontSize: 12, fontWeight: 600, color: '#f0ebe4', margin: 0, lineHeight: 1.4, marginBottom: 8, paddingRight: 24 }}>
@@ -972,6 +1019,7 @@ export function TasksView() {
   const [viewMode, setViewMode] = useState<'kanban' | 'list'>('kanban');
   const [filterTab, setFilterTab] = useState<FilterTab>('all');
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [confirmDeleteRowId, setConfirmDeleteRowId] = useState<string | null>(null);
 
   useEffect(() => { injectTaskStyles(); }, []);
 
@@ -1196,7 +1244,7 @@ export function TasksView() {
 
       {/* ── Kanban Board (only in "all" tab with kanban mode) ── */}
       {filterTab === 'all' && viewMode === 'kanban' && (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16, minHeight: 400 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 16, minHeight: 400 }}>
           {statusOrder.map((status) => {
             const config = statusConfig[status];
             const StatusIcon = config.icon;
@@ -1271,7 +1319,8 @@ export function TasksView() {
 
       {/* ── List View (only in "all" tab with list mode) ── */}
       {filterTab === 'all' && viewMode === 'list' && (
-        <div style={{ backgroundColor: '#0f1219', borderRadius: 12, border: '1px solid #1e2638', overflow: 'hidden' }}>
+        <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
+        <div style={{ backgroundColor: '#0f1219', borderRadius: 12, border: '1px solid #1e2638', overflow: 'hidden', minWidth: 650 }}>
           {/* Table Header */}
           <div
             style={{
@@ -1310,9 +1359,7 @@ export function TasksView() {
 
             const handleRowDelete = (e: React.MouseEvent) => {
               e.stopPropagation();
-              if (window.confirm(`Delete task "${task.title}"?`)) {
-                deleteTask(task.id);
-              }
+              setConfirmDeleteRowId(task.id);
             };
 
             return (
@@ -1362,30 +1409,67 @@ export function TasksView() {
                   {new Date(task.deadline).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
                 </span>
                 <span style={{ fontSize: 10, color: '#a78bfa' }}>{task.category}</span>
-                <button
-                  className="task-delete-btn"
-                  onClick={handleRowDelete}
-                  title="Delete task"
-                  style={{
-                    background: 'none',
-                    border: 'none',
-                    borderRadius: 6,
-                    padding: 4,
-                    cursor: 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    color: '#c9544a',
-                    transition: 'background 0.15s, opacity 0.15s',
-                  }}
-                  onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(201, 84, 74, 0.15)'; }}
-                  onMouseLeave={(e) => { e.currentTarget.style.background = 'none'; }}
-                >
-                  <Trash2 size={13} />
-                </button>
+                {confirmDeleteRowId === task.id ? (
+                  <div
+                    onClick={(e) => e.stopPropagation()}
+                    style={{ display: 'flex', alignItems: 'center', gap: 3 }}
+                  >
+                    <button
+                      onClick={(e) => { e.stopPropagation(); deleteTask(task.id); setConfirmDeleteRowId(null); }}
+                      style={{
+                        background: 'rgba(201, 84, 74, 0.15)',
+                        border: 'none',
+                        borderRadius: 4,
+                        padding: '2px 5px',
+                        cursor: 'pointer',
+                        fontSize: 9,
+                        fontWeight: 600,
+                        color: '#ef4444',
+                        fontFamily: 'inherit',
+                      }}
+                    >Yes</button>
+                    <button
+                      onClick={(e) => { e.stopPropagation(); setConfirmDeleteRowId(null); }}
+                      style={{
+                        background: 'rgba(107, 99, 88, 0.15)',
+                        border: 'none',
+                        borderRadius: 4,
+                        padding: '2px 5px',
+                        cursor: 'pointer',
+                        fontSize: 9,
+                        fontWeight: 600,
+                        color: '#a09888',
+                        fontFamily: 'inherit',
+                      }}
+                    >No</button>
+                  </div>
+                ) : (
+                  <button
+                    className="task-delete-btn"
+                    onClick={handleRowDelete}
+                    title="Delete task"
+                    style={{
+                      background: 'none',
+                      border: 'none',
+                      borderRadius: 6,
+                      padding: 4,
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      color: '#c9544a',
+                      transition: 'background 0.15s, opacity 0.15s',
+                    }}
+                    onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(201, 84, 74, 0.15)'; }}
+                    onMouseLeave={(e) => { e.currentTarget.style.background = 'none'; }}
+                  >
+                    <Trash2 size={13} />
+                  </button>
+                )}
               </div>
             );
           })}
+        </div>
         </div>
       )}
 

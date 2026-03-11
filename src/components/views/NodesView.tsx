@@ -512,7 +512,7 @@ export function NodesView() {
   }, []);
 
   return (
-    <div ref={containerRef} style={{ padding: '32px 24px', maxWidth: 1200, margin: '0 auto' }}>
+    <div ref={containerRef} style={{ padding: 'clamp(16px, 4vw, 24px)', maxWidth: 1200, margin: '0 auto' }}>
       {/* ── Header ── */}
       <div
         style={{
@@ -652,10 +652,27 @@ export function NodesView() {
         </div>
       </div>
 
+      {/* ── Empty state ── */}
+      {(!nodes || nodes.length === 0) && (
+        <div
+          style={{
+            textAlign: 'center',
+            padding: '60px 20px',
+            color: '#6b6358',
+            fontSize: 14,
+          }}
+        >
+          <Globe size={32} style={{ opacity: 0.3, marginBottom: 12 }} />
+          <p style={{ margin: 0 }}>No nodes have been created yet.</p>
+        </div>
+      )}
+
       {/* ── Node Connection Diagram ── */}
+      {nodes && nodes.length > 0 && (
       <div style={{ animation: mounted ? 'nv-fade-up 0.6s ease 0.05s both' : 'none' }}>
         <NodeConnectionDiagram />
       </div>
+      )}
 
       {/* ── Ecosystem Health Dashboard ── */}
       <div
@@ -1021,12 +1038,12 @@ export function NodesView() {
                 <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
                   {leadMembers.slice(0, 2).map((m, i) => (
                     <div
-                      key={m!.id}
+                      key={m?.id ?? `lead-${i}`}
                       style={{
                         width: 22,
                         height: 22,
                         borderRadius: '50%',
-                        background: `linear-gradient(135deg, ${getMemberColor(m!.id, teamMembers)}, ${getMemberColor(m!.id, teamMembers)}88)`,
+                        background: `linear-gradient(135deg, ${getMemberColor(m?.id ?? '', teamMembers)}, ${getMemberColor(m?.id ?? '', teamMembers)}88)`,
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
@@ -1037,11 +1054,11 @@ export function NodesView() {
                         marginLeft: i > 0 ? -4 : 0,
                       }}
                     >
-                      {m!.avatar}
+                      {m?.avatar}
                     </div>
                   ))}
                   <span style={{ fontSize: 12, color: '#a09888', marginLeft: 2 }}>
-                    {leadMembers.map((m) => m!.name.split(' ')[0]).join(', ')}
+                    {leadMembers.map((m) => m?.name?.split(' ')[0] ?? '').join(', ')}
                   </span>
                 </div>
                 {/* Last Update */}
@@ -1056,7 +1073,7 @@ export function NodesView() {
 
       {/* ── Node Cards Grid ── */}
       {viewMode === 'grid' && (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(360px, 1fr))', gap: 16 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(360px, 100%), 1fr))', gap: 16 }}>
           {nodes.map((node, cardIndex) => {
             const Icon = iconMap[node.icon] ?? Globe;
             const sts = statusStyle(node.status);
@@ -1355,13 +1372,13 @@ export function NodesView() {
                       <div style={{ display: 'flex', alignItems: 'center' }}>
                         {leadMembers.map((member, i) => (
                           <div
-                            key={member!.id}
-                            title={member!.name}
+                            key={member?.id ?? `lead-${i}`}
+                            title={member?.name ?? ''}
                             style={{
                               width: 30,
                               height: 30,
                               borderRadius: '50%',
-                              background: `linear-gradient(135deg, ${getMemberColor(member!.id, teamMembers)}, ${getMemberColor(member!.id, teamMembers)}88)`,
+                              background: `linear-gradient(135deg, ${getMemberColor(member?.id ?? '', teamMembers)}, ${getMemberColor(member?.id ?? '', teamMembers)}88)`,
                               display: 'flex',
                               alignItems: 'center',
                               justifyContent: 'center',
@@ -1372,15 +1389,15 @@ export function NodesView() {
                               marginLeft: i > 0 ? -6 : 0,
                               zIndex: leadMembers.length - i,
                               position: 'relative',
-                              boxShadow: `0 0 8px ${getMemberColor(member!.id, teamMembers)}20`,
+                              boxShadow: `0 0 8px ${getMemberColor(member?.id ?? '', teamMembers)}20`,
                             }}
                           >
-                            {member!.avatar}
+                            {member?.avatar}
                           </div>
                         ))}
                       </div>
                       <span style={{ fontSize: 12, color: '#a09888', marginLeft: 4, fontWeight: 500 }}>
-                        {leadMembers.map((m) => m!.name.split(' ')[0]).join(', ')}
+                        {leadMembers.map((m) => m?.name?.split(' ')[0] ?? '').join(', ')}
                       </span>
                     </div>
                   </div>

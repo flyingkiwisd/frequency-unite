@@ -185,7 +185,7 @@ export function EventsView() {
   }, [updateEvent]);
 
   return (
-    <div style={{ padding: '32px 40px', maxWidth: 960, margin: '0 auto' }}>
+    <div style={{ padding: 'clamp(16px, 4vw, 40px)', maxWidth: 960, margin: '0 auto' }}>
       {/* Header */}
       <div style={{ marginBottom: 32 }}>
         <div
@@ -1267,7 +1267,7 @@ export function EventsView() {
             fontSize: 14,
           }}
         >
-          No events found for this filter.
+          No events match your filter.
         </div>
       )}
 

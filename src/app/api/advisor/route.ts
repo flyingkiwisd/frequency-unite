@@ -39,6 +39,9 @@ RULES:
 
 You will receive the current state of Frequency's data as context with each message. Use this to give grounded, specific advice.`;
 
+// TODO: Add rate limiting via middleware (e.g. next-rate-limit or upstash/ratelimit)
+// to prevent abuse of the Anthropic API endpoint.
+
 export async function POST(request: NextRequest) {
   try {
     const apiKey = process.env.ANTHROPIC_API_KEY;
@@ -51,8 +54,29 @@ export async function POST(request: NextRequest) {
 
     const { messages, context } = await request.json();
 
+    // ─── Input Validation ───
     if (!messages || !Array.isArray(messages)) {
       return NextResponse.json({ error: 'Messages array required' }, { status: 400 });
+    }
+
+    if (messages.length > 50) {
+      return NextResponse.json({ error: 'Too many messages. Maximum 50 allowed.' }, { status: 400 });
+    }
+
+    for (const msg of messages) {
+      if (typeof msg.role !== 'string' || typeof msg.content !== 'string') {
+        return NextResponse.json(
+          { error: 'Each message must have a "role" and "content" string.' },
+          { status: 400 }
+        );
+      }
+    }
+
+    if (context !== undefined && (typeof context !== 'string' || context.length > 5000)) {
+      return NextResponse.json(
+        { error: 'Context must be a string with a maximum of 5000 characters.' },
+        { status: 400 }
+      );
     }
 
     const client = new Anthropic({ apiKey });
@@ -85,8 +109,8 @@ ${context}
 
     return NextResponse.json({ message: assistantMessage });
   } catch (error: unknown) {
-    console.error('[Advisor API Error]', error);
     const message = error instanceof Error ? error.message : 'Unknown error';
+    console.error('[Advisor API Error]', message);
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }

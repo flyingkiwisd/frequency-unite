@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { Zap, Shield, Fingerprint, Heart, Sparkles, Mail } from 'lucide-react';
 import { teamMembers } from '@/lib/data';
+import { tailwindColorMap } from '@/lib/constants';
 import { useAuth } from '@/lib/supabase/AuthProvider';
 import { isClerkConfigured } from '@/lib/config';
 import { SignIn } from '@clerk/nextjs';
@@ -10,23 +11,6 @@ import { SignIn } from '@clerk/nextjs';
 interface LoginScreenProps {
   onLogin: () => void;
 }
-
-const tailwindColorMap: Record<string, string> = {
-  'bg-amber-500': '#f59e0b',
-  'bg-amber-400': '#fbbf24',
-  'bg-rose-400': '#fb7185',
-  'bg-violet-500': '#8b5cf6',
-  'bg-sky-400': '#38bdf8',
-  'bg-emerald-500': '#10b981',
-  'bg-purple-500': '#a855f7',
-  'bg-pink-400': '#f472b6',
-  'bg-teal-400': '#2dd4bf',
-  'bg-green-500': '#22c55e',
-  'bg-lime-500': '#84cc16',
-  'bg-orange-500': '#f97316',
-  'bg-indigo-400': '#818cf8',
-  'bg-slate-400': '#94a3b8',
-};
 
 type Mode = 'demo' | 'clerk';
 

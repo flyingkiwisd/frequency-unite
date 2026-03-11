@@ -359,6 +359,23 @@ export function TeamView() {
 
   return (
     <div className="space-y-6">
+      {/* ── Responsive list-view styles ── */}
+      <style>{`
+        .team-list-header,
+        .team-list-row {
+          grid-template-columns: 2.5fr 1fr 1fr 1.5fr 1fr;
+        }
+        .team-list-col-hide-mobile {}
+        @media (max-width: 767px) {
+          .team-list-header,
+          .team-list-row {
+            grid-template-columns: 2fr 1fr;
+          }
+          .team-list-col-hide-mobile {
+            display: none !important;
+          }
+        }
+      `}</style>
       {/* ── Header ── */}
       <div className="animate-fade-in">
         <div className="flex items-center gap-3 mb-1">
@@ -663,6 +680,17 @@ export function TeamView() {
           className="animate-fade-in"
           style={{ animationDelay: '0.08s', opacity: 0 }}
         >
+          {orgChartLevels.length === 0 ? (
+            <div
+              className="text-center py-12 rounded-xl border"
+              style={{ backgroundColor: '#131720', borderColor: '#1e2638' }}
+            >
+              <GitBranch size={32} className="mx-auto mb-3 text-text-muted" />
+              <p className="text-sm text-text-secondary">
+                No org structure defined
+              </p>
+            </div>
+          ) : (
           <div className="flex flex-col items-center gap-0">
             {orgChartLevels.map((level, levelIdx) => (
               <React.Fragment key={level.label}>
@@ -723,6 +751,7 @@ export function TeamView() {
               </React.Fragment>
             ))}
           </div>
+          )}
         </div>
       )}
 
@@ -731,18 +760,17 @@ export function TeamView() {
         <div className="space-y-2">
           {/* List header */}
           <div
-            className="grid items-center gap-4 px-4 py-2 text-[10px] font-semibold uppercase tracking-wider text-text-muted animate-fade-in"
+            className="team-list-header grid items-center gap-4 px-4 py-2 text-[10px] font-semibold uppercase tracking-wider text-text-muted animate-fade-in"
             style={{
-              gridTemplateColumns: '2.5fr 1fr 1fr 1.5fr 1fr',
               animationDelay: '0.08s',
               opacity: 0,
             }}
           >
             <span>Member</span>
             <span>Tier</span>
-            <span>Status</span>
-            <span>Hours / Capacity</span>
-            <span>Activity</span>
+            <span className="team-list-col-hide-mobile">Status</span>
+            <span className="team-list-col-hide-mobile">Hours / Capacity</span>
+            <span className="team-list-col-hide-mobile">Activity</span>
           </div>
 
           {filtered.map((member, i) => {
@@ -759,9 +787,8 @@ export function TeamView() {
             return (
               <div
                 key={member.id}
-                className="grid items-center gap-4 rounded-lg border px-4 py-3 transition-all animate-fade-in"
+                className="team-list-row grid items-center gap-4 rounded-lg border px-4 py-3 transition-all animate-fade-in"
                 style={{
-                  gridTemplateColumns: '2.5fr 1fr 1fr 1.5fr 1fr',
                   background: isHovered
                     ? `linear-gradient(135deg, #131720 60%, ${cardGradient(member.color)})`
                     : '#131720',
@@ -810,7 +837,7 @@ export function TeamView() {
                 </div>
 
                 {/* Status */}
-                <div>
+                <div className="team-list-col-hide-mobile">
                   <span
                     className="text-[10px] font-semibold px-2 py-0.5 rounded-full"
                     style={{ backgroundColor: status.bg, color: status.text }}
@@ -820,7 +847,7 @@ export function TeamView() {
                 </div>
 
                 {/* Hours + capacity bar */}
-                <div className="flex items-center gap-2.5">
+                <div className="team-list-col-hide-mobile flex items-center gap-2.5">
                   <span className="text-[11px] text-text-muted font-medium whitespace-nowrap w-14">
                     {member.hoursPerWeek || '--'} hrs
                   </span>
@@ -842,7 +869,7 @@ export function TeamView() {
                 </div>
 
                 {/* Activity */}
-                <div className="flex items-center gap-1.5">
+                <div className="team-list-col-hide-mobile flex items-center gap-1.5">
                   <div
                     className="w-2 h-2 rounded-full flex-shrink-0"
                     style={{ backgroundColor: actCfg.color, boxShadow: `0 0 4px ${actCfg.color}` }}

@@ -257,7 +257,7 @@ export function RoadmapView() {
   // Avoid hydration mismatch: show non-interactive state until mounted
   if (!mounted) {
     return (
-      <div style={{ padding: '32px 40px', maxWidth: 1000, margin: '0 auto' }}>
+      <div style={{ padding: 'clamp(16px, 4vw, 40px)', maxWidth: 'min(1000px, 90vw)', margin: '0 auto' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
           <Map size={28} style={{ color: '#d4a574' }} />
           <h1
@@ -285,6 +285,29 @@ export function RoadmapView() {
     );
   }
 
+  if (!roadmapPhases || roadmapPhases.length === 0) {
+    return (
+      <div style={{ padding: 'clamp(16px, 4vw, 40px)', maxWidth: 'min(1000px, 90vw)', margin: '0 auto' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <Map size={28} style={{ color: '#d4a574' }} />
+          <h1 style={{ fontSize: 28, fontWeight: 700, color: '#f0ebe4', margin: 0 }}>
+            Strategic Roadmap
+          </h1>
+        </div>
+        <div
+          style={{
+            textAlign: 'center',
+            padding: '60px 20px',
+            color: '#6b6358',
+            fontSize: 14,
+          }}
+        >
+          No roadmap phases have been defined yet.
+        </div>
+      </div>
+    );
+  }
+
   const overallPercent =
     overallStats.totalMilestones > 0
       ? Math.round(
@@ -295,7 +318,7 @@ export function RoadmapView() {
   const activePhaseNum = activePhaseIndex + 1;
 
   return (
-    <div style={{ padding: '32px 40px', maxWidth: 1000, margin: '0 auto' }}>
+    <div style={{ padding: 'clamp(16px, 4vw, 40px)', maxWidth: 'min(1000px, 90vw)', margin: '0 auto' }}>
       {/* Header */}
       <div style={{ marginBottom: 24 }}>
         <div

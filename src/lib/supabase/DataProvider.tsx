@@ -138,16 +138,16 @@ export function DataProvider({ children }: { children: ReactNode }) {
         messageData,
         roadmapData,
       ] = await Promise.all([
-        fetchTeamMembers().catch(() => null),
-        fetchNodes().catch(() => null),
-        fetchOKRs().catch(() => null),
-        fetchKPIs().catch(() => null),
-        fetchGovernanceDecisions().catch(() => null),
-        fetchEvents().catch(() => null),
-        fetchTasks().catch(() => null),
-        fetchChatChannels().catch(() => null),
-        fetchChatMessages().catch(() => null),
-        fetchRoadmapPhases().catch(() => null),
+        fetchTeamMembers().catch(() => { console.warn('Supabase fetch failed:', 'team_members'); return null; }),
+        fetchNodes().catch(() => { console.warn('Supabase fetch failed:', 'nodes'); return null; }),
+        fetchOKRs().catch(() => { console.warn('Supabase fetch failed:', 'okrs'); return null; }),
+        fetchKPIs().catch(() => { console.warn('Supabase fetch failed:', 'kpis'); return null; }),
+        fetchGovernanceDecisions().catch(() => { console.warn('Supabase fetch failed:', 'governance_decisions'); return null; }),
+        fetchEvents().catch(() => { console.warn('Supabase fetch failed:', 'events'); return null; }),
+        fetchTasks().catch(() => { console.warn('Supabase fetch failed:', 'tasks'); return null; }),
+        fetchChatChannels().catch(() => { console.warn('Supabase fetch failed:', 'chat_channels'); return null; }),
+        fetchChatMessages().catch(() => { console.warn('Supabase fetch failed:', 'chat_messages'); return null; }),
+        fetchRoadmapPhases().catch(() => { console.warn('Supabase fetch failed:', 'roadmap_phases'); return null; }),
       ]);
 
       let fromSupabase = false;
@@ -198,7 +198,11 @@ export function DataProvider({ children }: { children: ReactNode }) {
     if (updates.node !== undefined) dbUpdates.node = updates.node;
     if (updates.category !== undefined) dbUpdates.category = updates.category;
 
-    await client.from('tasks').update(dbUpdates).eq('id', id);
+    try {
+      await client.from('tasks').update(dbUpdates).eq('id', id);
+    } catch (err) {
+      console.error('Failed to update task in Supabase:', id, err);
+    }
   }, [getWriteClient]);
 
   const createTask = useCallback(async (task: Omit<Task, 'id'>) => {
@@ -209,16 +213,20 @@ export function DataProvider({ children }: { children: ReactNode }) {
     const client = getWriteClient();
     if (!client) return;
 
-    await client.from('tasks').insert({
-      id: newId,
-      title: task.title,
-      owner: task.owner,
-      status: task.status,
-      priority: task.priority,
-      deadline: task.deadline,
-      node: task.node || null,
-      category: task.category,
-    });
+    try {
+      await client.from('tasks').insert({
+        id: newId,
+        title: task.title,
+        owner: task.owner,
+        status: task.status,
+        priority: task.priority,
+        deadline: task.deadline,
+        node: task.node || null,
+        category: task.category,
+      });
+    } catch (err) {
+      console.error('Failed to create task in Supabase:', newId, err);
+    }
   }, [getWriteClient]);
 
   const deleteTask = useCallback(async (id: string) => {

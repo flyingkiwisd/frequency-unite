@@ -57,7 +57,8 @@ export function LeaderboardView() {
     const rate = total > 0 ? Math.round((totalDone / total) * 100) : 0;
     const active = ranked.filter((r) => r.hasActiveTasks).length;
     const eng = teamMembers.length > 0 ? Math.round((active / teamMembers.length) * 100) : 0;
-    const topNode = [...nodes].sort((a, b) => b.progress - a.progress)[0];
+    const sorted = [...nodes].sort((a, b) => b.progress - a.progress);
+    const topNode = sorted.length > 0 ? sorted[0] : null;
     return { totalDone, rate, eng, topNode };
   }, [tasks, ranked, teamMembers, nodes]);
 
@@ -91,6 +92,20 @@ export function LeaderboardView() {
         })}
       </div>
 
+      {/* Empty state */}
+      {ranked.length === 0 && (
+        <div style={{
+          ...card,
+          padding: '48px 24px',
+          textAlign: 'center',
+          color: '#6b6358',
+          fontSize: 14,
+          fontWeight: 500,
+        }}>
+          No team data available
+        </div>
+      )}
+
       {/* Podium */}
       {top3.length >= 3 && (
         <div style={{ ...card, padding: 24 }}>
@@ -100,7 +115,7 @@ export function LeaderboardView() {
               Top Performers
             </span>
           </div>
-          <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'center', gap: 24 }}>
+          <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'center', gap: 24, flexWrap: 'wrap' }}>
             {[1, 0, 2].map((idx) => {
               const e = top3[idx]; if (!e) return null;
               const c = podiumColor(idx), first = idx === 0, sz = first ? 64 : 52, ph = first ? 64 : idx === 1 ? 48 : 36;
@@ -134,6 +149,8 @@ export function LeaderboardView() {
 
       {/* Ranked Table */}
       <div style={{ ...card, overflow: 'hidden' }}>
+        <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch' as const }}>
+        <div style={{ minWidth: 420 }}>
         <div style={{
           display: 'grid', gridTemplateColumns: '48px 1fr 80px 120px 80px', padding: '10px 16px',
           borderBottom: '1px solid rgba(30,38,56,0.5)', fontSize: 10, fontWeight: 700, color: '#a09888',
@@ -205,10 +222,12 @@ export function LeaderboardView() {
             </div>
           );
         })}
+        </div>
+        </div>
       </div>
 
       {/* Team Stats */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(180px, 100%), 1fr))', gap: 12 }}>
         {([
           { icon: Target, label: 'Tasks Completed', value: String(stats.totalDone), color: '#6b8f71' },
           { icon: TrendingUp, label: 'Completion Rate', value: `${stats.rate}%`, color: GOLD },

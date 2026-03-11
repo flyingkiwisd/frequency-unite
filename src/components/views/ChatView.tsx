@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useRef, useEffect, useCallback } from 'react';
+import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import {
   Hash,
   Shield,
@@ -20,6 +20,8 @@ import {
   Pin,
   Users,
   MessageCircle,
+  Menu,
+  X,
 } from 'lucide-react';
 import { useFrequencyData } from '@/lib/supabase/DataProvider';
 import type { ChatChannel } from '@/lib/data';
@@ -119,11 +121,15 @@ export function ChatView() {
   const [messageInput, setMessageInput] = useState('');
   const [transitioning, setTransitioning] = useState(false);
   const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>({});
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
 
   const currentChannel = chatChannels.find((c) => c.id === selectedChannel);
-  const channelMsgs = chatMessages.filter((m) => m.channel === selectedChannel);
+  const channelMsgs = useMemo(
+    () => chatMessages.filter((m) => m.channel === selectedChannel),
+    [chatMessages, selectedChannel]
+  );
 
   const ChannelIcon = currentChannel ? iconMap[currentChannel.icon] || Hash : Hash;
 
@@ -133,6 +139,7 @@ export function ChatView() {
       if (id === selectedChannel) return;
       setTransitioning(true);
       setPrevChannel(selectedChannel);
+      setSidebarOpen(false);
       setTimeout(() => {
         setSelectedChannel(id);
         setTransitioning(false);
@@ -214,10 +221,48 @@ export function ChatView() {
           background-color: rgba(212, 165, 116, 0.18) !important;
           border-color: rgba(212, 165, 116, 0.35) !important;
         }
+        /* Mobile sidebar toggle button */
+        .chat-sidebar-toggle { display: none; }
+        /* Mobile sidebar overlay */
+        .chat-sidebar-overlay { display: none; }
+        @media (max-width: 767px) {
+          .chat-sidebar-toggle { display: flex; }
+          .chat-channel-sidebar {
+            position: fixed;
+            top: 0;
+            left: 0;
+            bottom: 0;
+            z-index: 50;
+            transform: translateX(-100%);
+            transition: transform 0.25s ease;
+          }
+          .chat-channel-sidebar.sidebar-open {
+            transform: translateX(0);
+          }
+          .chat-sidebar-overlay {
+            display: block;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            z-index: 49;
+            background-color: rgba(0, 0, 0, 0.5);
+          }
+        }
       `}</style>
+
+      {/* ── Mobile Sidebar Overlay ── */}
+      {sidebarOpen && (
+        <div
+          className="chat-sidebar-overlay"
+          onClick={() => setSidebarOpen(false)}
+        />
+      )}
 
       {/* ── Channel Sidebar ── */}
       <div
+        className={`chat-channel-sidebar${sidebarOpen ? ' sidebar-open' : ''}`}
         style={{
           width: 272,
           minWidth: 272,
@@ -233,8 +278,12 @@ export function ChatView() {
           style={{
             padding: '18px 18px 14px',
             borderBottom: '1px solid #1e2638',
+            display: 'flex',
+            alignItems: 'flex-start',
+            justifyContent: 'space-between',
           }}
         >
+          <div>
           <h2
             style={{
               fontSize: 15,
@@ -250,11 +299,66 @@ export function ChatView() {
             {chatChannels.length} channels &middot;{' '}
             {chatChannels.reduce((s, c) => s + c.unread, 0)} unread
           </p>
+          </div>
+          <button
+            className="chat-sidebar-toggle"
+            onClick={() => setSidebarOpen(false)}
+            style={{
+              background: 'none',
+              border: 'none',
+              cursor: 'pointer',
+              padding: 4,
+              color: '#6b6358',
+              alignItems: 'center',
+              justifyContent: 'center',
+              flexShrink: 0,
+            }}
+          >
+            <X size={18} />
+          </button>
         </div>
 
         {/* Channel Groups */}
         <div style={{ flex: 1, overflowY: 'auto', padding: '6px 0' }}>
-          {channelGroups.map((group) => {
+          {chatChannels.length === 0 ? (
+            <div
+              style={{
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'center',
+                padding: '32px 18px',
+                color: '#6b6358',
+                textAlign: 'center',
+              }}
+            >
+              <Hash
+                size={24}
+                style={{ opacity: 0.4, color: '#d4a574', marginBottom: 10 }}
+              />
+              <p
+                style={{
+                  fontSize: 13,
+                  fontWeight: 600,
+                  color: '#a09888',
+                  margin: 0,
+                }}
+              >
+                No channels yet
+              </p>
+              <p
+                style={{
+                  fontSize: 11,
+                  margin: '6px 0 0',
+                  opacity: 0.6,
+                  lineHeight: 1.5,
+                }}
+              >
+                Channels will appear here once they are created.
+              </p>
+            </div>
+          ) : (
+          channelGroups.map((group) => {
             const groupChannels = group.ids
               .map((id) => chatChannels.find((c) => c.id === id))
               .filter(Boolean) as ChatChannel[];
@@ -429,7 +533,8 @@ export function ChatView() {
                 </div>
               </div>
             );
-          })}
+          })
+          )}
         </div>
       </div>
 
@@ -447,6 +552,23 @@ export function ChatView() {
             flexShrink: 0,
           }}
         >
+          {/* Mobile sidebar toggle */}
+          <button
+            className="chat-sidebar-toggle"
+            onClick={() => setSidebarOpen(true)}
+            style={{
+              background: 'none',
+              border: 'none',
+              cursor: 'pointer',
+              padding: 4,
+              color: '#a09888',
+              alignItems: 'center',
+              justifyContent: 'center',
+              flexShrink: 0,
+            }}
+          >
+            <Menu size={20} />
+          </button>
           <div
             style={{
               width: 36,

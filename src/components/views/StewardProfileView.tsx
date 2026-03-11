@@ -156,9 +156,22 @@ export function StewardProfileView({ memberId, onNavigate }: { memberId: string;
 
   if (!member) {
     return (
-      <div style={{ textAlign: 'center', padding: 60, color: '#a09888' }}>
-        <User style={{ width: 48, height: 48, margin: '0 auto 16px', opacity: 0.3 }} />
-        <p>Steward profile not found</p>
+      <div style={{
+        maxWidth: 480, margin: '80px auto', textAlign: 'center', padding: '48px 32px',
+        borderRadius: 20, background: 'rgba(19,23,32,0.8)', border: '1px solid rgba(30,38,56,0.5)',
+      }}>
+        <div style={{
+          width: 72, height: 72, borderRadius: '50%', margin: '0 auto 20px',
+          background: 'rgba(160,152,136,0.08)', display: 'flex', alignItems: 'center', justifyContent: 'center',
+        }}>
+          <User style={{ width: 32, height: 32, color: '#6b6358', opacity: 0.5 }} />
+        </div>
+        <h2 style={{ fontSize: 18, fontWeight: 700, color: '#f0ebe4', margin: '0 0 8px' }}>
+          Steward Not Found
+        </h2>
+        <p style={{ fontSize: 13, color: '#a09888', lineHeight: 1.6, margin: 0 }}>
+          This steward profile could not be located. They may have been removed or the link may be invalid.
+        </p>
       </div>
     );
   }
@@ -257,7 +270,7 @@ export function StewardProfileView({ memberId, onNavigate }: { memberId: string;
 
         {/* Quick stats row */}
         <div style={{
-          display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12,
+          display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', gap: 12,
           marginTop: 24, padding: '16px 0 0', borderTop: '1px solid rgba(160,152,136,0.08)',
         }}>
           {[

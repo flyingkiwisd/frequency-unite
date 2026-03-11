@@ -337,7 +337,7 @@ function LogDecisionModal({
           left: '50%',
           transform: 'translate(-50%, -50%)',
           width: 520,
-          maxWidth: 'calc(100vw - 48px)',
+          maxWidth: 'min(calc(100vw - 48px), 90vw)',
           maxHeight: 'calc(100vh - 48px)',
           overflowY: 'auto',
           backgroundColor: '#131720',
@@ -609,7 +609,7 @@ export function GovernanceView() {
   const highImpactCount = governanceDecisions.filter((d) => d.impact === 'high').length;
 
   return (
-    <div ref={containerRef} style={{ padding: '32px 40px', maxWidth: 1000, margin: '0 auto' }}>
+    <div ref={containerRef} style={{ padding: 'clamp(16px, 4vw, 40px)', maxWidth: 1000, margin: '0 auto' }}>
       {/* keyframes */}
       <style>{`
         @keyframes govPulse {
@@ -1570,8 +1570,24 @@ export function GovernanceView() {
           </div>
         </div>
 
+        {/* Empty state: no decisions at all */}
+        {governanceDecisions.length === 0 && (
+          <div
+            style={{
+              textAlign: 'center',
+              padding: '48px 0',
+              color: '#6b6358',
+            }}
+          >
+            <ScrollText size={32} style={{ opacity: 0.3, marginBottom: 12 }} />
+            <p style={{ fontSize: 14, margin: 0 }}>
+              No decisions have been logged yet.
+            </p>
+          </div>
+        )}
+
         {/* Empty filter state */}
-        {filteredDecisions.length === 0 && (
+        {governanceDecisions.length > 0 && filteredDecisions.length === 0 && (
           <div
             style={{
               textAlign: 'center',
