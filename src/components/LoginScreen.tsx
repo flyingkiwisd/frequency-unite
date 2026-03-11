@@ -1,11 +1,12 @@
 'use client';
 
 import { useState } from 'react';
-import { Lock, Zap, Shield, Fingerprint, Heart } from 'lucide-react';
+import { Lock, Zap, Shield, Fingerprint, Heart, Mail, ArrowLeft, Check } from 'lucide-react';
 import { teamMembers } from '@/lib/data';
+import { useAuth } from '@/lib/supabase/AuthProvider';
 
 interface LoginScreenProps {
-  onLogin: (userId: string) => void;
+  onLogin: () => void;
 }
 
 const tailwindColorMap: Record<string, string> = {
@@ -25,9 +26,21 @@ const tailwindColorMap: Record<string, string> = {
   'bg-slate-400': '#94a3b8',
 };
 
+type Mode = 'login' | 'register-pick' | 'register-credentials';
+
 export function LoginScreen({ onLogin }: LoginScreenProps) {
+  const { signIn, signUp } = useAuth();
+
+  const [mode, setMode] = useState<Mode>('login');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Registration state
+  const [selectedTeamMemberId, setSelectedTeamMemberId] = useState<string | null>(null);
   const [hoveredUser, setHoveredUser] = useState<string | null>(null);
-  const [clickedUser, setClickedUser] = useState<string | null>(null);
   const [selectedTier, setSelectedTier] = useState<'core-team' | 'board' | 'all'>('all');
 
   const filteredMembers = teamMembers.filter((m) => {
@@ -36,14 +49,131 @@ export function LoginScreen({ onLogin }: LoginScreenProps) {
     return m.tier === selectedTier;
   });
 
-  const handleLogin = (userId: string) => {
-    setClickedUser(userId);
-    setTimeout(() => {
-      onLogin(userId);
-    }, 600);
+  const getHexColor = (twClass: string) => tailwindColorMap[twClass] || '#d4a574';
+
+  const handleSignIn = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
+    setSuccess(null);
+    setIsSubmitting(true);
+
+    const result = await signIn(email, password);
+
+    if (result.error) {
+      setError(result.error);
+      setIsSubmitting(false);
+    } else {
+      onLogin();
+    }
   };
 
-  const getHexColor = (twClass: string) => tailwindColorMap[twClass] || '#d4a574';
+  const handleSignUp = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedTeamMemberId) return;
+
+    setError(null);
+    setSuccess(null);
+    setIsSubmitting(true);
+
+    const result = await signUp(email, password, selectedTeamMemberId);
+
+    if (result.error) {
+      setError(result.error);
+      setIsSubmitting(false);
+    } else {
+      setSuccess('Account created! Check your email for a confirmation link.');
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleSelectMember = (memberId: string) => {
+    setSelectedTeamMemberId(memberId);
+    setMode('register-credentials');
+    setError(null);
+    setSuccess(null);
+  };
+
+  const resetToLogin = () => {
+    setMode('login');
+    setEmail('');
+    setPassword('');
+    setError(null);
+    setSuccess(null);
+    setSelectedTeamMemberId(null);
+  };
+
+  const resetToRegisterPick = () => {
+    setMode('register-pick');
+    setEmail('');
+    setPassword('');
+    setError(null);
+    setSuccess(null);
+  };
+
+  const selectedMember = selectedTeamMemberId
+    ? teamMembers.find((m) => m.id === selectedTeamMemberId)
+    : null;
+
+  const inputStyle: React.CSSProperties = {
+    width: '100%',
+    padding: '12px 16px',
+    paddingLeft: '44px',
+    background: '#131720',
+    border: '1px solid #1e2638',
+    borderRadius: '12px',
+    color: '#f0ebe4',
+    fontSize: '14px',
+    fontFamily: 'inherit',
+    outline: 'none',
+    transition: 'border-color 0.2s, box-shadow 0.2s',
+  };
+
+  const inputFocusHandler = (e: React.FocusEvent<HTMLInputElement>) => {
+    e.target.style.borderColor = '#d4a574';
+    e.target.style.boxShadow = '0 0 0 3px rgba(212, 165, 116, 0.15)';
+  };
+
+  const inputBlurHandler = (e: React.FocusEvent<HTMLInputElement>) => {
+    e.target.style.borderColor = '#1e2638';
+    e.target.style.boxShadow = 'none';
+  };
+
+  const buttonStyle: React.CSSProperties = {
+    width: '100%',
+    padding: '12px 24px',
+    background: 'linear-gradient(135deg, #d4a574, #c4925a)',
+    border: 'none',
+    borderRadius: '12px',
+    color: 'white',
+    fontSize: '14px',
+    fontWeight: 600,
+    letterSpacing: '0.5px',
+    cursor: 'pointer',
+    fontFamily: 'inherit',
+    transition: 'all 0.2s',
+    opacity: isSubmitting ? 0.7 : 1,
+  };
+
+  const linkStyle: React.CSSProperties = {
+    background: 'none',
+    border: 'none',
+    color: 'rgba(212, 165, 116, 0.7)',
+    fontSize: '13px',
+    cursor: 'pointer',
+    fontFamily: 'inherit',
+    padding: 0,
+    transition: 'color 0.2s',
+  };
+
+  const iconStyle: React.CSSProperties = {
+    position: 'absolute',
+    left: '14px',
+    top: '50%',
+    transform: 'translateY(-50%)',
+    color: 'rgba(160, 152, 136, 0.4)',
+    width: '18px',
+    height: '18px',
+  };
 
   return (
     <div className="login-screen">
@@ -297,6 +427,11 @@ export function LoginScreen({ onLogin }: LoginScreenProps) {
           transform: translateY(-4px);
         }
 
+        .avatar-button.selected {
+          background: rgba(212, 165, 116, 0.08);
+          border-color: rgba(212, 165, 116, 0.3);
+        }
+
         .avatar-button.clicked {
           animation: avatarClick 0.6s cubic-bezier(0.16, 1, 0.3, 1);
         }
@@ -420,6 +555,31 @@ export function LoginScreen({ onLogin }: LoginScreenProps) {
           0% { top: -2px; }
           100% { top: 100%; }
         }
+
+        .mode-transition {
+          animation: fadeIn 0.3s ease;
+        }
+
+        @keyframes fadeIn {
+          0% { opacity: 0; transform: translateY(8px); }
+          100% { opacity: 1; transform: translateY(0); }
+        }
+
+        .spinner {
+          display: inline-block;
+          width: 16px;
+          height: 16px;
+          border: 2px solid rgba(255, 255, 255, 0.3);
+          border-top-color: white;
+          border-radius: 50%;
+          animation: spin 0.6s linear infinite;
+          margin-right: 8px;
+          vertical-align: middle;
+        }
+
+        @keyframes spin {
+          to { transform: rotate(360deg); }
+        }
       `}</style>
 
       <div className="orb orb-1" />
@@ -462,61 +622,355 @@ export function LoginScreen({ onLogin }: LoginScreenProps) {
 
         <div className="divider" />
 
-        {/* Tier tabs */}
-        <div className="tier-tabs">
-          <button className={`tier-tab ${selectedTier === 'all' ? 'active' : ''}`} onClick={() => setSelectedTier('all')}>All</button>
-          <button className={`tier-tab ${selectedTier === 'core-team' ? 'active' : ''}`} onClick={() => setSelectedTier('core-team')}>Core Team</button>
-          <button className={`tier-tab ${selectedTier === 'board' ? 'active' : ''}`} onClick={() => setSelectedTier('board')}>Board</button>
-        </div>
+        {/* Error message */}
+        {error && (
+          <div
+            style={{
+              padding: '10px 16px',
+              marginBottom: '16px',
+              background: 'rgba(239, 68, 68, 0.1)',
+              border: '1px solid rgba(239, 68, 68, 0.2)',
+              borderRadius: '10px',
+              color: '#fca5a5',
+              fontSize: '13px',
+              textAlign: 'center',
+              animation: 'fadeIn 0.3s ease',
+            }}
+          >
+            {error}
+          </div>
+        )}
 
-        <div className="section-label">
-          <Fingerprint size={12} />
-          <span>Select your profile to continue</span>
-        </div>
+        {/* Success message */}
+        {success && (
+          <div
+            style={{
+              padding: '10px 16px',
+              marginBottom: '16px',
+              background: 'rgba(34, 197, 94, 0.1)',
+              border: '1px solid rgba(34, 197, 94, 0.2)',
+              borderRadius: '10px',
+              color: '#86efac',
+              fontSize: '13px',
+              textAlign: 'center',
+              animation: 'fadeIn 0.3s ease',
+            }}
+          >
+            {success}
+          </div>
+        )}
 
-        <div className="avatar-grid">
-          {filteredMembers.map((member) => {
-            const hex = getHexColor(member.color);
-            return (
+        {/* ─── LOGIN MODE ─── */}
+        {mode === 'login' && (
+          <div className="mode-transition">
+            <div className="section-label">
+              <Lock size={12} />
+              <span>Sign in to continue</span>
+            </div>
+
+            <form onSubmit={handleSignIn} style={{ marginBottom: '24px' }}>
+              <div style={{ position: 'relative', marginBottom: '12px' }}>
+                <Mail style={iconStyle} />
+                <input
+                  type="email"
+                  placeholder="Email address"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  onFocus={inputFocusHandler}
+                  onBlur={inputBlurHandler}
+                  style={inputStyle}
+                  required
+                  autoComplete="email"
+                />
+              </div>
+
+              <div style={{ position: 'relative', marginBottom: '20px' }}>
+                <Lock style={iconStyle} />
+                <input
+                  type="password"
+                  placeholder="Password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  onFocus={inputFocusHandler}
+                  onBlur={inputBlurHandler}
+                  style={inputStyle}
+                  required
+                  autoComplete="current-password"
+                />
+              </div>
+
               <button
-                key={member.id}
-                className={`avatar-button ${clickedUser === member.id ? 'clicked' : ''}`}
-                onClick={() => handleLogin(member.id)}
-                onMouseEnter={() => setHoveredUser(member.id)}
-                onMouseLeave={() => setHoveredUser(null)}
+                type="submit"
+                disabled={isSubmitting}
+                style={buttonStyle}
+                onMouseEnter={(e) => {
+                  if (!isSubmitting) e.currentTarget.style.transform = 'translateY(-1px)';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.transform = 'translateY(0)';
+                }}
               >
-                <div className="avatar-role">{member.shortRole}</div>
-                <div
-                  className="avatar-circle"
-                  style={{
-                    background: `linear-gradient(135deg, ${hex}, ${hex}cc)`,
-                    color: hex,
-                  }}
-                >
-                  <span style={{ color: 'white' }}>{member.avatar}</span>
-                </div>
-                <span className="avatar-name">
-                  {member.name.split(' ')[0]}
-                </span>
+                {isSubmitting ? (
+                  <>
+                    <span className="spinner" />
+                    Signing in...
+                  </>
+                ) : (
+                  'Sign In'
+                )}
               </button>
-            );
-          })}
-        </div>
+            </form>
 
-        <div className="footer-badges">
-          <div className="badge">
-            <Shield size={11} />
-            <span>Encrypted</span>
+            <div style={{ textAlign: 'center' }}>
+              <button
+                style={linkStyle}
+                onClick={() => {
+                  setMode('register-pick');
+                  setError(null);
+                  setSuccess(null);
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.color = '#d4a574';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.color = 'rgba(212, 165, 116, 0.7)';
+                }}
+              >
+                First time? Join your team
+              </button>
+            </div>
           </div>
-          <div className="badge-dot" />
-          <div className="badge">
-            <Heart size={11} />
-            <span>Steward Access</span>
+        )}
+
+        {/* ─── REGISTER: PICK TEAM MEMBER ─── */}
+        {mode === 'register-pick' && (
+          <div className="mode-transition">
+            <div style={{ marginBottom: '16px' }}>
+              <button
+                style={{
+                  ...linkStyle,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  fontSize: '12px',
+                }}
+                onClick={resetToLogin}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.color = '#d4a574';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.color = 'rgba(212, 165, 116, 0.7)';
+                }}
+              >
+                <ArrowLeft size={14} />
+                Back to sign in
+              </button>
+            </div>
+
+            {/* Tier tabs */}
+            <div className="tier-tabs">
+              <button className={`tier-tab ${selectedTier === 'all' ? 'active' : ''}`} onClick={() => setSelectedTier('all')}>All</button>
+              <button className={`tier-tab ${selectedTier === 'core-team' ? 'active' : ''}`} onClick={() => setSelectedTier('core-team')}>Core Team</button>
+              <button className={`tier-tab ${selectedTier === 'board' ? 'active' : ''}`} onClick={() => setSelectedTier('board')}>Board</button>
+            </div>
+
+            <div className="section-label">
+              <Fingerprint size={12} />
+              <span>Select your profile to register</span>
+            </div>
+
+            <div className="avatar-grid">
+              {filteredMembers.map((member) => {
+                const hex = getHexColor(member.color);
+                return (
+                  <button
+                    key={member.id}
+                    className="avatar-button"
+                    onClick={() => handleSelectMember(member.id)}
+                    onMouseEnter={() => setHoveredUser(member.id)}
+                    onMouseLeave={() => setHoveredUser(null)}
+                  >
+                    <div className="avatar-role">{member.shortRole}</div>
+                    <div
+                      className="avatar-circle"
+                      style={{
+                        background: `linear-gradient(135deg, ${hex}, ${hex}cc)`,
+                        color: hex,
+                      }}
+                    >
+                      <span style={{ color: 'white' }}>{member.avatar}</span>
+                    </div>
+                    <span className="avatar-name">
+                      {member.name.split(' ')[0]}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
           </div>
-          <div className="badge-dot" />
-          <div className="badge">
-            <Zap size={11} />
-            <span>AI-Powered</span>
+        )}
+
+        {/* ─── REGISTER: CREDENTIALS ─── */}
+        {mode === 'register-credentials' && selectedMember && (
+          <div className="mode-transition">
+            <div style={{ marginBottom: '16px' }}>
+              <button
+                style={{
+                  ...linkStyle,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  fontSize: '12px',
+                }}
+                onClick={resetToRegisterPick}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.color = '#d4a574';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.color = 'rgba(212, 165, 116, 0.7)';
+                }}
+              >
+                <ArrowLeft size={14} />
+                Choose a different profile
+              </button>
+            </div>
+
+            {/* Selected member display */}
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '14px',
+                padding: '14px 18px',
+                background: 'rgba(212, 165, 116, 0.06)',
+                border: '1px solid rgba(212, 165, 116, 0.15)',
+                borderRadius: '14px',
+                marginBottom: '20px',
+              }}
+            >
+              <div
+                style={{
+                  width: '44px',
+                  height: '44px',
+                  borderRadius: '50%',
+                  background: `linear-gradient(135deg, ${getHexColor(selectedMember.color)}, ${getHexColor(selectedMember.color)}cc)`,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontSize: '14px',
+                  fontWeight: 700,
+                  color: 'white',
+                  flexShrink: 0,
+                }}
+              >
+                {selectedMember.avatar}
+              </div>
+              <div>
+                <div style={{ color: '#f0ebe4', fontSize: '14px', fontWeight: 600 }}>
+                  {selectedMember.name}
+                </div>
+                <div style={{ color: 'rgba(160, 152, 136, 0.5)', fontSize: '12px' }}>
+                  {selectedMember.shortRole}
+                </div>
+              </div>
+              <Check
+                size={18}
+                style={{ marginLeft: 'auto', color: '#d4a574', opacity: 0.7 }}
+              />
+            </div>
+
+            <div className="section-label">
+              <Lock size={12} />
+              <span>Create your credentials</span>
+            </div>
+
+            <form onSubmit={handleSignUp} style={{ marginBottom: '24px' }}>
+              <div style={{ position: 'relative', marginBottom: '12px' }}>
+                <Mail style={iconStyle} />
+                <input
+                  type="email"
+                  placeholder="Email address"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  onFocus={inputFocusHandler}
+                  onBlur={inputBlurHandler}
+                  style={inputStyle}
+                  required
+                  autoComplete="email"
+                />
+              </div>
+
+              <div style={{ position: 'relative', marginBottom: '20px' }}>
+                <Lock style={iconStyle} />
+                <input
+                  type="password"
+                  placeholder="Password (min 6 characters)"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  onFocus={inputFocusHandler}
+                  onBlur={inputBlurHandler}
+                  style={inputStyle}
+                  required
+                  minLength={6}
+                  autoComplete="new-password"
+                />
+              </div>
+
+              <button
+                type="submit"
+                disabled={isSubmitting}
+                style={buttonStyle}
+                onMouseEnter={(e) => {
+                  if (!isSubmitting) e.currentTarget.style.transform = 'translateY(-1px)';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.transform = 'translateY(0)';
+                }}
+              >
+                {isSubmitting ? (
+                  <>
+                    <span className="spinner" />
+                    Creating account...
+                  </>
+                ) : (
+                  'Create Account'
+                )}
+              </button>
+            </form>
+
+            <div style={{ textAlign: 'center' }}>
+              <button
+                style={linkStyle}
+                onClick={resetToLogin}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.color = '#d4a574';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.color = 'rgba(212, 165, 116, 0.7)';
+                }}
+              >
+                Already have an account? Sign in
+              </button>
+            </div>
+          </div>
+        )}
+
+        <div style={{ marginTop: '24px' }}>
+          <div className="footer-badges">
+            <div className="badge">
+              <Shield size={11} />
+              <span>Encrypted</span>
+            </div>
+            <div className="badge-dot" />
+            <div className="badge">
+              <Heart size={11} />
+              <span>Steward Access</span>
+            </div>
+            <div className="badge-dot" />
+            <div className="badge">
+              <Zap size={11} />
+              <span>AI-Powered</span>
+            </div>
           </div>
         </div>
       </div>

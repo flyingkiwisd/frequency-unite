@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
+import { useAuth } from '@/lib/supabase/AuthProvider';
 import { Sidebar } from '@/components/Sidebar';
 import { MobileNav } from '@/components/MobileNav';
 import { DashboardView } from '@/components/views/DashboardView';
@@ -34,9 +35,68 @@ import { CommandPalette } from '@/components/CommandPalette';
 
 export type ViewType = 'dashboard' | 'nodes' | 'team' | 'okrs' | 'tasks' | 'roadmap' | 'governance' | 'events' | 'chat' | 'notes' | 'activity' | 'enrollment' | 'budget' | 'pods' | 'accountability' | 'meeting-intel' | 'what-changed' | 'knowledge-graph' | 'steward-alignment' | 'member-health' | 'cash-runway' | 'role-drift' | 'leaderboard' | 'peer-feedback' | 'ecosystem-intel' | 'steward-os';
 
+function LoadingScreen() {
+  return (
+    <div
+      style={{
+        minHeight: '100vh',
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        background: '#0b0d14',
+        fontFamily: "-apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', sans-serif",
+      }}
+    >
+      <div
+        style={{
+          marginBottom: '24px',
+          animation: 'pulse 2s ease-in-out infinite',
+        }}
+      >
+        <svg width="64" height="64" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <circle cx="32" cy="32" r="28" fill="url(#loadGrad)" opacity="0.12" />
+          <path d="M10 32 Q18 14 32 32 Q46 50 54 32" stroke="url(#loadWaveGrad)" strokeWidth="3.5" fill="none" strokeLinecap="round" />
+          <path d="M10 32 Q18 18 32 32 Q46 46 54 32" stroke="#8b5cf6" strokeWidth="2" fill="none" strokeLinecap="round" opacity="0.4" />
+          <path d="M10 32 Q18 22 32 32 Q46 42 54 32" stroke="#6b8f71" strokeWidth="1.2" fill="none" strokeLinecap="round" opacity="0.3" />
+          <circle cx="32" cy="32" r="4" fill="#d4a574" />
+          <circle cx="32" cy="32" r="2" fill="#0b0d14" />
+          <defs>
+            <radialGradient id="loadGrad" cx="32" cy="32" r="28">
+              <stop stopColor="#d4a574" />
+              <stop offset="1" stopColor="#8b5cf6" />
+            </radialGradient>
+            <linearGradient id="loadWaveGrad" x1="10" y1="32" x2="54" y2="32">
+              <stop stopColor="#d4a574" />
+              <stop offset="0.5" stopColor="#c4925a" />
+              <stop offset="1" stopColor="#d4a574" />
+            </linearGradient>
+          </defs>
+        </svg>
+      </div>
+      <div
+        style={{
+          fontSize: '14px',
+          fontWeight: 600,
+          letterSpacing: '4px',
+          textTransform: 'uppercase' as const,
+          color: 'rgba(212, 165, 116, 0.6)',
+        }}
+      >
+        Loading...
+      </div>
+      <style>{`
+        @keyframes pulse {
+          0%, 100% { opacity: 0.6; transform: scale(1); }
+          50% { opacity: 1; transform: scale(1.05); }
+        }
+      `}</style>
+    </div>
+  );
+}
+
 export default function Home() {
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
-  const [currentUser, setCurrentUser] = useState<string | null>(null);
+  const { user, teamMemberId, loading, signOut } = useAuth();
   const [currentView, setCurrentView] = useState<ViewType>('dashboard');
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
@@ -53,8 +113,12 @@ export default function Home() {
     return () => document.removeEventListener('keydown', handleKeyDown);
   }, [handleKeyDown]);
 
-  if (!isLoggedIn) {
-    return <LoginScreen onLogin={(user) => { setCurrentUser(user); setIsLoggedIn(true); }} />;
+  if (loading) {
+    return <LoadingScreen />;
+  }
+
+  if (!user) {
+    return <LoginScreen onLogin={() => {}} />;
   }
 
   const handleNavigate = (view: string) => {
@@ -102,7 +166,7 @@ export default function Home() {
           onViewChange={setCurrentView}
           collapsed={sidebarCollapsed}
           onToggleCollapse={() => setSidebarCollapsed(!sidebarCollapsed)}
-          currentUser={currentUser}
+          currentUser={teamMemberId}
           onOpenSearch={() => setCommandPaletteOpen(true)}
         />
       </div>
