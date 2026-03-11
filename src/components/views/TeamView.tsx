@@ -10,7 +10,6 @@ import {
   Crown,
   Compass,
   User,
-  Briefcase,
   Target,
   AlertCircle,
   AlertTriangle,
@@ -24,13 +23,14 @@ import {
   TrendingUp,
   BarChart3,
   UserCheck,
+  List,
 } from 'lucide-react';
 import { teamMembers, type MemberTier, type TeamMember } from '@/lib/data';
 
 /* ─── Tier Config ─── */
 
 type TierFilter = 'all' | MemberTier;
-type ViewMode = 'grid' | 'org-chart';
+type ViewMode = 'grid' | 'list' | 'org-chart';
 
 interface TierConfig {
   label: string;
@@ -100,6 +100,48 @@ function avatarGradient(color: string): string {
     'bg-slate-400': 'linear-gradient(135deg, #94a3b8, #cbd5e1)',
   };
   return gradientMap[color] || 'linear-gradient(135deg, #a09888, #6b6358)';
+}
+
+/* ─── Card background gradient from member color ─── */
+
+function cardGradient(color: string): string {
+  const colorMap: Record<string, string> = {
+    'bg-amber-500': 'rgba(212, 165, 116, 0.06)',
+    'bg-amber-400': 'rgba(212, 165, 116, 0.05)',
+    'bg-rose-400': 'rgba(232, 121, 160, 0.06)',
+    'bg-violet-500': 'rgba(139, 92, 246, 0.06)',
+    'bg-sky-400': 'rgba(56, 189, 248, 0.06)',
+    'bg-emerald-500': 'rgba(16, 185, 129, 0.06)',
+    'bg-purple-500': 'rgba(139, 92, 246, 0.05)',
+    'bg-pink-400': 'rgba(232, 121, 160, 0.05)',
+    'bg-teal-400': 'rgba(45, 212, 191, 0.06)',
+    'bg-green-500': 'rgba(34, 197, 94, 0.06)',
+    'bg-lime-500': 'rgba(132, 204, 22, 0.06)',
+    'bg-orange-500': 'rgba(249, 115, 22, 0.06)',
+    'bg-indigo-400': 'rgba(129, 140, 248, 0.06)',
+    'bg-slate-400': 'rgba(148, 163, 184, 0.05)',
+  };
+  return colorMap[color] || 'rgba(160, 152, 136, 0.04)';
+}
+
+function memberAccentColor(color: string): string {
+  const colorMap: Record<string, string> = {
+    'bg-amber-500': '#d4a574',
+    'bg-amber-400': '#e8b44c',
+    'bg-rose-400': '#e879a0',
+    'bg-violet-500': '#8b5cf6',
+    'bg-sky-400': '#38bdf8',
+    'bg-emerald-500': '#34d399',
+    'bg-purple-500': '#a78bfa',
+    'bg-pink-400': '#f0a0b8',
+    'bg-teal-400': '#2dd4bf',
+    'bg-green-500': '#4ade80',
+    'bg-lime-500': '#a3e635',
+    'bg-orange-500': '#fb923c',
+    'bg-indigo-400': '#a5b4fc',
+    'bg-slate-400': '#cbd5e1',
+  };
+  return colorMap[color] || '#a09888';
 }
 
 /* ─── Filter Tabs ─── */
@@ -204,6 +246,16 @@ const orgChartLevels = [
   },
 ];
 
+/* ─── Parse hours string to numeric value ─── */
+
+function parseHoursToNumber(hrs: string | undefined): number {
+  if (!hrs) return 0;
+  if (hrs.toLowerCase() === 'surgical') return 2;
+  const parts = hrs.split('-').map((s) => parseFloat(s.trim()));
+  if (parts.length === 2) return (parts[0] + parts[1]) / 2;
+  return parts[0] || 0;
+}
+
 /* ─── Component ─── */
 
 export function TeamView() {
@@ -211,6 +263,7 @@ export function TeamView() {
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [viewMode, setViewMode] = useState<ViewMode>('grid');
+  const [hoveredCardId, setHoveredCardId] = useState<string | null>(null);
 
   const filtered = useMemo(() => {
     let result = teamMembers;
@@ -239,6 +292,10 @@ export function TeamView() {
   const totalHours = useMemo(() => {
     return Object.values(capacityData).reduce((sum, c) => sum + c.currentLoad, 0);
   }, []);
+  const avgHoursPerWeek = useMemo(() => {
+    const hoursValues = teamMembers.map((m) => parseHoursToNumber(m.hoursPerWeek)).filter((h) => h > 0);
+    return hoursValues.length > 0 ? Math.round(hoursValues.reduce((a, b) => a + b, 0) / hoursValues.length) : 0;
+  }, []);
   const avgCapacity = useMemo(() => {
     const entries = Object.values(capacityData);
     const totalPct = entries.reduce((sum, c) => sum + (c.currentLoad / c.maxCapacity) * 100, 0);
@@ -247,6 +304,10 @@ export function TeamView() {
   const atRiskCount = useMemo(() => {
     return Object.values(capacityData).filter((c) => c.trend === 'overloaded').length;
   }, []);
+  const coreTeamCount = useMemo(() => teamMembers.filter((m) => m.tier === 'core-team').length, []);
+  const boardCount = useMemo(() => teamMembers.filter((m) => m.tier === 'board').length, []);
+  const nodeLeadCount = useMemo(() => teamMembers.filter((m) => m.tier === 'node-lead').length, []);
+  const memberCount = useMemo(() => teamMembers.filter((m) => m.tier === 'member').length, []);
 
   /* ─── Org Chart Node Renderer ─── */
   const renderOrgNode = (memberId: string) => {
@@ -290,6 +351,9 @@ export function TeamView() {
       </div>
     );
   };
+
+  /* ─── Hours progress bar max ─── */
+  const maxHoursDisplay = 40;
 
   return (
     <div className="space-y-6">
@@ -342,7 +406,7 @@ export function TeamView() {
         </div>
       </div>
 
-      {/* ── Team Stats Dashboard ── */}
+      {/* ── Team Stats Summary ── */}
       <div
         className="animate-fade-in"
         style={{ animationDelay: '0.03s', opacity: 0 }}
@@ -350,68 +414,127 @@ export function TeamView() {
         <div className="flex items-center gap-2 mb-3">
           <BarChart3 size={14} className="text-text-muted" />
           <span className="text-xs font-semibold text-text-muted uppercase tracking-wider">
-            Team Dashboard
+            Team Overview
           </span>
         </div>
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-          <div
-            className="glow-card rounded-lg border px-4 py-3"
-            style={{ backgroundColor: '#131720', borderColor: '#1e2638' }}
-          >
-            <div className="flex items-center gap-2 mb-1">
-              <Users size={13} style={{ color: '#d4a574' }} />
-              <span className="text-[10px] font-semibold uppercase tracking-wider" style={{ color: '#d4a574' }}>
-                Total Members
-              </span>
+        <div
+          className="glow-card rounded-xl border p-5"
+          style={{ backgroundColor: '#131720', borderColor: '#1e2638' }}
+        >
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-5">
+            {/* Total Members */}
+            <div>
+              <div className="flex items-center gap-2 mb-1.5">
+                <Users size={13} style={{ color: '#d4a574' }} />
+                <span className="text-[10px] font-semibold uppercase tracking-wider" style={{ color: '#d4a574' }}>
+                  Total
+                </span>
+              </div>
+              <div className="text-2xl font-bold text-text-primary">{totalMembers}</div>
+              <div className="text-[10px] text-text-muted mt-0.5">team members</div>
             </div>
-            <div className="text-2xl font-bold text-text-primary">{totalMembers}</div>
-            <div className="text-[10px] text-text-muted mt-0.5">across all tiers</div>
+
+            {/* Avg Hours */}
+            <div>
+              <div className="flex items-center gap-2 mb-1.5">
+                <Clock size={13} style={{ color: '#8b5cf6' }} />
+                <span className="text-[10px] font-semibold uppercase tracking-wider" style={{ color: '#8b5cf6' }}>
+                  Avg Hours
+                </span>
+              </div>
+              <div className="text-2xl font-bold text-text-primary">{avgHoursPerWeek}</div>
+              <div className="text-[10px] text-text-muted mt-0.5">hrs/week average</div>
+            </div>
+
+            {/* Capacity */}
+            <div>
+              <div className="flex items-center gap-2 mb-1.5">
+                <TrendingUp size={13} style={{ color: '#34d399' }} />
+                <span className="text-[10px] font-semibold uppercase tracking-wider" style={{ color: '#34d399' }}>
+                  Capacity
+                </span>
+              </div>
+              <div className="text-2xl font-bold text-text-primary">{avgCapacity}%</div>
+              <div className="text-[10px] text-text-muted mt-0.5">avg utilization</div>
+            </div>
+
+            {/* At Risk */}
+            <div>
+              <div className="flex items-center gap-2 mb-1.5">
+                <AlertTriangle size={13} style={{ color: '#e06060' }} />
+                <span className="text-[10px] font-semibold uppercase tracking-wider" style={{ color: '#e06060' }}>
+                  At Risk
+                </span>
+              </div>
+              <div className="text-2xl font-bold" style={{ color: atRiskCount > 0 ? '#e06060' : '#6b8f71' }}>
+                {atRiskCount}
+              </div>
+              <div className="text-[10px] text-text-muted mt-0.5">{atRiskCount === 1 ? 'member' : 'members'} overloaded</div>
+            </div>
           </div>
-          <div
-            className="glow-card rounded-lg border px-4 py-3"
-            style={{ backgroundColor: '#131720', borderColor: '#1e2638' }}
-          >
-            <div className="flex items-center gap-2 mb-1">
-              <Clock size={13} style={{ color: '#8b5cf6' }} />
-              <span className="text-[10px] font-semibold uppercase tracking-wider" style={{ color: '#8b5cf6' }}>
-                Total Hours/Week
-              </span>
+
+          {/* ── Tier Distribution Bar ── */}
+          <div className="mt-5 pt-4" style={{ borderTop: '1px solid #1e2638' }}>
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-[10px] font-semibold text-text-muted uppercase tracking-wider">Tier Distribution</span>
             </div>
-            <div className="text-2xl font-bold text-text-primary">{totalHours}</div>
-            <div className="text-[10px] text-text-muted mt-0.5">combined workload</div>
-          </div>
-          <div
-            className="glow-card rounded-lg border px-4 py-3"
-            style={{ backgroundColor: '#131720', borderColor: '#1e2638' }}
-          >
-            <div className="flex items-center gap-2 mb-1">
-              <TrendingUp size={13} style={{ color: '#34d399' }} />
-              <span className="text-[10px] font-semibold uppercase tracking-wider" style={{ color: '#34d399' }}>
-                Avg Capacity
-              </span>
+            <div className="flex h-2.5 rounded-full overflow-hidden gap-0.5">
+              <div
+                className="rounded-l-full transition-all"
+                style={{
+                  width: `${(coreTeamCount / totalMembers) * 100}%`,
+                  backgroundColor: '#d4a574',
+                }}
+                title={`Core Team: ${coreTeamCount}`}
+              />
+              <div
+                className="transition-all"
+                style={{
+                  width: `${(boardCount / totalMembers) * 100}%`,
+                  backgroundColor: '#8b5cf6',
+                }}
+                title={`Board: ${boardCount}`}
+              />
+              <div
+                className="transition-all"
+                style={{
+                  width: `${(nodeLeadCount / totalMembers) * 100}%`,
+                  backgroundColor: '#34d399',
+                }}
+                title={`Node Leads: ${nodeLeadCount}`}
+              />
+              <div
+                className="rounded-r-full transition-all"
+                style={{
+                  width: `${(memberCount / totalMembers) * 100}%`,
+                  backgroundColor: '#38bdf8',
+                }}
+                title={`Members: ${memberCount}`}
+              />
             </div>
-            <div className="text-2xl font-bold text-text-primary">{avgCapacity}%</div>
-            <div className="text-[10px] text-text-muted mt-0.5">utilization rate</div>
-          </div>
-          <div
-            className="glow-card rounded-lg border px-4 py-3"
-            style={{ backgroundColor: '#131720', borderColor: '#1e2638' }}
-          >
-            <div className="flex items-center gap-2 mb-1">
-              <AlertTriangle size={13} style={{ color: '#e06060' }} />
-              <span className="text-[10px] font-semibold uppercase tracking-wider" style={{ color: '#e06060' }}>
-                At Risk
-              </span>
+            <div className="flex flex-wrap gap-x-4 gap-y-1 mt-2">
+              <div className="flex items-center gap-1.5">
+                <div className="w-2 h-2 rounded-full" style={{ backgroundColor: '#d4a574' }} />
+                <span className="text-[10px] text-text-secondary">Core Team <span className="text-text-muted font-mono">{coreTeamCount}</span></span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <div className="w-2 h-2 rounded-full" style={{ backgroundColor: '#8b5cf6' }} />
+                <span className="text-[10px] text-text-secondary">Board <span className="text-text-muted font-mono">{boardCount}</span></span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <div className="w-2 h-2 rounded-full" style={{ backgroundColor: '#34d399' }} />
+                <span className="text-[10px] text-text-secondary">Node Leads <span className="text-text-muted font-mono">{nodeLeadCount}</span></span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <div className="w-2 h-2 rounded-full" style={{ backgroundColor: '#38bdf8' }} />
+                <span className="text-[10px] text-text-secondary">Members <span className="text-text-muted font-mono">{memberCount}</span></span>
+              </div>
             </div>
-            <div className="text-2xl font-bold" style={{ color: atRiskCount > 0 ? '#e06060' : '#6b8f71' }}>
-              {atRiskCount}
-            </div>
-            <div className="text-[10px] text-text-muted mt-0.5">{atRiskCount === 1 ? 'member' : 'members'} overloaded</div>
           </div>
         </div>
       </div>
 
-      {/* ── Team Capacity Overview ── */}
+      {/* ── Capacity Breakdown ── */}
       <div
         className="animate-fade-in"
         style={{ animationDelay: '0.04s', opacity: 0 }}
@@ -470,6 +593,17 @@ export function TeamView() {
           >
             <LayoutGrid size={13} />
             Grid
+          </button>
+          <button
+            onClick={() => setViewMode('list')}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-all"
+            style={{
+              backgroundColor: viewMode === 'list' ? 'rgba(212, 165, 116, 0.12)' : 'transparent',
+              color: viewMode === 'list' ? '#d4a574' : '#6b6358',
+            }}
+          >
+            <List size={13} />
+            List
           </button>
           <button
             onClick={() => setViewMode('org-chart')}
@@ -590,7 +724,146 @@ export function TeamView() {
         </div>
       )}
 
-      {/* ── Team Grid ── */}
+      {/* ── List View ── */}
+      {viewMode === 'list' && (
+        <div className="space-y-2">
+          {/* List header */}
+          <div
+            className="grid items-center gap-4 px-4 py-2 text-[10px] font-semibold uppercase tracking-wider text-text-muted animate-fade-in"
+            style={{
+              gridTemplateColumns: '2.5fr 1fr 1fr 1.5fr 1fr',
+              animationDelay: '0.08s',
+              opacity: 0,
+            }}
+          >
+            <span>Member</span>
+            <span>Tier</span>
+            <span>Status</span>
+            <span>Hours / Capacity</span>
+            <span>Activity</span>
+          </div>
+
+          {filtered.map((member, i) => {
+            const tier = tierConfig[member.tier];
+            const status = statusConfig[member.status];
+            const cap = capacityData[member.id];
+            const activity = activityData[member.id] || 'red';
+            const actCfg = activityConfig[activity];
+            const accent = memberAccentColor(member.color);
+            const isHovered = hoveredCardId === member.id;
+            const hoursNum = parseHoursToNumber(member.hoursPerWeek);
+            const hoursPct = Math.min((hoursNum / maxHoursDisplay) * 100, 100);
+
+            return (
+              <div
+                key={member.id}
+                className="grid items-center gap-4 rounded-lg border px-4 py-3 transition-all animate-fade-in"
+                style={{
+                  gridTemplateColumns: '2.5fr 1fr 1fr 1.5fr 1fr',
+                  background: isHovered
+                    ? `linear-gradient(135deg, #131720 60%, ${cardGradient(member.color)})`
+                    : '#131720',
+                  borderColor: isHovered ? `${accent}33` : '#1e2638',
+                  animationDelay: `${0.1 + i * 0.03}s`,
+                  opacity: 0,
+                }}
+                onMouseEnter={() => setHoveredCardId(member.id)}
+                onMouseLeave={() => setHoveredCardId(null)}
+              >
+                {/* Name + Role */}
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className="relative flex-shrink-0">
+                    <div
+                      className="w-9 h-9 rounded-full flex items-center justify-center text-xs font-bold"
+                      style={{
+                        background: avatarGradient(member.color),
+                        color: '#0b0d14',
+                      }}
+                    >
+                      {member.avatar}
+                    </div>
+                    <div
+                      className="absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2"
+                      style={{
+                        backgroundColor: actCfg.color,
+                        borderColor: '#131720',
+                        boxShadow: `0 0 4px ${actCfg.color}`,
+                      }}
+                    />
+                  </div>
+                  <div className="min-w-0">
+                    <div className="text-sm font-semibold text-text-primary truncate">{member.name}</div>
+                    <div className="text-[11px] text-text-muted truncate">{member.shortRole}</div>
+                  </div>
+                </div>
+
+                {/* Tier */}
+                <div>
+                  <span
+                    className="text-[10px] font-semibold px-2 py-0.5 rounded-full"
+                    style={{ backgroundColor: tier.bg, color: tier.text }}
+                  >
+                    {tier.label}
+                  </span>
+                </div>
+
+                {/* Status */}
+                <div>
+                  <span
+                    className="text-[10px] font-semibold px-2 py-0.5 rounded-full"
+                    style={{ backgroundColor: status.bg, color: status.text }}
+                  >
+                    {status.label}
+                  </span>
+                </div>
+
+                {/* Hours + capacity bar */}
+                <div className="flex items-center gap-2.5">
+                  <span className="text-[11px] text-text-muted font-medium whitespace-nowrap w-14">
+                    {member.hoursPerWeek || '--'} hrs
+                  </span>
+                  <div className="flex-1">
+                    <div
+                      className="w-full h-1.5 rounded-full overflow-hidden"
+                      style={{ backgroundColor: '#1c2230' }}
+                    >
+                      <div
+                        className="h-full rounded-full"
+                        style={{
+                          width: `${hoursPct}%`,
+                          backgroundColor: accent,
+                          opacity: 0.7,
+                        }}
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Activity */}
+                <div className="flex items-center gap-1.5">
+                  <div
+                    className="w-2 h-2 rounded-full flex-shrink-0"
+                    style={{ backgroundColor: actCfg.color, boxShadow: `0 0 4px ${actCfg.color}` }}
+                  />
+                  <span className="text-[10px] text-text-secondary truncate">{actCfg.label}</span>
+                </div>
+
+                {/* Hover tooltip for role description */}
+                {isHovered && (
+                  <div
+                    className="text-[11px] text-text-secondary leading-relaxed pt-1 pb-0.5 animate-fade-in"
+                    style={{ gridColumn: '1 / -1', animationDuration: '0.2s' }}
+                  >
+                    {member.roleOneSentence}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* ── Grid View — Enhanced Cards ── */}
       {viewMode === 'grid' && (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {filtered.map((member, i) => {
@@ -601,17 +874,27 @@ export function TeamView() {
             const memberSkills = skillsMap[member.id] || [];
             const activity = activityData[member.id] || 'red';
             const actCfg = activityConfig[activity];
+            const accent = memberAccentColor(member.color);
+            const isHovered = hoveredCardId === member.id;
+            const hoursNum = parseHoursToNumber(member.hoursPerWeek);
+            const hoursPct = Math.min((hoursNum / maxHoursDisplay) * 100, 100);
 
             return (
               <div
                 key={member.id}
                 className="glow-card rounded-xl border transition-all animate-fade-in"
                 style={{
-                  backgroundColor: '#131720',
-                  borderColor: isExpanded ? tier.border : '#1e2638',
+                  background: isHovered
+                    ? `linear-gradient(160deg, #131720 40%, ${cardGradient(member.color)} 100%)`
+                    : `linear-gradient(160deg, #131720 70%, ${cardGradient(member.color)} 100%)`,
+                  borderColor: isHovered ? `${accent}44` : isExpanded ? tier.border : '#1e2638',
                   animationDelay: `${0.1 + i * 0.04}s`,
                   opacity: 0,
+                  transform: isHovered ? 'translateY(-2px)' : 'translateY(0)',
+                  boxShadow: isHovered ? `0 8px 32px ${cardGradient(member.color)}` : 'none',
                 }}
+                onMouseEnter={() => setHoveredCardId(member.id)}
+                onMouseLeave={() => setHoveredCardId(null)}
               >
                 {/* ── Card Header ── */}
                 <div className="p-5 pb-0">
@@ -624,11 +907,13 @@ export function TeamView() {
                           background: avatarGradient(member.color),
                           color: '#0b0d14',
                           letterSpacing: '0.02em',
+                          boxShadow: isHovered ? `0 0 16px ${accent}44` : 'none',
+                          transition: 'box-shadow 0.3s ease',
                         }}
                       >
                         {member.avatar}
                       </div>
-                      {/* Activity indicator dot */}
+                      {/* Activity / status indicator dot */}
                       <div
                         className="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 rounded-full border-2"
                         style={{
@@ -655,7 +940,7 @@ export function TeamView() {
                     </div>
                   </div>
 
-                  {/* Status + Hours + Quick Actions */}
+                  {/* Status + Hours Progress + Quick Actions */}
                   <div className="flex items-center justify-between mt-3">
                     <div className="flex items-center gap-3">
                       <span
@@ -665,10 +950,27 @@ export function TeamView() {
                         {status.label}
                       </span>
                       {member.hoursPerWeek && (
-                        <span className="text-[11px] text-text-muted flex items-center gap-1">
-                          <Clock size={11} />
-                          {member.hoursPerWeek} hrs/wk
-                        </span>
+                        <div className="flex items-center gap-2">
+                          <span className="text-[11px] text-text-muted flex items-center gap-1">
+                            <Clock size={11} />
+                            {member.hoursPerWeek}
+                          </span>
+                          {/* Mini hours progress bar */}
+                          <div
+                            className="w-12 h-1.5 rounded-full overflow-hidden"
+                            style={{ backgroundColor: '#1c2230' }}
+                            title={`${member.hoursPerWeek} hrs/week`}
+                          >
+                            <div
+                              className="h-full rounded-full transition-all"
+                              style={{
+                                width: `${hoursPct}%`,
+                                backgroundColor: accent,
+                                opacity: 0.75,
+                              }}
+                            />
+                          </div>
+                        </div>
                       )}
                     </div>
                     {/* Quick Contact Actions */}
@@ -698,9 +1000,36 @@ export function TeamView() {
                   </div>
                 </div>
 
+                {/* ── Domain Tags as Pills ── */}
+                <div className="px-5 pt-2.5">
+                  <div className="flex flex-wrap gap-1">
+                    {member.domains.slice(0, isExpanded ? undefined : 3).map((d, j) => (
+                      <span
+                        key={j}
+                        className="text-[9px] font-medium px-2 py-0.5 rounded-full"
+                        style={{
+                          backgroundColor: `${accent}12`,
+                          color: '#a09888',
+                          border: `1px solid ${accent}20`,
+                        }}
+                      >
+                        {d.length > 35 ? d.slice(0, 32) + '...' : d}
+                      </span>
+                    ))}
+                    {!isExpanded && member.domains.length > 3 && (
+                      <span
+                        className="text-[9px] font-medium px-2 py-0.5 rounded-full"
+                        style={{ color: '#6b6358' }}
+                      >
+                        +{member.domains.length - 3}
+                      </span>
+                    )}
+                  </div>
+                </div>
+
                 {/* ── Skill Tags ── */}
                 {memberSkills.length > 0 && (
-                  <div className="px-5 pt-2.5">
+                  <div className="px-5 pt-2">
                     <div className="flex flex-wrap gap-1">
                       {memberSkills.map((skill, sIdx) => (
                         <span
@@ -719,7 +1048,19 @@ export function TeamView() {
                   </div>
                 )}
 
-                {/* ── Capacity Bar (inline) ── */}
+                {/* ── Hover: Role description reveal ── */}
+                {isHovered && !isExpanded && (
+                  <div
+                    className="px-5 pt-2.5"
+                    style={{ animation: 'fadeIn 0.25s ease-out forwards' }}
+                  >
+                    <p className="text-[11px] text-text-secondary leading-relaxed italic">
+                      {member.roleOneSentence}
+                    </p>
+                  </div>
+                )}
+
+                {/* ── Capacity Bar ── */}
                 {(() => {
                   if (!cap) return null;
                   const trend = trendConfig[cap.trend];
@@ -778,36 +1119,12 @@ export function TeamView() {
 
                 {/* ── Card Body ── */}
                 <div className="px-5 pt-3 pb-4">
-                  {/* Role description */}
-                  <p className="text-xs text-text-secondary leading-relaxed mb-3">
-                    {member.roleOneSentence}
-                  </p>
-
-                  {/* Domains */}
-                  <div className="mb-2.5">
-                    <div className="flex items-center gap-1.5 mb-1.5">
-                      <Briefcase size={11} className="text-text-muted" />
-                      <span className="text-[10px] font-semibold text-text-muted uppercase tracking-wider">
-                        Domains
-                      </span>
-                    </div>
-                    <div className="flex flex-wrap gap-1">
-                      {member.domains.slice(0, isExpanded ? undefined : 3).map((d, j) => (
-                        <span
-                          key={j}
-                          className="text-[10px] px-2 py-0.5 rounded-full"
-                          style={{ backgroundColor: '#1c2230', color: '#a09888' }}
-                        >
-                          {d.length > 40 ? d.slice(0, 37) + '...' : d}
-                        </span>
-                      ))}
-                      {!isExpanded && member.domains.length > 3 && (
-                        <span className="text-[10px] text-text-muted">
-                          +{member.domains.length - 3} more
-                        </span>
-                      )}
-                    </div>
-                  </div>
+                  {/* Role description (always visible when expanded) */}
+                  {isExpanded && (
+                    <p className="text-xs text-text-secondary leading-relaxed mb-3">
+                      {member.roleOneSentence}
+                    </p>
+                  )}
 
                   {/* KPIs */}
                   <div className="mb-2.5">
@@ -945,7 +1262,7 @@ export function TeamView() {
       )}
 
       {/* ── Empty State ── */}
-      {viewMode === 'grid' && filtered.length === 0 && (
+      {(viewMode === 'grid' || viewMode === 'list') && filtered.length === 0 && (
         <div
           className="text-center py-12 animate-fade-in rounded-xl border"
           style={{ backgroundColor: '#131720', borderColor: '#1e2638' }}

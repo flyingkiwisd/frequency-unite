@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useRef } from 'react';
+import React, { useRef, useState, useEffect } from 'react';
 import {
   Scale,
   BookOpen,
@@ -16,30 +16,38 @@ import {
   Clock,
   AlertTriangle,
   Download,
+  ChevronDown,
+  ChevronUp,
+  Filter,
 } from 'lucide-react';
 import { governanceDecisions, exportPdf, type GovernanceDecision } from '@/lib/data';
 
+/* ── colour configs ── */
+
 const impactConfig: Record<
   GovernanceDecision['impact'],
-  { label: string; bg: string; text: string; border: string }
+  { label: string; bg: string; text: string; border: string; dot: string }
 > = {
   high: {
     label: 'High Impact',
     bg: 'rgba(212, 165, 116, 0.15)',
     text: '#d4a574',
     border: '1px solid rgba(212, 165, 116, 0.3)',
+    dot: '#d4a574',
   },
   medium: {
     label: 'Medium',
-    bg: 'rgba(96, 165, 250, 0.12)',
-    text: '#60a5fa',
-    border: '1px solid rgba(96, 165, 250, 0.25)',
+    bg: 'rgba(139, 92, 246, 0.12)',
+    text: '#a78bfa',
+    border: '1px solid rgba(139, 92, 246, 0.25)',
+    dot: '#8b5cf6',
   },
   low: {
     label: 'Low',
-    bg: 'rgba(160, 152, 136, 0.12)',
-    text: '#a09888',
-    border: '1px solid rgba(160, 152, 136, 0.2)',
+    bg: 'rgba(107, 143, 113, 0.12)',
+    text: '#6b8f71',
+    border: '1px solid rgba(107, 143, 113, 0.25)',
+    dot: '#6b8f71',
   },
 };
 
@@ -47,31 +55,11 @@ const categoryConfig: Record<
   GovernanceDecision['category'],
   { label: string; bg: string; text: string }
 > = {
-  governance: {
-    label: 'Governance',
-    bg: 'rgba(139, 92, 246, 0.12)',
-    text: '#a78bfa',
-  },
-  financial: {
-    label: 'Financial',
-    bg: 'rgba(212, 165, 116, 0.12)',
-    text: '#d4a574',
-  },
-  membership: {
-    label: 'Membership',
-    bg: 'rgba(107, 143, 113, 0.12)',
-    text: '#6b8f71',
-  },
-  strategy: {
-    label: 'Strategy',
-    bg: 'rgba(96, 165, 250, 0.12)',
-    text: '#60a5fa',
-  },
-  node: {
-    label: 'Node',
-    bg: 'rgba(251, 146, 60, 0.12)',
-    text: '#fb923c',
-  },
+  governance: { label: 'Governance', bg: 'rgba(139, 92, 246, 0.12)', text: '#a78bfa' },
+  financial: { label: 'Financial', bg: 'rgba(212, 165, 116, 0.12)', text: '#d4a574' },
+  membership: { label: 'Membership', bg: 'rgba(107, 143, 113, 0.12)', text: '#6b8f71' },
+  strategy: { label: 'Strategy', bg: 'rgba(96, 165, 250, 0.12)', text: '#60a5fa' },
+  node: { label: 'Node', bg: 'rgba(251, 146, 60, 0.12)', text: '#fb923c' },
 };
 
 const principles = [
@@ -173,16 +161,113 @@ const statusConfig: Record<
   pending: { label: 'Pending', color: '#a09888', icon: Clock },
 };
 
+/* ── avatar initials helper ── */
+function getAvatarInitials(name: string): string {
+  const parts = name.split(/[+&,]/).map((p) => p.trim());
+  if (parts.length > 1) {
+    return parts.map((p) => p.charAt(0).toUpperCase()).join('');
+  }
+  const words = name.split(' ');
+  return words
+    .map((w) => w[0])
+    .join('')
+    .slice(0, 2)
+    .toUpperCase();
+}
+
+const avatarColors: Record<string, string> = {
+  W: '#8b5cf6',
+  'B+L': '#d4a574',
+  'BL': '#d4a574',
+  C: '#6b8f71',
+  CS: '#d4a574',
+  L: '#60a5fa',
+  LC: '#60a5fa',
+  B: '#e8b44c',
+};
+
+function getAvatarColor(decidedBy: string): string {
+  const hash = decidedBy.split('').reduce((a, c) => a + c.charCodeAt(0), 0);
+  const palette = ['#d4a574', '#8b5cf6', '#6b8f71', '#60a5fa', '#fb923c', '#e8b44c'];
+  return palette[hash % palette.length];
+}
+
+/* ── Animated card wrapper ── */
+function AnimatedCard({
+  children,
+  index,
+  style,
+}: {
+  children: React.ReactNode;
+  index: number;
+  style?: React.CSSProperties;
+}) {
+  const [visible, setVisible] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const timer = setTimeout(() => setVisible(true), 60 * index);
+    return () => clearTimeout(timer);
+  }, [index]);
+
+  return (
+    <div
+      ref={ref}
+      style={{
+        opacity: visible ? 1 : 0,
+        transform: visible ? 'translateY(0)' : 'translateY(18px)',
+        transition: 'opacity 0.45s ease, transform 0.45s ease',
+        ...style,
+      }}
+    >
+      {children}
+    </div>
+  );
+}
+
+/* ── Main component ── */
+
 export function GovernanceView() {
   const sorted = [...governanceDecisions].sort(
     (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
   );
   const containerRef = useRef<HTMLDivElement>(null);
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [activeCategory, setActiveCategory] = useState<string>('all');
+
+  const allCategories = ['all', ...Object.keys(categoryConfig)] as const;
+
+  const filteredDecisions =
+    activeCategory === 'all'
+      ? sorted
+      : sorted.filter((d) => d.category === activeCategory);
+
+  /* summary stats */
+  const totalDecisions = governanceDecisions.length;
+  const categoryCounts = Object.entries(categoryConfig).map(([key, cfg]) => ({
+    key,
+    label: cfg.label,
+    color: cfg.text,
+    count: governanceDecisions.filter((d) => d.category === key).length,
+  }));
+  const highImpactCount = governanceDecisions.filter((d) => d.impact === 'high').length;
 
   return (
     <div ref={containerRef} style={{ padding: '32px 40px', maxWidth: 1000, margin: '0 auto' }}>
+      {/* keyframes */}
+      <style>{`
+        @keyframes govPulse {
+          0%, 100% { box-shadow: 0 0 0 0 rgba(212,165,116,0.3); }
+          50% { box-shadow: 0 0 0 6px rgba(212,165,116,0); }
+        }
+        @keyframes timelineFadeIn {
+          from { opacity: 0; transform: translateX(-12px); }
+          to { opacity: 1; transform: translateX(0); }
+        }
+      `}</style>
+
       {/* Header */}
-      <div style={{ marginBottom: 40 }}>
+      <div style={{ marginBottom: 32 }}>
         <div
           style={{
             display: 'flex',
@@ -207,7 +292,9 @@ export function GovernanceView() {
             </h1>
           </div>
           <button
-            onClick={() => { if (containerRef.current) exportPdf(containerRef.current, 'Governance'); }}
+            onClick={() => {
+              if (containerRef.current) exportPdf(containerRef.current, 'Governance');
+            }}
             style={{
               display: 'flex',
               alignItems: 'center',
@@ -236,10 +323,96 @@ export function GovernanceView() {
             paddingLeft: 40,
           }}
         >
-          How we make decisions matters as much as what we decide. Our
-          governance evolves with our consciousness.
+          How we make decisions matters as much as what we decide. Our governance evolves with our
+          consciousness.
         </p>
       </div>
+
+      {/* ── Summary Stats Bar ── */}
+      <AnimatedCard index={0}>
+        <div
+          style={{
+            display: 'flex',
+            gap: 12,
+            marginBottom: 32,
+            flexWrap: 'wrap',
+          }}
+        >
+          {/* Total */}
+          <div
+            style={{
+              backgroundColor: '#131720',
+              border: '1px solid #1e2638',
+              borderRadius: 14,
+              padding: '16px 22px',
+              minWidth: 130,
+              flex: '0 0 auto',
+            }}
+          >
+            <div style={{ fontSize: 28, fontWeight: 700, color: '#f0ebe4', lineHeight: 1 }}>
+              {totalDecisions}
+            </div>
+            <div style={{ fontSize: 11, color: '#6b6358', marginTop: 4, fontWeight: 500, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+              Total Decisions
+            </div>
+          </div>
+
+          {/* High impact */}
+          <div
+            style={{
+              backgroundColor: '#131720',
+              border: '1px solid rgba(212, 165, 116, 0.2)',
+              borderRadius: 14,
+              padding: '16px 22px',
+              minWidth: 120,
+              flex: '0 0 auto',
+            }}
+          >
+            <div style={{ fontSize: 28, fontWeight: 700, color: '#d4a574', lineHeight: 1 }}>
+              {highImpactCount}
+            </div>
+            <div style={{ fontSize: 11, color: '#6b6358', marginTop: 4, fontWeight: 500, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+              High Impact
+            </div>
+          </div>
+
+          {/* Category breakdown */}
+          <div
+            style={{
+              backgroundColor: '#131720',
+              border: '1px solid #1e2638',
+              borderRadius: 14,
+              padding: '14px 22px',
+              flex: 1,
+              minWidth: 240,
+              display: 'flex',
+              alignItems: 'center',
+              gap: 16,
+              flexWrap: 'wrap',
+            }}
+          >
+            {categoryCounts.map((c) => (
+              <div key={c.key} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <div
+                  style={{
+                    width: 8,
+                    height: 8,
+                    borderRadius: '50%',
+                    backgroundColor: c.color,
+                    flexShrink: 0,
+                  }}
+                />
+                <span style={{ fontSize: 12, color: '#a09888' }}>
+                  {c.label}
+                </span>
+                <span style={{ fontSize: 13, fontWeight: 700, color: c.color }}>
+                  {c.count}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      </AnimatedCard>
 
       {/* Governance Principles */}
       <section style={{ marginBottom: 48 }}>
@@ -274,60 +447,70 @@ export function GovernanceView() {
           {principles.map((p, idx) => {
             const Icon = p.icon;
             return (
-              <div
-                key={idx}
-                style={{
-                  backgroundColor: '#131720',
-                  border: '1px solid #1e2638',
-                  borderRadius: 14,
-                  padding: 22,
-                  transition: 'border-color 0.2s',
-                }}
-              >
+              <AnimatedCard key={idx} index={idx + 1}>
                 <div
                   style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 10,
-                    marginBottom: 10,
+                    backgroundColor: '#131720',
+                    border: '1px solid #1e2638',
+                    borderRadius: 14,
+                    padding: 22,
+                    transition: 'border-color 0.2s, transform 0.2s',
+                    height: '100%',
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.borderColor = `${p.color}40`;
+                    e.currentTarget.style.transform = 'translateY(-2px)';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.borderColor = '#1e2638';
+                    e.currentTarget.style.transform = 'translateY(0)';
                   }}
                 >
                   <div
                     style={{
-                      width: 34,
-                      height: 34,
-                      borderRadius: 10,
-                      backgroundColor: `${p.color}15`,
-                      border: `1px solid ${p.color}30`,
                       display: 'flex',
                       alignItems: 'center',
-                      justifyContent: 'center',
+                      gap: 10,
+                      marginBottom: 10,
                     }}
                   >
-                    <Icon size={16} style={{ color: p.color }} />
+                    <div
+                      style={{
+                        width: 34,
+                        height: 34,
+                        borderRadius: 10,
+                        backgroundColor: `${p.color}15`,
+                        border: `1px solid ${p.color}30`,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                      }}
+                    >
+                      <Icon size={16} style={{ color: p.color }} />
+                    </div>
+                    <h3
+                      style={{
+                        fontSize: 14,
+                        fontWeight: 600,
+                        color: '#f0ebe4',
+                        margin: 0,
+                      }}
+                    >
+                      {p.title}
+                    </h3>
                   </div>
-                  <h3
+                  <p
                     style={{
-                      fontSize: 14,
-                      fontWeight: 600,
-                      color: '#f0ebe4',
+                      fontSize: 13,
+                      color: '#a09888',
+                      lineHeight: 1.6,
                       margin: 0,
                     }}
                   >
-                    {p.title}
-                  </h3>
+                    {p.description}
+                  </p>
                 </div>
-                <p
-                  style={{
-                    fontSize: 13,
-                    color: '#a09888',
-                    lineHeight: 1.6,
-                    margin: 0,
-                  }}
-                >
-                  {p.description}
-                </p>
-              </div>
+              </AnimatedCard>
             );
           })}
         </div>
@@ -367,122 +550,129 @@ export function GovernanceView() {
           {governanceStructure.map((tier, idx) => {
             const Icon = tier.icon;
             return (
-              <div key={idx} style={{ position: 'relative' }}>
-                {/* Connector arrow */}
-                {idx < governanceStructure.length - 1 && (
-                  <div
-                    style={{
-                      display: 'flex',
-                      justifyContent: 'center',
-                      padding: '4px 0',
-                    }}
-                  >
+              <AnimatedCard key={idx} index={idx + 6} style={{ position: 'relative' }}>
+                <div style={{ position: 'relative' }}>
+                  {idx < governanceStructure.length - 1 && (
                     <div
                       style={{
                         display: 'flex',
-                        flexDirection: 'column',
-                        alignItems: 'center',
+                        justifyContent: 'center',
+                        padding: '4px 0',
                       }}
                     >
                       <div
                         style={{
-                          width: 2,
-                          height: 12,
-                          backgroundColor: '#1e2638',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          alignItems: 'center',
                         }}
-                      />
+                      >
+                        <div
+                          style={{
+                            width: 2,
+                            height: 12,
+                            backgroundColor: '#1e2638',
+                          }}
+                        />
+                      </div>
                     </div>
-                  </div>
-                )}
+                  )}
 
-                <div
-                  style={{
-                    backgroundColor: '#131720',
-                    border: `1px solid ${tier.color}25`,
-                    borderRadius: 14,
-                    padding: '18px 22px',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 18,
-                  }}
-                >
-                  {/* Icon */}
                   <div
                     style={{
-                      width: 44,
-                      height: 44,
-                      borderRadius: 12,
-                      backgroundColor: `${tier.color}12`,
-                      border: `1px solid ${tier.color}30`,
+                      backgroundColor: '#131720',
+                      border: `1px solid ${tier.color}25`,
+                      borderRadius: 14,
+                      padding: '18px 22px',
                       display: 'flex',
                       alignItems: 'center',
-                      justifyContent: 'center',
-                      flexShrink: 0,
+                      gap: 18,
+                      transition: 'border-color 0.2s, transform 0.2s',
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.borderColor = `${tier.color}50`;
+                      e.currentTarget.style.transform = 'translateX(4px)';
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.borderColor = `${tier.color}25`;
+                      e.currentTarget.style.transform = 'translateX(0)';
                     }}
                   >
-                    <Icon size={20} style={{ color: tier.color }} />
-                  </div>
-
-                  {/* Info */}
-                  <div style={{ flex: 1, minWidth: 0 }}>
                     <div
                       style={{
+                        width: 44,
+                        height: 44,
+                        borderRadius: 12,
+                        backgroundColor: `${tier.color}12`,
+                        border: `1px solid ${tier.color}30`,
                         display: 'flex',
                         alignItems: 'center',
-                        gap: 10,
-                        marginBottom: 4,
+                        justifyContent: 'center',
+                        flexShrink: 0,
                       }}
                     >
-                      <h3
+                      <Icon size={20} style={{ color: tier.color }} />
+                    </div>
+
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div
                         style={{
-                          fontSize: 15,
-                          fontWeight: 600,
-                          color: '#f0ebe4',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 10,
+                          marginBottom: 4,
+                        }}
+                      >
+                        <h3
+                          style={{
+                            fontSize: 15,
+                            fontWeight: 600,
+                            color: '#f0ebe4',
+                            margin: 0,
+                          }}
+                        >
+                          {tier.title}
+                        </h3>
+                        <span
+                          style={{
+                            fontSize: 10,
+                            fontWeight: 600,
+                            textTransform: 'uppercase',
+                            letterSpacing: '0.08em',
+                            color: tier.color,
+                            backgroundColor: `${tier.color}15`,
+                            borderRadius: 12,
+                            padding: '2px 10px',
+                          }}
+                        >
+                          {tier.role}
+                        </span>
+                      </div>
+                      <p
+                        style={{
+                          fontSize: 13,
+                          color: '#a09888',
+                          lineHeight: 1.5,
                           margin: 0,
                         }}
                       >
-                        {tier.title}
-                      </h3>
-                      <span
-                        style={{
-                          fontSize: 10,
-                          fontWeight: 600,
-                          textTransform: 'uppercase',
-                          letterSpacing: '0.08em',
-                          color: tier.color,
-                          backgroundColor: `${tier.color}15`,
-                          borderRadius: 12,
-                          padding: '2px 10px',
-                        }}
-                      >
-                        {tier.role}
-                      </span>
+                        {tier.description}
+                      </p>
                     </div>
-                    <p
-                      style={{
-                        fontSize: 13,
-                        color: '#a09888',
-                        lineHeight: 1.5,
-                        margin: 0,
-                      }}
-                    >
-                      {tier.description}
-                    </p>
-                  </div>
 
-                  {/* Arrow for flow indication */}
-                  {idx < governanceStructure.length - 1 && (
-                    <ArrowRight
-                      size={16}
-                      style={{
-                        color: '#2e3a4e',
-                        flexShrink: 0,
-                        transform: 'rotate(90deg)',
-                      }}
-                    />
-                  )}
+                    {idx < governanceStructure.length - 1 && (
+                      <ArrowRight
+                        size={16}
+                        style={{
+                          color: '#2e3a4e',
+                          flexShrink: 0,
+                          transform: 'rotate(90deg)',
+                        }}
+                      />
+                    )}
+                  </div>
                 </div>
-              </div>
+              </AnimatedCard>
             );
           })}
         </div>
@@ -511,7 +701,6 @@ export function GovernanceView() {
           </h2>
         </div>
 
-        {/* Summary row */}
         <div
           style={{
             display: 'flex',
@@ -520,14 +709,10 @@ export function GovernanceView() {
             flexWrap: 'wrap',
           }}
         >
-          {(
-            ['completed', 'in-progress', 'overdue', 'pending'] as const
-          ).map((s) => {
+          {(['completed', 'in-progress', 'overdue', 'pending'] as const).map((s) => {
             const cfg = statusConfig[s];
-            const count = implementationTracker.filter(
-              (t) => t.status === s
-            ).length;
-            const Icon = cfg.icon;
+            const count = implementationTracker.filter((t) => t.status === s).length;
+            const SIcon = cfg.icon;
             return (
               <div
                 key={s}
@@ -541,30 +726,16 @@ export function GovernanceView() {
                   padding: '6px 14px',
                 }}
               >
-                <Icon size={14} style={{ color: cfg.color }} />
-                <span
-                  style={{
-                    fontSize: 13,
-                    fontWeight: 600,
-                    color: cfg.color,
-                  }}
-                >
+                <SIcon size={14} style={{ color: cfg.color }} />
+                <span style={{ fontSize: 13, fontWeight: 600, color: cfg.color }}>
                   {count}
                 </span>
-                <span
-                  style={{
-                    fontSize: 12,
-                    color: '#a09888',
-                  }}
-                >
-                  {cfg.label}
-                </span>
+                <span style={{ fontSize: 12, color: '#a09888' }}>{cfg.label}</span>
               </div>
             );
           })}
         </div>
 
-        {/* Tracker table header */}
         <div
           style={{
             display: 'grid',
@@ -575,150 +746,107 @@ export function GovernanceView() {
             marginBottom: 8,
           }}
         >
-          {['Decision', 'Owner', 'Deadline', 'Status', 'Progress'].map(
-            (header) => (
-              <span
-                key={header}
-                style={{
-                  fontSize: 10,
-                  fontWeight: 600,
-                  textTransform: 'uppercase',
-                  letterSpacing: '0.08em',
-                  color: '#6b6358',
-                }}
-              >
-                {header}
-              </span>
-            )
-          )}
+          {['Decision', 'Owner', 'Deadline', 'Status', 'Progress'].map((header) => (
+            <span
+              key={header}
+              style={{
+                fontSize: 10,
+                fontWeight: 600,
+                textTransform: 'uppercase',
+                letterSpacing: '0.08em',
+                color: '#6b6358',
+              }}
+            >
+              {header}
+            </span>
+          ))}
         </div>
 
-        {/* Tracker rows */}
-        <div
-          style={{
-            display: 'flex',
-            flexDirection: 'column',
-            gap: 8,
-          }}
-        >
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
           {implementationTracker.map((item, idx) => {
             const cfg = statusConfig[item.status];
             const StatusIcon = cfg.icon;
             return (
-              <div
-                key={idx}
-                style={{
-                  backgroundColor: '#131720',
-                  border: '1px solid #1e2638',
-                  borderRadius: 14,
-                  padding: '14px 22px',
-                  display: 'grid',
-                  gridTemplateColumns: '2fr 1fr 1fr 1fr 1.5fr',
-                  gap: 12,
-                  alignItems: 'center',
-                  transition: 'border-color 0.2s',
-                }}
-              >
-                {/* Decision name */}
-                <span
-                  style={{
-                    fontSize: 13,
-                    fontWeight: 500,
-                    color: '#f0ebe4',
-                  }}
-                >
-                  {item.decision}
-                </span>
-
-                {/* Owner */}
-                <span
-                  style={{
-                    fontSize: 13,
-                    color: '#a09888',
-                  }}
-                >
-                  {item.owner}
-                </span>
-
-                {/* Deadline */}
-                <span
-                  style={{
-                    fontSize: 12,
-                    color:
-                      item.status === 'overdue' ? '#e06060' : '#a09888',
-                    fontVariantNumeric: 'tabular-nums',
-                  }}
-                >
-                  {item.deadline}
-                </span>
-
-                {/* Status badge */}
+              <AnimatedCard key={idx} index={idx + 10}>
                 <div
                   style={{
-                    display: 'flex',
+                    backgroundColor: '#131720',
+                    border: '1px solid #1e2638',
+                    borderRadius: 14,
+                    padding: '14px 22px',
+                    display: 'grid',
+                    gridTemplateColumns: '2fr 1fr 1fr 1fr 1.5fr',
+                    gap: 12,
                     alignItems: 'center',
-                    gap: 5,
+                    transition: 'border-color 0.2s',
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.borderColor = `${cfg.color}40`;
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.borderColor = '#1e2638';
                   }}
                 >
-                  <StatusIcon size={12} style={{ color: cfg.color }} />
-                  <span
-                    style={{
-                      fontSize: 11,
-                      fontWeight: 600,
-                      color: cfg.color,
-                    }}
-                  >
-                    {cfg.label}
+                  <span style={{ fontSize: 13, fontWeight: 500, color: '#f0ebe4' }}>
+                    {item.decision}
                   </span>
-                </div>
-
-                {/* Progress bar */}
-                <div
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 10,
-                  }}
-                >
-                  <div
-                    style={{
-                      flex: 1,
-                      height: 6,
-                      backgroundColor: 'rgba(255,255,255,0.06)',
-                      borderRadius: 3,
-                      overflow: 'hidden',
-                    }}
-                  >
-                    <div
-                      style={{
-                        width: `${item.progress}%`,
-                        height: '100%',
-                        backgroundColor: cfg.color,
-                        borderRadius: 3,
-                        transition: 'width 0.3s ease',
-                      }}
-                    />
-                  </div>
+                  <span style={{ fontSize: 13, color: '#a09888' }}>{item.owner}</span>
                   <span
                     style={{
-                      fontSize: 11,
-                      fontWeight: 600,
-                      color: cfg.color,
-                      minWidth: 32,
-                      textAlign: 'right',
+                      fontSize: 12,
+                      color: item.status === 'overdue' ? '#e06060' : '#a09888',
                       fontVariantNumeric: 'tabular-nums',
                     }}
                   >
-                    {item.progress}%
+                    {item.deadline}
                   </span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                    <StatusIcon size={12} style={{ color: cfg.color }} />
+                    <span style={{ fontSize: 11, fontWeight: 600, color: cfg.color }}>
+                      {cfg.label}
+                    </span>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <div
+                      style={{
+                        flex: 1,
+                        height: 6,
+                        backgroundColor: 'rgba(255,255,255,0.06)',
+                        borderRadius: 3,
+                        overflow: 'hidden',
+                      }}
+                    >
+                      <div
+                        style={{
+                          width: `${item.progress}%`,
+                          height: '100%',
+                          backgroundColor: cfg.color,
+                          borderRadius: 3,
+                          transition: 'width 0.6s ease',
+                        }}
+                      />
+                    </div>
+                    <span
+                      style={{
+                        fontSize: 11,
+                        fontWeight: 600,
+                        color: cfg.color,
+                        minWidth: 32,
+                        textAlign: 'right',
+                        fontVariantNumeric: 'tabular-nums',
+                      }}
+                    >
+                      {item.progress}%
+                    </span>
+                  </div>
                 </div>
-              </div>
+              </AnimatedCard>
             );
           })}
         </div>
       </section>
 
-      {/* Decision Log */}
+      {/* ── Decision Log — Timeline Layout ── */}
       <section>
         <div
           style={{
@@ -729,14 +857,7 @@ export function GovernanceView() {
           }}
         >
           <ScrollText size={18} style={{ color: '#6b8f71' }} />
-          <h2
-            style={{
-              fontSize: 18,
-              fontWeight: 600,
-              color: '#e8c9a0',
-              margin: 0,
-            }}
-          >
+          <h2 style={{ fontSize: 18, fontWeight: 600, color: '#e8c9a0', margin: 0 }}>
             Decision Log
           </h2>
           <span
@@ -749,145 +870,334 @@ export function GovernanceView() {
               marginLeft: 4,
             }}
           >
-            {sorted.length} decisions
+            {filteredDecisions.length} decisions
           </span>
         </div>
 
+        {/* ── Category Filter Tabs ── */}
         <div
           style={{
             display: 'flex',
-            flexDirection: 'column',
-            gap: 12,
+            gap: 6,
+            marginBottom: 24,
+            flexWrap: 'wrap',
+            alignItems: 'center',
           }}
         >
-          {sorted.map((decision) => {
-            const impact = impactConfig[decision.impact];
-            const category = categoryConfig[decision.category];
+          <Filter size={14} style={{ color: '#6b6358', marginRight: 4 }} />
+          {allCategories.map((cat) => {
+            const isActive = activeCategory === cat;
+            const cfg = cat === 'all' ? null : categoryConfig[cat as GovernanceDecision['category']];
+            const label = cat === 'all' ? 'All' : cfg!.label;
+            const color = cat === 'all' ? '#f0ebe4' : cfg!.text;
 
             return (
-              <div
-                key={decision.id}
+              <button
+                key={cat}
+                onClick={() => setActiveCategory(cat)}
                 style={{
-                  backgroundColor: '#131720',
-                  border: '1px solid #1e2638',
-                  borderRadius: 14,
-                  padding: '20px 24px',
-                  transition: 'border-color 0.2s',
+                  padding: '6px 14px',
+                  borderRadius: 20,
+                  border: isActive ? `1px solid ${color}60` : '1px solid #1e2638',
+                  backgroundColor: isActive ? `${color}18` : 'transparent',
+                  color: isActive ? color : '#6b6358',
+                  fontSize: 12,
+                  fontWeight: isActive ? 600 : 400,
+                  cursor: 'pointer',
+                  transition: 'all 0.2s',
+                  fontFamily: 'inherit',
+                }}
+                onMouseEnter={(e) => {
+                  if (!isActive) {
+                    e.currentTarget.style.borderColor = '#2e3a4e';
+                    e.currentTarget.style.color = '#a09888';
+                  }
+                }}
+                onMouseLeave={(e) => {
+                  if (!isActive) {
+                    e.currentTarget.style.borderColor = '#1e2638';
+                    e.currentTarget.style.color = '#6b6358';
+                  }
                 }}
               >
-                {/* Top row: date + badges */}
-                <div
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    marginBottom: 10,
-                    flexWrap: 'wrap',
-                    gap: 8,
-                  }}
-                >
-                  <span
-                    style={{
-                      fontSize: 12,
-                      color: '#6b6358',
-                      fontVariantNumeric: 'tabular-nums',
-                    }}
-                  >
-                    {new Date(decision.date).toLocaleDateString('en-US', {
-                      year: 'numeric',
-                      month: 'long',
-                      day: 'numeric',
-                    })}
-                  </span>
-
-                  <div
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 8,
-                    }}
-                  >
-                    {/* Impact badge */}
-                    <span
-                      style={{
-                        fontSize: 10,
-                        fontWeight: 600,
-                        textTransform: 'uppercase',
-                        letterSpacing: '0.06em',
-                        color: impact.text,
-                        backgroundColor: impact.bg,
-                        border: impact.border,
-                        borderRadius: 12,
-                        padding: '3px 10px',
-                      }}
-                    >
-                      {impact.label}
-                    </span>
-
-                    {/* Category badge */}
-                    <span
-                      style={{
-                        fontSize: 10,
-                        fontWeight: 600,
-                        textTransform: 'uppercase',
-                        letterSpacing: '0.06em',
-                        color: category.text,
-                        backgroundColor: category.bg,
-                        borderRadius: 12,
-                        padding: '3px 10px',
-                      }}
-                    >
-                      {category.label}
-                    </span>
-                  </div>
-                </div>
-
-                {/* Title */}
-                <h3
-                  style={{
-                    fontSize: 15,
-                    fontWeight: 600,
-                    color: '#f0ebe4',
-                    margin: '0 0 8px 0',
-                  }}
-                >
-                  {decision.title}
-                </h3>
-
-                {/* Description */}
-                <p
-                  style={{
-                    fontSize: 13,
-                    color: '#a09888',
-                    lineHeight: 1.6,
-                    margin: '0 0 12px 0',
-                  }}
-                >
-                  {decision.description}
-                </p>
-
-                {/* Decided by */}
-                <div
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 6,
-                    fontSize: 12,
-                    color: '#6b6358',
-                  }}
-                >
-                  <Shield size={12} />
-                  <span>
-                    Decided by:{' '}
-                    <span style={{ color: '#8b7a6b', fontWeight: 500 }}>
-                      {decision.decidedBy}
-                    </span>
-                  </span>
-                </div>
-              </div>
+                {label}
+              </button>
             );
           })}
         </div>
+
+        {/* ── Timeline ── */}
+        <div style={{ position: 'relative', paddingLeft: 32 }}>
+          {/* Vertical line */}
+          <div
+            style={{
+              position: 'absolute',
+              left: 11,
+              top: 8,
+              bottom: 8,
+              width: 2,
+              backgroundColor: '#1e2638',
+              borderRadius: 1,
+            }}
+          />
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+            {filteredDecisions.map((decision, idx) => {
+              const impact = impactConfig[decision.impact];
+              const category = categoryConfig[decision.category];
+              const isExpanded = expandedId === decision.id;
+              const initials = getAvatarInitials(decision.decidedBy);
+              const avatarColor = getAvatarColor(decision.decidedBy);
+
+              return (
+                <AnimatedCard key={decision.id} index={idx + 16} style={{ position: 'relative' }}>
+                  {/* Timeline dot */}
+                  <div
+                    style={{
+                      position: 'absolute',
+                      left: -32 + 5,
+                      top: 22,
+                      width: 14,
+                      height: 14,
+                      borderRadius: '50%',
+                      backgroundColor: impact.dot,
+                      border: '3px solid #0b0d14',
+                      zIndex: 1,
+                      boxShadow: `0 0 0 2px ${impact.dot}30`,
+                    }}
+                  />
+
+                  {/* Card */}
+                  <div
+                    style={{
+                      backgroundColor: '#131720',
+                      border: `1px solid ${isExpanded ? impact.dot + '40' : '#1e2638'}`,
+                      borderRadius: 14,
+                      overflow: 'hidden',
+                      transition: 'border-color 0.25s, box-shadow 0.25s',
+                    }}
+                    onMouseEnter={(e) => {
+                      if (!isExpanded)
+                        e.currentTarget.style.borderColor = '#2e3a4e';
+                    }}
+                    onMouseLeave={(e) => {
+                      if (!isExpanded)
+                        e.currentTarget.style.borderColor = '#1e2638';
+                    }}
+                  >
+                    {/* Clickable header area */}
+                    <button
+                      onClick={() =>
+                        setExpandedId(isExpanded ? null : decision.id)
+                      }
+                      style={{
+                        display: 'block',
+                        width: '100%',
+                        padding: '18px 22px',
+                        border: 'none',
+                        background: 'none',
+                        cursor: 'pointer',
+                        textAlign: 'left',
+                        fontFamily: 'inherit',
+                      }}
+                    >
+                      {/* Top row: date + badges */}
+                      <div
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          marginBottom: 10,
+                          flexWrap: 'wrap',
+                          gap: 8,
+                        }}
+                      >
+                        <span
+                          style={{
+                            fontSize: 12,
+                            color: '#6b6358',
+                            fontVariantNumeric: 'tabular-nums',
+                          }}
+                        >
+                          {new Date(decision.date).toLocaleDateString('en-US', {
+                            year: 'numeric',
+                            month: 'long',
+                            day: 'numeric',
+                          })}
+                        </span>
+
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                          {/* Impact badge */}
+                          <span
+                            style={{
+                              fontSize: 10,
+                              fontWeight: 600,
+                              textTransform: 'uppercase',
+                              letterSpacing: '0.06em',
+                              color: impact.text,
+                              backgroundColor: impact.bg,
+                              border: impact.border,
+                              borderRadius: 12,
+                              padding: '3px 10px',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: 5,
+                            }}
+                          >
+                            <span
+                              style={{
+                                width: 6,
+                                height: 6,
+                                borderRadius: '50%',
+                                backgroundColor: impact.dot,
+                                display: 'inline-block',
+                              }}
+                            />
+                            {impact.label}
+                          </span>
+
+                          {/* Category badge */}
+                          <span
+                            style={{
+                              fontSize: 10,
+                              fontWeight: 600,
+                              textTransform: 'uppercase',
+                              letterSpacing: '0.06em',
+                              color: category.text,
+                              backgroundColor: category.bg,
+                              borderRadius: 12,
+                              padding: '3px 10px',
+                            }}
+                          >
+                            {category.label}
+                          </span>
+
+                          {/* Expand chevron */}
+                          {isExpanded ? (
+                            <ChevronUp size={16} style={{ color: '#6b6358' }} />
+                          ) : (
+                            <ChevronDown size={16} style={{ color: '#6b6358' }} />
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Title */}
+                      <h3
+                        style={{
+                          fontSize: 15,
+                          fontWeight: 600,
+                          color: '#f0ebe4',
+                          margin: 0,
+                        }}
+                      >
+                        {decision.title}
+                      </h3>
+                    </button>
+
+                    {/* Expandable details */}
+                    <div
+                      style={{
+                        maxHeight: isExpanded ? 300 : 0,
+                        overflow: 'hidden',
+                        transition: 'max-height 0.35s ease, opacity 0.3s ease',
+                        opacity: isExpanded ? 1 : 0,
+                      }}
+                    >
+                      <div
+                        style={{
+                          padding: '0 22px 18px',
+                          borderTop: '1px solid #1e263850',
+                        }}
+                      >
+                        <p
+                          style={{
+                            fontSize: 13,
+                            color: '#a09888',
+                            lineHeight: 1.6,
+                            margin: '14px 0 16px 0',
+                          }}
+                        >
+                          {decision.description}
+                        </p>
+
+                        {/* Decided by section with avatar initials */}
+                        <div
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 10,
+                            padding: '10px 14px',
+                            backgroundColor: 'rgba(255,255,255,0.02)',
+                            borderRadius: 10,
+                            border: '1px solid #1e263850',
+                          }}
+                        >
+                          <div
+                            style={{
+                              width: 32,
+                              height: 32,
+                              borderRadius: '50%',
+                              backgroundColor: avatarColor,
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              fontSize: 11,
+                              fontWeight: 700,
+                              color: '#0b0d14',
+                              letterSpacing: '0.02em',
+                              flexShrink: 0,
+                            }}
+                          >
+                            {initials}
+                          </div>
+                          <div>
+                            <div
+                              style={{
+                                fontSize: 10,
+                                color: '#6b6358',
+                                textTransform: 'uppercase',
+                                letterSpacing: '0.06em',
+                                fontWeight: 600,
+                                marginBottom: 2,
+                              }}
+                            >
+                              Decided By
+                            </div>
+                            <div
+                              style={{
+                                fontSize: 13,
+                                color: '#f0ebe4',
+                                fontWeight: 500,
+                              }}
+                            >
+                              {decision.decidedBy}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </AnimatedCard>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Empty filter state */}
+        {filteredDecisions.length === 0 && (
+          <div
+            style={{
+              textAlign: 'center',
+              padding: '48px 0',
+              color: '#6b6358',
+            }}
+          >
+            <Filter size={32} style={{ opacity: 0.3, marginBottom: 12 }} />
+            <p style={{ fontSize: 14, margin: 0 }}>
+              No decisions in this category yet.
+            </p>
+          </div>
+        )}
       </section>
     </div>
   );

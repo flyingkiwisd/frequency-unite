@@ -24,6 +24,9 @@ import {
   Link2,
   BarChart3,
   CalendarDays,
+  Loader2,
+  FileText,
+  MessageCircle,
 } from 'lucide-react';
 
 type ActivityType = 'task' | 'okr' | 'governance' | 'member' | 'event' | 'milestone';
@@ -52,11 +55,12 @@ interface ActivityItem {
 }
 
 const BOOKMARKS_KEY = 'frequency-bookmarked-activities';
+const ITEMS_PER_PAGE = 8;
 
-const impactConfig: Record<ImpactLevel, { dot: string; label: string }> = {
-  positive: { dot: '#6b8f71', label: 'Positive' },
-  neutral: { dot: '#e8b44c', label: 'Neutral' },
-  concern: { dot: '#ef4444', label: 'Concern' },
+const impactConfig: Record<ImpactLevel, { dot: string; label: string; glow: string }> = {
+  positive: { dot: '#6b8f71', label: 'Positive', glow: 'rgba(107,143,113,0.2)' },
+  neutral: { dot: '#e8b44c', label: 'Neutral', glow: 'rgba(232,180,76,0.2)' },
+  concern: { dot: '#ef4444', label: 'Concern', glow: 'rgba(239,68,68,0.2)' },
 };
 
 const activityData: ActivityItem[] = [
@@ -317,13 +321,13 @@ const activityData: ActivityItem[] = [
   },
 ];
 
-const typeConfig: Record<ActivityType, { label: string; color: string }> = {
-  task: { label: 'Task', color: '#6b8f71' },
-  okr: { label: 'OKR', color: '#8b5cf6' },
-  governance: { label: 'Governance', color: '#d4a574' },
-  member: { label: 'Member', color: '#38bdf8' },
-  event: { label: 'Event', color: '#f97316' },
-  milestone: { label: 'Milestone', color: '#fbbf24' },
+const typeConfig: Record<ActivityType, { label: string; color: string; icon: React.ElementType }> = {
+  task: { label: 'Task', color: '#6b8f71', icon: CheckCircle2 },
+  okr: { label: 'OKR', color: '#8b5cf6', icon: Target },
+  governance: { label: 'Governance', color: '#d4a574', icon: Scale },
+  member: { label: 'Member', color: '#38bdf8', icon: UserPlus },
+  event: { label: 'Event', color: '#f97316', icon: Calendar },
+  milestone: { label: 'Milestone', color: '#fbbf24', icon: Gem },
 };
 
 function formatDayLabel(dateStr: string, today: string): string {
@@ -334,7 +338,26 @@ function formatDayLabel(dateStr: string, today: string): string {
   const yStr = yesterday.toISOString().split('T')[0];
   if (dateStr === yStr) return 'Yesterday';
   const d = new Date(dateStr + 'T00:00:00');
+  const diffDays = Math.floor((todayDate.getTime() - d.getTime()) / 86400000);
+  if (diffDays < 7) {
+    return d.toLocaleDateString('en-US', { weekday: 'long' });
+  }
   return d.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+}
+
+function formatRelativeTimestamp(dateStr: string, today: string): string {
+  const todayDate = new Date(today + 'T12:00:00');
+  const d = new Date(dateStr + 'T12:00:00');
+  const diffMs = todayDate.getTime() - d.getTime();
+  const diffDays = Math.floor(diffMs / 86400000);
+
+  if (diffDays === 0) return 'Today';
+  if (diffDays === 1) return 'Yesterday';
+  if (diffDays < 7) return `${diffDays} days ago`;
+  if (diffDays < 14) return '1 week ago';
+  if (diffDays < 30) return `${Math.floor(diffDays / 7)} weeks ago`;
+  if (diffDays < 60) return '1 month ago';
+  return `${Math.floor(diffDays / 30)} months ago`;
 }
 
 function getStartOfWeek(today: string): string {
@@ -362,16 +385,47 @@ function saveBookmarks(ids: Set<string>) {
   localStorage.setItem(BOOKMARKS_KEY, JSON.stringify([...ids]));
 }
 
+// ─── Animated entry wrapper ──────────────────────────────────────────────────
+
+function FadeSlideIn({ children, delay = 0, style }: {
+  children: React.ReactNode;
+  delay?: number;
+  style?: React.CSSProperties;
+}) {
+  const [visible, setVisible] = useState(false);
+  useEffect(() => {
+    const t = setTimeout(() => setVisible(true), delay);
+    return () => clearTimeout(t);
+  }, [delay]);
+  return (
+    <div style={{
+      opacity: visible ? 1 : 0,
+      transform: visible ? 'translateY(0)' : 'translateY(8px)',
+      transition: 'opacity 0.35s ease-out, transform 0.35s ease-out',
+      ...style,
+    }}>
+      {children}
+    </div>
+  );
+}
+
 export function ActivityView() {
   const [filterType, setFilterType] = useState<ActivityType | 'all' | 'bookmarked'>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [timePeriod, setTimePeriod] = useState<TimePeriod>('all');
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [bookmarks, setBookmarks] = useState<Set<string>>(new Set());
+  const [visibleCount, setVisibleCount] = useState(ITEMS_PER_PAGE);
+  const [loadingMore, setLoadingMore] = useState(false);
 
   useEffect(() => {
     setBookmarks(loadBookmarks());
   }, []);
+
+  // Reset visible count when filters change
+  useEffect(() => {
+    setVisibleCount(ITEMS_PER_PAGE);
+  }, [filterType, searchQuery, timePeriod]);
 
   const toggleBookmark = useCallback((id: string, e: React.MouseEvent) => {
     e.stopPropagation();
@@ -391,21 +445,18 @@ export function ActivityView() {
   const filteredActivities = useMemo(() => {
     let items = activityData;
 
-    // Time period filter
     if (timePeriod === 'week') {
       items = items.filter((a) => a.timestamp >= weekStart);
     } else if (timePeriod === 'month') {
       items = items.filter((a) => a.timestamp >= monthStart);
     }
 
-    // Type filter
     if (filterType === 'bookmarked') {
       items = items.filter((a) => bookmarks.has(a.id));
     } else if (filterType !== 'all') {
       items = items.filter((a) => a.type === filterType);
     }
 
-    // Search filter
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase();
       items = items.filter(
@@ -419,11 +470,26 @@ export function ActivityView() {
     return items;
   }, [filterType, searchQuery, timePeriod, bookmarks, weekStart, monthStart]);
 
+  // Paginated activities
+  const paginatedActivities = useMemo(
+    () => filteredActivities.slice(0, visibleCount),
+    [filteredActivities, visibleCount]
+  );
+  const hasMore = visibleCount < filteredActivities.length;
+
+  const loadMore = useCallback(() => {
+    setLoadingMore(true);
+    setTimeout(() => {
+      setVisibleCount((prev) => prev + ITEMS_PER_PAGE);
+      setLoadingMore(false);
+    }, 400);
+  }, []);
+
   // Group by day
   const groupedActivities = useMemo(() => {
     const groups: { date: string; label: string; items: ActivityItem[] }[] = [];
     const map = new Map<string, ActivityItem[]>();
-    filteredActivities.forEach((item) => {
+    paginatedActivities.forEach((item) => {
       const existing = map.get(item.timestamp);
       if (existing) existing.push(item);
       else map.set(item.timestamp, [item]);
@@ -433,7 +499,7 @@ export function ActivityView() {
     });
     groups.sort((a, b) => (a.date > b.date ? -1 : 1));
     return groups;
-  }, [filteredActivities]);
+  }, [paginatedActivities]);
 
   const typeCounts = useMemo(() => {
     const counts: Record<string, number> = { all: activityData.length };
@@ -448,6 +514,11 @@ export function ActivityView() {
     [weekStart]
   );
 
+  const positiveCount = useMemo(
+    () => activityData.filter((a) => a.impact === 'positive').length,
+    []
+  );
+
   const typeBreakdown = useMemo(() => {
     const types = Object.keys(typeConfig) as ActivityType[];
     const total = activityData.length;
@@ -460,111 +531,84 @@ export function ActivityView() {
     }));
   }, [typeCounts]);
 
+  let animationIndex = 0;
+
   return (
     <div style={{ padding: '24px 32px', height: '100%', overflow: 'auto', backgroundColor: '#0b0d14' }}>
       {/* Header */}
-      <div style={{ marginBottom: 20 }}>
+      <div style={{ marginBottom: 24 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
-          <Activity size={22} style={{ color: '#d4a574' }} />
-          <h1 style={{ fontSize: 22, fontWeight: 700, color: '#f0ebe4', margin: 0, letterSpacing: '-0.01em' }}>
-            Activity Feed
-          </h1>
+          <div style={{
+            width: 36, height: 36, borderRadius: 10, display: 'flex', alignItems: 'center', justifyContent: 'center',
+            background: 'rgba(212,165,116,0.1)', border: '1px solid rgba(212,165,116,0.15)',
+          }}>
+            <Activity size={18} style={{ color: '#d4a574' }} />
+          </div>
+          <div>
+            <h1 style={{ fontSize: 22, fontWeight: 700, color: '#f0ebe4', margin: 0, letterSpacing: '-0.01em' }}>
+              Activity Feed
+            </h1>
+            <p style={{ fontSize: 12, color: '#6b6358', margin: '2px 0 0' }}>
+              Recent updates across all workstreams
+            </p>
+          </div>
         </div>
-        <p style={{ fontSize: 13, color: '#6b6358', margin: '4px 0 0' }}>
-          Recent updates across all workstreams
-        </p>
       </div>
 
       {/* Stats Summary Row */}
-      <div
-        style={{
-          display: 'flex',
-          gap: 16,
-          marginBottom: 20,
-          flexWrap: 'wrap',
-          alignItems: 'stretch',
-        }}
-      >
-        {/* Total Activities */}
-        <div
-          style={{
-            backgroundColor: '#0f1219',
-            border: '1px solid #1e2638',
-            borderRadius: 10,
-            padding: '12px 18px',
-            minWidth: 120,
-            flex: '0 0 auto',
-          }}
-        >
-          <div style={{ fontSize: 10, color: '#6b6358', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4 }}>
-            Total Activities
+      <div style={{ display: 'flex', gap: 12, marginBottom: 20, flexWrap: 'wrap', alignItems: 'stretch' }}>
+        {[
+          { label: 'Total Activities', value: activityData.length, color: '#f0ebe4', accent: '#a09888' },
+          { label: 'This Week', value: thisWeekCount, color: '#d4a574', accent: '#d4a574' },
+          { label: 'Positive Impact', value: positiveCount, color: '#6b8f71', accent: '#6b8f71' },
+          { label: 'Bookmarked', value: bookmarks.size, color: '#e8b44c', accent: '#e8b44c' },
+        ].map((stat) => (
+          <div key={stat.label} style={{
+            backgroundColor: '#0f1219', border: '1px solid #1e2638', borderRadius: 10,
+            padding: '12px 18px', minWidth: 110, flex: '1 1 0',
+            position: 'relative', overflow: 'hidden',
+          }}>
+            <div style={{
+              position: 'absolute', top: 0, left: 0, right: 0, height: 2,
+              background: `linear-gradient(90deg, ${stat.accent}40, transparent)`,
+            }} />
+            <div style={{
+              fontSize: 10, color: '#6b6358', textTransform: 'uppercase',
+              letterSpacing: '0.06em', marginBottom: 4,
+            }}>
+              {stat.label}
+            </div>
+            <div style={{ fontSize: 24, fontWeight: 700, color: stat.color }}>
+              {stat.value}
+            </div>
           </div>
-          <div style={{ fontSize: 22, fontWeight: 700, color: '#f0ebe4' }}>
-            {activityData.length}
-          </div>
-        </div>
+        ))}
 
-        {/* This Week */}
-        <div
-          style={{
-            backgroundColor: '#0f1219',
-            border: '1px solid #1e2638',
-            borderRadius: 10,
-            padding: '12px 18px',
-            minWidth: 120,
-            flex: '0 0 auto',
-          }}
-        >
-          <div style={{ fontSize: 10, color: '#6b6358', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4 }}>
-            This Week
-          </div>
-          <div style={{ fontSize: 22, fontWeight: 700, color: '#d4a574' }}>
-            {thisWeekCount}
-          </div>
-        </div>
-
-        {/* Types Breakdown Mini-bar */}
-        <div
-          style={{
-            backgroundColor: '#0f1219',
-            border: '1px solid #1e2638',
-            borderRadius: 10,
-            padding: '12px 18px',
-            flex: 1,
-            minWidth: 200,
-          }}
-        >
-          <div style={{ fontSize: 10, color: '#6b6358', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 8 }}>
+        {/* Types Breakdown */}
+        <div style={{
+          backgroundColor: '#0f1219', border: '1px solid #1e2638', borderRadius: 10,
+          padding: '12px 18px', flex: '2 1 200px', position: 'relative', overflow: 'hidden',
+        }}>
+          <div style={{
+            fontSize: 10, color: '#6b6358', textTransform: 'uppercase',
+            letterSpacing: '0.06em', marginBottom: 8,
+          }}>
             Types Breakdown
           </div>
-          <div
-            style={{
-              display: 'flex',
-              height: 8,
-              borderRadius: 4,
-              overflow: 'hidden',
-              backgroundColor: '#1e2638',
-            }}
-          >
+          <div style={{
+            display: 'flex', height: 6, borderRadius: 3, overflow: 'hidden', backgroundColor: '#1e2638',
+          }}>
             {typeBreakdown.map((t) => (
-              <div
-                key={t.type}
-                style={{
-                  width: `${t.pct}%`,
-                  backgroundColor: t.color,
-                  transition: 'width 0.3s',
-                }}
-                title={`${t.label}: ${t.count}`}
-              />
+              <div key={t.type} style={{
+                width: `${t.pct}%`, backgroundColor: t.color, transition: 'width 0.3s',
+              }} title={`${t.label}: ${t.count}`} />
             ))}
           </div>
           <div style={{ display: 'flex', gap: 10, marginTop: 6, flexWrap: 'wrap' }}>
             {typeBreakdown.filter((t) => t.count > 0).map((t) => (
               <div key={t.type} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
                 <div style={{ width: 6, height: 6, borderRadius: '50%', backgroundColor: t.color }} />
-                <span style={{ fontSize: 10, color: '#6b6358' }}>
-                  {t.label} {t.count}
-                </span>
+                <span style={{ fontSize: 10, color: '#6b6358' }}>{t.label} {t.count}</span>
               </div>
             ))}
           </div>
@@ -572,47 +616,46 @@ export function ActivityView() {
       </div>
 
       {/* Search Bar */}
-      <div style={{ marginBottom: 16, position: 'relative' }}>
-        <Search
-          size={14}
-          style={{
-            position: 'absolute',
-            left: 12,
-            top: '50%',
-            transform: 'translateY(-50%)',
-            color: '#4a443e',
-            pointerEvents: 'none',
-          }}
-        />
+      <div style={{ marginBottom: 14, position: 'relative' }}>
+        <Search size={14} style={{
+          position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)',
+          color: '#4a443e', pointerEvents: 'none',
+        }} />
         <input
           type="text"
           placeholder="Search activities by title, description, or person..."
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
           style={{
-            width: '100%',
-            padding: '10px 14px 10px 34px',
-            backgroundColor: '#0f1219',
-            border: '1px solid #1e2638',
-            borderRadius: 10,
-            color: '#f0ebe4',
-            fontSize: 13,
-            fontFamily: 'inherit',
-            outline: 'none',
-            transition: 'border-color 0.15s',
-            boxSizing: 'border-box',
+            width: '100%', padding: '10px 14px 10px 38px',
+            backgroundColor: '#0f1219', border: '1px solid #1e2638', borderRadius: 10,
+            color: '#f0ebe4', fontSize: 13, fontFamily: 'inherit', outline: 'none',
+            transition: 'border-color 0.15s', boxSizing: 'border-box',
           }}
           onFocus={(e) => { e.currentTarget.style.borderColor = '#2e3a4e'; }}
           onBlur={(e) => { e.currentTarget.style.borderColor = '#1e2638'; }}
         />
+        {searchQuery && (
+          <button
+            onClick={() => setSearchQuery('')}
+            style={{
+              position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)',
+              background: 'rgba(107,99,88,0.2)', border: 'none', borderRadius: 4,
+              padding: '2px 4px', cursor: 'pointer', color: '#6b6358', display: 'flex',
+              alignItems: 'center',
+            }}
+          >
+            <span style={{ fontSize: 11 }}>Clear</span>
+          </button>
+        )}
       </div>
 
       {/* Time Period Filter */}
-      <div style={{ display: 'flex', gap: 6, marginBottom: 12 }}>
+      <div style={{ display: 'flex', gap: 6, marginBottom: 10 }}>
         {([
-          { key: 'all' as TimePeriod, label: 'All Time', icon: CalendarDays },
-          { key: 'week' as TimePeriod, label: 'This Week', icon: CalendarDays },
-          { key: 'month' as TimePeriod, label: 'This Month', icon: CalendarDays },
+          { key: 'all' as TimePeriod, label: 'All Time' },
+          { key: 'week' as TimePeriod, label: 'This Week' },
+          { key: 'month' as TimePeriod, label: 'This Month' },
         ]).map(({ key, label }) => {
           const isActive = timePeriod === key;
           return (
@@ -620,30 +663,23 @@ export function ActivityView() {
               key={key}
               onClick={() => setTimePeriod(key)}
               style={{
-                padding: '5px 12px',
-                borderRadius: 8,
+                padding: '5px 14px', borderRadius: 8,
                 border: isActive ? '1px solid rgba(139, 92, 246, 0.3)' : '1px solid #1e2638',
                 cursor: 'pointer',
                 backgroundColor: isActive ? 'rgba(139, 92, 246, 0.1)' : 'transparent',
                 color: isActive ? '#8b5cf6' : '#6b6358',
-                fontSize: 11,
-                fontWeight: isActive ? 600 : 400,
-                fontFamily: 'inherit',
-                transition: 'all 0.15s',
+                fontSize: 11, fontWeight: isActive ? 600 : 400,
+                fontFamily: 'inherit', transition: 'all 0.15s',
+                display: 'flex', alignItems: 'center', gap: 5,
               }}
               onMouseEnter={(e) => {
-                if (!isActive) {
-                  e.currentTarget.style.borderColor = '#2e3a4e';
-                  e.currentTarget.style.color = '#a09888';
-                }
+                if (!isActive) { e.currentTarget.style.borderColor = '#2e3a4e'; e.currentTarget.style.color = '#a09888'; }
               }}
               onMouseLeave={(e) => {
-                if (!isActive) {
-                  e.currentTarget.style.borderColor = '#1e2638';
-                  e.currentTarget.style.color = '#6b6358';
-                }
+                if (!isActive) { e.currentTarget.style.borderColor = '#1e2638'; e.currentTarget.style.color = '#6b6358'; }
               }}
             >
+              <CalendarDays size={11} />
               {label}
             </button>
           );
@@ -657,58 +693,43 @@ export function ActivityView() {
             const isActive = filterType === type;
             const config =
               type === 'all'
-                ? { label: 'All', color: '#a09888' }
+                ? { label: 'All', color: '#a09888', icon: Activity }
                 : type === 'bookmarked'
-                ? { label: 'Bookmarked', color: '#d4a574' }
+                ? { label: 'Bookmarked', color: '#d4a574', icon: Star }
                 : typeConfig[type];
             const count =
               type === 'bookmarked' ? bookmarks.size : typeCounts[type] || 0;
-            const isBookmarked = type === 'bookmarked';
+            const TypeIcon = 'icon' in config ? config.icon : Activity;
 
             return (
               <button
                 key={type}
                 onClick={() => setFilterType(type)}
                 style={{
-                  padding: '6px 14px',
-                  borderRadius: 20,
+                  padding: '6px 14px', borderRadius: 20,
                   border: isActive ? `1px solid ${config.color}44` : '1px solid #1e2638',
                   cursor: 'pointer',
                   backgroundColor: isActive ? `${config.color}18` : 'transparent',
                   color: isActive ? config.color : '#6b6358',
-                  fontSize: 12,
-                  fontWeight: isActive ? 600 : 400,
-                  fontFamily: 'inherit',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 6,
+                  fontSize: 12, fontWeight: isActive ? 600 : 400,
+                  fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 6,
                   transition: 'all 0.15s',
                 }}
                 onMouseEnter={(e) => {
-                  if (!isActive) {
-                    e.currentTarget.style.borderColor = '#2e3a4e';
-                    e.currentTarget.style.color = '#a09888';
-                  }
+                  if (!isActive) { e.currentTarget.style.borderColor = '#2e3a4e'; e.currentTarget.style.color = '#a09888'; }
                 }}
                 onMouseLeave={(e) => {
-                  if (!isActive) {
-                    e.currentTarget.style.borderColor = '#1e2638';
-                    e.currentTarget.style.color = '#6b6358';
-                  }
+                  if (!isActive) { e.currentTarget.style.borderColor = '#1e2638'; e.currentTarget.style.color = '#6b6358'; }
                 }}
               >
-                {isBookmarked && <Star size={11} />}
+                <TypeIcon size={12} />
                 {config.label}
-                <span
-                  style={{
-                    fontSize: 10,
-                    fontWeight: 700,
-                    backgroundColor: isActive ? `${config.color}22` : '#1e2638',
-                    color: isActive ? config.color : '#6b6358',
-                    borderRadius: 8,
-                    padding: '1px 6px',
-                  }}
-                >
+                <span style={{
+                  fontSize: 10, fontWeight: 700,
+                  backgroundColor: isActive ? `${config.color}22` : '#1e2638',
+                  color: isActive ? config.color : '#6b6358',
+                  borderRadius: 8, padding: '1px 6px',
+                }}>
                   {count}
                 </span>
               </button>
@@ -719,86 +740,52 @@ export function ActivityView() {
 
       {/* Activity Timeline with Day Grouping */}
       <div style={{ position: 'relative' }}>
-        {/* Timeline line */}
-        <div
-          style={{
-            position: 'absolute',
-            left: 19,
-            top: 0,
-            bottom: 0,
-            width: 2,
-            backgroundColor: '#1e2638',
-            borderRadius: 1,
-          }}
-        />
+        {/* Timeline vertical line */}
+        {groupedActivities.length > 0 && (
+          <div style={{
+            position: 'absolute', left: 19, top: 0, bottom: 40,
+            width: 2, borderRadius: 1,
+            background: 'linear-gradient(to bottom, #2e3a4e, #1e2638 30%, #1e2638 70%, transparent)',
+          }} />
+        )}
 
         {groupedActivities.map((group, gi) => (
           <div key={group.date}>
             {/* Day Header */}
-            <div
-              style={{
-                position: 'sticky',
-                top: 0,
-                zIndex: 10,
-                display: 'flex',
-                alignItems: 'center',
-                gap: 12,
-                paddingTop: gi === 0 ? 0 : 16,
-                paddingBottom: 12,
+            <FadeSlideIn delay={gi * 60} style={{ position: 'relative', zIndex: 5 }}>
+              <div style={{
+                position: 'sticky', top: 0, zIndex: 10,
+                display: 'flex', alignItems: 'center', gap: 12,
+                paddingTop: gi === 0 ? 0 : 20, paddingBottom: 12,
                 backgroundColor: '#0b0d14',
-              }}
-            >
-              <div
-                style={{
-                  width: 40,
-                  display: 'flex',
-                  justifyContent: 'center',
-                  flexShrink: 0,
-                  zIndex: 2,
-                }}
-              >
-                <div
-                  style={{
-                    width: 10,
-                    height: 10,
-                    borderRadius: '50%',
-                    backgroundColor: '#1e2638',
-                    border: '2px solid #2e3a4e',
-                  }}
-                />
+              }}>
+                <div style={{
+                  width: 40, display: 'flex', justifyContent: 'center', flexShrink: 0, zIndex: 2,
+                }}>
+                  <div style={{
+                    width: 12, height: 12, borderRadius: '50%',
+                    backgroundColor: '#0f1219', border: '2px solid #d4a574',
+                    boxShadow: '0 0 8px rgba(212,165,116,0.2)',
+                  }} />
+                </div>
+                <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <span style={{
+                    fontSize: 12, fontWeight: 700, color: '#d4a574',
+                    textTransform: 'uppercase', letterSpacing: '0.05em', whiteSpace: 'nowrap',
+                  }}>
+                    {group.label}
+                  </span>
+                  <div style={{ flex: 1, height: 1, backgroundColor: '#1e2638' }} />
+                  <span style={{
+                    fontSize: 10, color: '#4a443e', whiteSpace: 'nowrap',
+                    background: '#0f1219', padding: '2px 8px', borderRadius: 4,
+                    border: '1px solid #1e2638',
+                  }}>
+                    {group.items.length} {group.items.length === 1 ? 'activity' : 'activities'}
+                  </span>
+                </div>
               </div>
-              <div
-                style={{
-                  flex: 1,
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 10,
-                }}
-              >
-                <span
-                  style={{
-                    fontSize: 11,
-                    fontWeight: 700,
-                    color: '#a09888',
-                    textTransform: 'uppercase',
-                    letterSpacing: '0.06em',
-                    whiteSpace: 'nowrap',
-                  }}
-                >
-                  {group.label}
-                </span>
-                <div
-                  style={{
-                    flex: 1,
-                    height: 1,
-                    backgroundColor: '#1e2638',
-                  }}
-                />
-                <span style={{ fontSize: 10, color: '#4a443e', whiteSpace: 'nowrap' }}>
-                  {group.items.length} {group.items.length === 1 ? 'activity' : 'activities'}
-                </span>
-              </div>
-            </div>
+            </FadeSlideIn>
 
             {/* Activities in this group */}
             {group.items.map((item, idx) => {
@@ -807,326 +794,308 @@ export function ActivityView() {
               const isExpanded = expandedId === item.id;
               const isBookmarked = bookmarks.has(item.id);
               const impactCfg = impactConfig[item.impact];
-              const isLast = gi === groupedActivities.length - 1 && idx === group.items.length - 1;
+              const currentAnimIndex = animationIndex++;
 
               return (
-                <div
-                  key={item.id}
-                  style={{
-                    display: 'flex',
-                    gap: 16,
-                    marginBottom: isLast ? 0 : 4,
-                    position: 'relative',
-                  }}
-                >
-                  {/* Timeline dot + icon */}
-                  <div
-                    style={{
-                      width: 40,
-                      height: 40,
-                      borderRadius: '50%',
+                <FadeSlideIn key={item.id} delay={80 + currentAnimIndex * 50}>
+                  <div style={{ display: 'flex', gap: 16, position: 'relative' }}>
+                    {/* Timeline icon node */}
+                    <div style={{
+                      width: 40, height: 40, borderRadius: '50%',
                       backgroundColor: item.iconBg,
-                      border: `2px solid ${item.iconColor}33`,
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      flexShrink: 0,
-                      zIndex: 1,
-                    }}
-                  >
-                    <Icon size={16} style={{ color: item.iconColor }} />
-                  </div>
+                      border: `2px solid ${item.iconColor}30`,
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      flexShrink: 0, zIndex: 1,
+                      boxShadow: isExpanded ? `0 0 12px ${item.iconColor}20` : 'none',
+                      transition: 'box-shadow 0.2s',
+                    }}>
+                      <Icon size={16} style={{ color: item.iconColor }} />
+                    </div>
 
-                  {/* Content Card */}
-                  <div
-                    style={{
-                      flex: 1,
-                      backgroundColor: '#0f1219',
-                      border: `1px solid ${isExpanded ? '#2e3a4e' : '#1e2638'}`,
-                      borderRadius: 12,
-                      padding: '14px 18px',
-                      marginBottom: 12,
-                      transition: 'border-color 0.15s, box-shadow 0.15s',
-                      cursor: 'pointer',
-                    }}
-                    onClick={() => setExpandedId(isExpanded ? null : item.id)}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.borderColor = '#2e3a4e';
-                      e.currentTarget.style.boxShadow = '0 2px 12px rgba(0,0,0,0.15)';
-                    }}
-                    onMouseLeave={(e) => {
-                      if (!isExpanded) {
-                        e.currentTarget.style.borderColor = '#1e2638';
-                      }
-                      e.currentTarget.style.boxShadow = 'none';
-                    }}
-                  >
-                    {/* Top row */}
+                    {/* Content Card */}
                     <div
                       style={{
-                        display: 'flex',
-                        alignItems: 'flex-start',
-                        justifyContent: 'space-between',
-                        gap: 8,
-                        marginBottom: 6,
+                        flex: 1, backgroundColor: '#0f1219',
+                        border: `1px solid ${isExpanded ? '#2e3a4e' : '#1e2638'}`,
+                        borderRadius: 12, padding: '14px 18px', marginBottom: 12,
+                        transition: 'all 0.2s', cursor: 'pointer', position: 'relative',
+                        overflow: 'hidden',
+                      }}
+                      onClick={() => setExpandedId(isExpanded ? null : item.id)}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.borderColor = '#2e3a4e';
+                        e.currentTarget.style.boxShadow = '0 4px 16px rgba(0,0,0,0.15)';
+                      }}
+                      onMouseLeave={(e) => {
+                        if (!isExpanded) e.currentTarget.style.borderColor = '#1e2638';
+                        e.currentTarget.style.boxShadow = 'none';
                       }}
                     >
-                      <div style={{ flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
-                        {/* Impact Dot */}
-                        <div
-                          title={impactCfg.label}
-                          style={{
-                            width: 7,
-                            height: 7,
-                            borderRadius: '50%',
-                            backgroundColor: impactCfg.dot,
-                            flexShrink: 0,
-                            boxShadow: `0 0 4px ${impactCfg.dot}55`,
-                          }}
-                        />
-                        <h3 style={{ fontSize: 13, fontWeight: 700, color: '#f0ebe4', margin: 0, lineHeight: 1.4 }}>
-                          {item.title}
-                        </h3>
+                      {/* Left accent bar */}
+                      <div style={{
+                        position: 'absolute', top: 0, left: 0, width: 3, height: '100%',
+                        background: `linear-gradient(to bottom, ${tConfig.color}, transparent)`,
+                        borderRadius: '12px 0 0 12px',
+                        opacity: isExpanded ? 0.8 : 0.3,
+                        transition: 'opacity 0.2s',
+                      }} />
+
+                      {/* Top row */}
+                      <div style={{
+                        display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between',
+                        gap: 8, marginBottom: 6,
+                      }}>
+                        <div style={{ flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
+                          {/* Impact Dot with glow */}
+                          <div title={impactCfg.label} style={{
+                            width: 8, height: 8, borderRadius: '50%',
+                            backgroundColor: impactCfg.dot, flexShrink: 0,
+                            boxShadow: `0 0 6px ${impactCfg.glow}`,
+                          }} />
+                          <h3 style={{ fontSize: 13, fontWeight: 700, color: '#f0ebe4', margin: 0, lineHeight: 1.4 }}>
+                            {item.title}
+                          </h3>
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
+                          {/* Bookmark star */}
+                          <button
+                            onClick={(e) => toggleBookmark(item.id, e)}
+                            style={{
+                              background: 'none', border: 'none', cursor: 'pointer', padding: 2,
+                              display: 'flex', alignItems: 'center',
+                              color: isBookmarked ? '#d4a574' : '#4a443e',
+                              transition: 'all 0.15s',
+                              transform: isBookmarked ? 'scale(1.1)' : 'scale(1)',
+                            }}
+                            onMouseEnter={(e) => {
+                              if (!isBookmarked) e.currentTarget.style.color = '#a09888';
+                            }}
+                            onMouseLeave={(e) => {
+                              if (!isBookmarked) e.currentTarget.style.color = '#4a443e';
+                            }}
+                            title={isBookmarked ? 'Remove bookmark' : 'Bookmark activity'}
+                          >
+                            <Star size={13} fill={isBookmarked ? '#d4a574' : 'none'} />
+                          </button>
+                          {/* Expand chevron */}
+                          <div style={{
+                            transition: 'transform 0.2s',
+                            transform: isExpanded ? 'rotate(90deg)' : 'rotate(0)',
+                          }}>
+                            <ChevronRight size={13} style={{ color: '#6b6358' }} />
+                          </div>
+                          {/* Type badge */}
+                          <span style={{
+                            padding: '2px 8px', borderRadius: 6,
+                            backgroundColor: `${tConfig.color}15`, color: tConfig.color,
+                            fontSize: 10, fontWeight: 600, whiteSpace: 'nowrap',
+                            display: 'flex', alignItems: 'center', gap: 4,
+                          }}>
+                            {tConfig.label}
+                          </span>
+                        </div>
                       </div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
-                        {/* Bookmark */}
-                        <button
-                          onClick={(e) => toggleBookmark(item.id, e)}
-                          style={{
-                            background: 'none',
-                            border: 'none',
-                            cursor: 'pointer',
-                            padding: 2,
-                            display: 'flex',
-                            alignItems: 'center',
-                            color: isBookmarked ? '#d4a574' : '#4a443e',
-                            transition: 'color 0.15s',
-                          }}
-                          onMouseEnter={(e) => {
-                            if (!isBookmarked) e.currentTarget.style.color = '#a09888';
-                          }}
-                          onMouseLeave={(e) => {
-                            if (!isBookmarked) e.currentTarget.style.color = '#4a443e';
-                          }}
-                          title={isBookmarked ? 'Remove bookmark' : 'Bookmark activity'}
-                        >
-                          <Star
-                            size={13}
-                            fill={isBookmarked ? '#d4a574' : 'none'}
-                          />
-                        </button>
-                        {/* Expand indicator */}
-                        {isExpanded ? (
-                          <ChevronDown size={13} style={{ color: '#6b6358' }} />
-                        ) : (
-                          <ChevronRight size={13} style={{ color: '#4a443e' }} />
-                        )}
-                        <span
-                          style={{
-                            padding: '2px 8px',
-                            borderRadius: 6,
-                            backgroundColor: `${tConfig.color}15`,
-                            color: tConfig.color,
-                            fontSize: 10,
-                            fontWeight: 600,
-                            whiteSpace: 'nowrap',
-                          }}
-                        >
-                          {tConfig.label}
+
+                      {/* Description */}
+                      <p style={{ fontSize: 12, color: '#a09888', lineHeight: 1.6, margin: '0 0 8px' }}>
+                        {item.description}
+                      </p>
+
+                      {/* Bottom meta */}
+                      <div style={{
+                        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                        fontSize: 11, color: '#6b6358',
+                      }}>
+                        <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                          <div style={{
+                            width: 18, height: 18, borderRadius: '50%',
+                            background: `${item.iconColor}15`,
+                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                          }}>
+                            <Zap size={9} style={{ color: item.iconColor }} />
+                          </div>
+                          {item.actor}
+                        </span>
+                        <span style={{
+                          display: 'flex', alignItems: 'center', gap: 4,
+                          padding: '1px 6px', borderRadius: 4,
+                          background: 'rgba(30,38,56,0.3)',
+                        }}>
+                          <Clock size={10} />
+                          {formatRelativeTimestamp(item.timestamp, today)}
                         </span>
                       </div>
-                    </div>
 
-                    {/* Description */}
-                    <p style={{ fontSize: 12, color: '#a09888', lineHeight: 1.5, margin: '0 0 8px' }}>
-                      {item.description}
-                    </p>
-
-                    {/* Bottom meta */}
-                    <div
-                      style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'space-between',
-                        fontSize: 11,
-                        color: '#6b6358',
-                      }}
-                    >
-                      <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                        <Zap size={10} style={{ color: '#4a443e' }} />
-                        {item.actor}
-                      </span>
-                      <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                        <Clock size={10} />
-                        {item.timeAgo}
-                      </span>
-                    </div>
-
-                    {/* Expanded Details */}
-                    {isExpanded && (
-                      <div
-                        style={{
-                          marginTop: 14,
-                          paddingTop: 14,
-                          borderTop: '1px solid #1e2638',
-                        }}
-                      >
-                        {/* Expanded info */}
-                        <div style={{ marginBottom: 14 }}>
-                          <div style={{ fontSize: 11, color: '#6b6358', marginBottom: 6, display: 'flex', alignItems: 'center', gap: 5 }}>
-                            <BarChart3 size={11} style={{ color: '#4a443e' }} />
-                            Details
-                          </div>
-                          <div
-                            style={{
-                              display: 'grid',
-                              gridTemplateColumns: '1fr 1fr',
-                              gap: 8,
-                            }}
-                          >
-                            <div
-                              style={{
-                                backgroundColor: 'rgba(30, 38, 56, 0.3)',
-                                borderRadius: 8,
-                                padding: '8px 12px',
-                              }}
-                            >
-                              <div style={{ fontSize: 10, color: '#4a443e', marginBottom: 2 }}>Impact</div>
-                              <div style={{ fontSize: 12, color: impactCfg.dot, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 5 }}>
-                                <div
-                                  style={{
-                                    width: 6,
-                                    height: 6,
-                                    borderRadius: '50%',
-                                    backgroundColor: impactCfg.dot,
-                                  }}
-                                />
-                                {impactCfg.label}
-                              </div>
+                      {/* Expanded Details */}
+                      {isExpanded && (
+                        <div style={{
+                          marginTop: 14, paddingTop: 14, borderTop: '1px solid #1e2638',
+                          animation: 'fadeIn 0.3s ease-out',
+                        }}>
+                          {/* Detail grid */}
+                          <div style={{ marginBottom: 14 }}>
+                            <div style={{
+                              fontSize: 11, color: '#6b6358', marginBottom: 8,
+                              display: 'flex', alignItems: 'center', gap: 5,
+                            }}>
+                              <BarChart3 size={11} style={{ color: '#4a443e' }} />
+                              Details
                             </div>
-                            <div
-                              style={{
-                                backgroundColor: 'rgba(30, 38, 56, 0.3)',
-                                borderRadius: 8,
-                                padding: '8px 12px',
-                              }}
-                            >
-                              <div style={{ fontSize: 10, color: '#4a443e', marginBottom: 2 }}>Date</div>
-                              <div style={{ fontSize: 12, color: '#f0ebe4', fontWeight: 500 }}>
-                                {new Date(item.timestamp + 'T00:00:00').toLocaleDateString('en-US', {
-                                  month: 'short',
-                                  day: 'numeric',
-                                  year: 'numeric',
-                                })}
-                              </div>
-                            </div>
-                            <div
-                              style={{
-                                backgroundColor: 'rgba(30, 38, 56, 0.3)',
-                                borderRadius: 8,
-                                padding: '8px 12px',
-                              }}
-                            >
-                              <div style={{ fontSize: 10, color: '#4a443e', marginBottom: 2 }}>Type</div>
-                              <div style={{ fontSize: 12, color: tConfig.color, fontWeight: 600 }}>
-                                {tConfig.label}
-                              </div>
-                            </div>
-                            <div
-                              style={{
-                                backgroundColor: 'rgba(30, 38, 56, 0.3)',
-                                borderRadius: 8,
-                                padding: '8px 12px',
-                              }}
-                            >
-                              <div style={{ fontSize: 10, color: '#4a443e', marginBottom: 2 }}>Actor</div>
-                              <div style={{ fontSize: 12, color: '#f0ebe4', fontWeight: 500 }}>
-                                {item.actor}
-                              </div>
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                              {[
+                                { label: 'Impact', value: impactCfg.label, color: impactCfg.dot, dot: true },
+                                { label: 'Date', value: new Date(item.timestamp + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }), color: '#f0ebe4' },
+                                { label: 'Type', value: tConfig.label, color: tConfig.color },
+                                { label: 'Actor', value: item.actor, color: '#f0ebe4' },
+                              ].map((d) => (
+                                <div key={d.label} style={{
+                                  backgroundColor: 'rgba(30, 38, 56, 0.3)', borderRadius: 8, padding: '8px 12px',
+                                }}>
+                                  <div style={{ fontSize: 10, color: '#4a443e', marginBottom: 2 }}>{d.label}</div>
+                                  <div style={{
+                                    fontSize: 12, color: d.color, fontWeight: 600,
+                                    display: 'flex', alignItems: 'center', gap: 5,
+                                  }}>
+                                    {d.dot && (
+                                      <div style={{
+                                        width: 6, height: 6, borderRadius: '50%', backgroundColor: d.color,
+                                      }} />
+                                    )}
+                                    {d.value}
+                                  </div>
+                                </div>
+                              ))}
                             </div>
                           </div>
-                        </div>
 
-                        {/* Related Items */}
-                        <div>
-                          <div style={{ fontSize: 11, color: '#6b6358', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 5 }}>
-                            <Link2 size={11} style={{ color: '#4a443e' }} />
-                            Related Items
-                          </div>
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                            {item.relatedItems.map((rel, ri) => (
-                              <div
-                                key={ri}
-                                style={{
-                                  display: 'flex',
-                                  alignItems: 'center',
-                                  gap: 8,
-                                  padding: '7px 12px',
-                                  borderRadius: 8,
+                          {/* Related Items */}
+                          <div>
+                            <div style={{
+                              fontSize: 11, color: '#6b6358', marginBottom: 8,
+                              display: 'flex', alignItems: 'center', gap: 5,
+                            }}>
+                              <Link2 size={11} style={{ color: '#4a443e' }} />
+                              Related Items
+                            </div>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                              {item.relatedItems.map((rel, ri) => (
+                                <div key={ri} style={{
+                                  display: 'flex', alignItems: 'center', gap: 8,
+                                  padding: '8px 12px', borderRadius: 8,
                                   backgroundColor: 'rgba(30, 38, 56, 0.2)',
                                   border: '1px solid #1e2638',
                                   transition: 'border-color 0.15s',
-                                  cursor: 'default',
                                 }}
-                                onMouseEnter={(e) => {
-                                  e.currentTarget.style.borderColor = '#2e3a4e';
-                                }}
-                                onMouseLeave={(e) => {
-                                  e.currentTarget.style.borderColor = '#1e2638';
-                                }}
-                              >
-                                <div
-                                  style={{
-                                    width: 5,
-                                    height: 5,
-                                    borderRadius: '50%',
-                                    backgroundColor: rel.color,
-                                    flexShrink: 0,
-                                  }}
-                                />
-                                <span style={{ fontSize: 12, color: '#a09888', flex: 1 }}>
-                                  {rel.label}
-                                </span>
-                                <span
-                                  style={{
-                                    fontSize: 9,
-                                    color: '#4a443e',
-                                    backgroundColor: 'rgba(30, 38, 56, 0.5)',
-                                    padding: '1px 6px',
-                                    borderRadius: 4,
-                                    fontWeight: 600,
-                                    textTransform: 'uppercase',
-                                    letterSpacing: '0.04em',
-                                  }}
+                                  onMouseEnter={(e) => { e.currentTarget.style.borderColor = '#2e3a4e'; }}
+                                  onMouseLeave={(e) => { e.currentTarget.style.borderColor = '#1e2638'; }}
                                 >
-                                  {rel.workstream}
-                                </span>
-                              </div>
-                            ))}
+                                  <div style={{
+                                    width: 5, height: 5, borderRadius: '50%',
+                                    backgroundColor: rel.color, flexShrink: 0,
+                                  }} />
+                                  <span style={{ fontSize: 12, color: '#a09888', flex: 1 }}>{rel.label}</span>
+                                  <span style={{
+                                    fontSize: 9, color: '#4a443e',
+                                    backgroundColor: 'rgba(30, 38, 56, 0.5)',
+                                    padding: '2px 8px', borderRadius: 4,
+                                    fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em',
+                                  }}>
+                                    {rel.workstream}
+                                  </span>
+                                </div>
+                              ))}
+                            </div>
                           </div>
                         </div>
-                      </div>
-                    )}
+                      )}
+                    </div>
                   </div>
-                </div>
+                </FadeSlideIn>
               );
             })}
           </div>
         ))}
 
+        {/* Load More Button */}
+        {hasMore && (
+          <div style={{ display: 'flex', justifyContent: 'center', padding: '20px 0 8px' }}>
+            <button
+              onClick={loadMore}
+              disabled={loadingMore}
+              style={{
+                padding: '10px 28px', borderRadius: 10,
+                background: 'rgba(212,165,116,0.08)',
+                border: '1px solid rgba(212,165,116,0.2)',
+                color: '#d4a574', fontSize: 13, fontWeight: 600,
+                fontFamily: 'inherit', cursor: loadingMore ? 'wait' : 'pointer',
+                display: 'flex', alignItems: 'center', gap: 8,
+                transition: 'all 0.15s',
+                opacity: loadingMore ? 0.6 : 1,
+              }}
+              onMouseEnter={(e) => {
+                if (!loadingMore) e.currentTarget.style.background = 'rgba(212,165,116,0.15)';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.background = 'rgba(212,165,116,0.08)';
+              }}
+            >
+              {loadingMore ? (
+                <>
+                  <Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} />
+                  Loading...
+                </>
+              ) : (
+                <>
+                  <ChevronDown size={14} />
+                  Load More ({filteredActivities.length - visibleCount} remaining)
+                </>
+              )}
+            </button>
+          </div>
+        )}
+
+        {/* Showing count */}
+        {filteredActivities.length > 0 && (
+          <div style={{
+            textAlign: 'center', padding: '8px 0 16px', fontSize: 11, color: '#4a443e',
+          }}>
+            Showing {paginatedActivities.length} of {filteredActivities.length} activities
+          </div>
+        )}
+
         {filteredActivities.length === 0 && (
-          <div style={{ textAlign: 'center', padding: 40, color: '#6b6358' }}>
-            <Filter size={32} style={{ marginBottom: 8, opacity: 0.3 }} />
-            <p style={{ fontSize: 13, margin: 0 }}>
+          <div style={{
+            textAlign: 'center', padding: 48, color: '#6b6358',
+            display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12,
+          }}>
+            <div style={{
+              width: 56, height: 56, borderRadius: 16,
+              background: 'rgba(107,99,88,0.08)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+            }}>
+              <Filter size={24} style={{ opacity: 0.4 }} />
+            </div>
+            <p style={{ fontSize: 14, margin: 0, fontWeight: 500 }}>
               {searchQuery
                 ? 'No activities match your search'
                 : filterType === 'bookmarked'
                 ? 'No bookmarked activities yet'
                 : 'No activities match the selected filter'}
             </p>
+            <p style={{ fontSize: 12, margin: 0, color: '#4a443e' }}>
+              Try adjusting your filters or search query
+            </p>
           </div>
         )}
       </div>
+
+      {/* CSS for spinner animation */}
+      <style>{`
+        @keyframes spin {
+          from { transform: rotate(0deg); }
+          to { transform: rotate(360deg); }
+        }
+      `}</style>
     </div>
   );
 }

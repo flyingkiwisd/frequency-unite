@@ -1,12 +1,80 @@
 'use client';
 
-import React, { useState, useMemo, useEffect, useCallback } from 'react';
+import React, { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import {
   Target, TrendingUp, TrendingDown, Minus, CheckCircle2, AlertTriangle,
   XCircle, BarChart3, ChevronDown, Flame, MessageSquarePlus, X, RotateCcw, Check,
 } from 'lucide-react';
 import { okrs, kpis, teamMembers } from '@/lib/data';
 import type { OKR, KPI } from '@/lib/data';
+
+// ─── CSS Keyframes (injected once) ───
+
+const STYLE_ID = 'okr-view-animations';
+
+function injectStyles() {
+  if (typeof document === 'undefined') return;
+  if (document.getElementById(STYLE_ID)) return;
+  const style = document.createElement('style');
+  style.id = STYLE_ID;
+  style.textContent = `
+    @keyframes okr-pulse-risk {
+      0%, 100% { box-shadow: 0 0 0 0 rgba(212,165,116,0.4); }
+      50% { box-shadow: 0 0 0 6px rgba(212,165,116,0); }
+    }
+    @keyframes okr-pulse-behind {
+      0%, 100% { box-shadow: 0 0 0 0 rgba(239,68,68,0.4); }
+      50% { box-shadow: 0 0 0 6px rgba(239,68,68,0); }
+    }
+    @keyframes okr-card-enter {
+      from { opacity: 0; transform: translateY(24px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    @keyframes okr-ring-fill {
+      from { stroke-dasharray: 0 138.23; }
+    }
+    @keyframes okr-bar-grow {
+      from { width: 0%; }
+    }
+    @keyframes okr-summary-enter {
+      from { opacity: 0; transform: translateY(-12px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    .okr-card-animated {
+      animation: okr-card-enter 0.5s cubic-bezier(0.22, 1, 0.36, 1) both;
+    }
+    .okr-summary-bar {
+      animation: okr-summary-enter 0.4s cubic-bezier(0.22, 1, 0.36, 1) both;
+    }
+    .okr-pulse-at-risk {
+      animation: okr-pulse-risk 2s ease-in-out infinite;
+    }
+    .okr-pulse-behind {
+      animation: okr-pulse-behind 1.6s ease-in-out infinite;
+    }
+    .okr-progress-tooltip {
+      position: absolute;
+      bottom: calc(100% + 8px);
+      left: 50%;
+      transform: translateX(-50%) scale(0.9);
+      opacity: 0;
+      background: #1a1f2e;
+      border: 1px solid #2e3a4e;
+      border-radius: 8px;
+      padding: 8px 12px;
+      pointer-events: none;
+      transition: opacity 0.2s, transform 0.2s;
+      white-space: nowrap;
+      z-index: 30;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.4);
+    }
+    .okr-bar-wrapper:hover .okr-progress-tooltip {
+      opacity: 1;
+      transform: translateX(-50%) scale(1);
+    }
+  `;
+  document.head.appendChild(style);
+}
 
 // ─── Types & Persistence ───
 
@@ -70,6 +138,92 @@ function resolveOwner(ownerId: string) {
 const categoryColors: Record<string, string> = {
   Membership: '#8b5cf6', Financial: '#d4a574', Operations: '#60a5fa', Community: '#6b8f71', Impact: '#f472b6',
 };
+
+function progressGradient(progress: number): string {
+  if (progress >= 60) return 'linear-gradient(90deg, #4a7a52, #6b8f71, #8bb896)';
+  if (progress >= 30) return 'linear-gradient(90deg, #b8864a, #d4a574, #e8c89a)';
+  return 'linear-gradient(90deg, #c43030, #ef4444, #f87171)';
+}
+
+function progressColor(progress: number): string {
+  if (progress >= 60) return '#6b8f71';
+  if (progress >= 30) return '#d4a574';
+  return '#ef4444';
+}
+
+// ─── Animated Progress Ring ───
+
+function AnimatedProgressRing({
+  progress,
+  size = 64,
+  strokeWidth = 5,
+  color,
+  delay = 0,
+}: {
+  progress: number;
+  size?: number;
+  strokeWidth?: number;
+  color: string;
+  delay?: number;
+}) {
+  const radius = (size - strokeWidth) / 2;
+  const circumference = 2 * Math.PI * radius;
+  const [animatedProgress, setAnimatedProgress] = useState(0);
+
+  useEffect(() => {
+    const timer = setTimeout(() => setAnimatedProgress(progress), delay);
+    return () => clearTimeout(timer);
+  }, [progress, delay]);
+
+  const dashOffset = circumference - (animatedProgress / 100) * circumference;
+
+  return (
+    <div style={{ position: 'relative', width: size, height: size, flexShrink: 0 }}>
+      <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
+        <defs>
+          <linearGradient id={`ring-grad-${color.replace('#', '')}`} x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stopColor={color} stopOpacity="0.6" />
+            <stop offset="100%" stopColor={color} stopOpacity="1" />
+          </linearGradient>
+        </defs>
+        <circle
+          cx={size / 2} cy={size / 2} r={radius}
+          fill="none" stroke="#1e2638" strokeWidth={strokeWidth}
+        />
+        <circle
+          cx={size / 2} cy={size / 2} r={radius}
+          fill="none"
+          stroke={`url(#ring-grad-${color.replace('#', '')})`}
+          strokeWidth={strokeWidth}
+          strokeLinecap="round"
+          strokeDasharray={circumference}
+          strokeDashoffset={dashOffset}
+          transform={`rotate(-90 ${size / 2} ${size / 2})`}
+          style={{ transition: 'stroke-dashoffset 1s cubic-bezier(0.22, 1, 0.36, 1)' }}
+        />
+        {/* Glow dot at the end of the arc */}
+        {animatedProgress > 3 && (
+          <circle
+            cx={size / 2 + radius * Math.cos(((animatedProgress / 100) * 360 - 90) * Math.PI / 180)}
+            cy={size / 2 + radius * Math.sin(((animatedProgress / 100) * 360 - 90) * Math.PI / 180)}
+            r={strokeWidth / 2 + 1}
+            fill={color}
+            style={{
+              filter: `drop-shadow(0 0 4px ${color})`,
+              transition: 'cx 1s cubic-bezier(0.22, 1, 0.36, 1), cy 1s cubic-bezier(0.22, 1, 0.36, 1)',
+            }}
+          />
+        )}
+      </svg>
+      <span style={{
+        position: 'absolute', inset: 0, display: 'flex', alignItems: 'center',
+        justifyContent: 'center', fontSize: size > 56 ? 15 : 13, fontWeight: 700, color,
+      }}>
+        {progress}%
+      </span>
+    </div>
+  );
+}
 
 // ─── Sub-components ───
 
@@ -219,6 +373,79 @@ function QuarterComparisonChart({ edits }: { edits: OKREdits }) {
   );
 }
 
+// ─── Summary Bar ───
+
+function SummaryBar({ stats }: { stats: { total: number; avgProgress: number; onTrack: number; atRisk: number; behind: number } }) {
+  return (
+    <div
+      className="okr-summary-bar"
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: 24,
+        padding: '14px 24px',
+        backgroundColor: '#131720',
+        border: '1px solid #1e2638',
+        borderRadius: 12,
+        marginBottom: 24,
+        flexWrap: 'wrap',
+      }}
+    >
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        <Target size={16} style={{ color: '#8b5cf6' }} />
+        <span style={{ fontSize: 13, fontWeight: 700, color: '#f0ebe4' }}>
+          {stats.total} Objectives
+        </span>
+      </div>
+
+      <div style={{ width: 1, height: 24, backgroundColor: '#1e2638' }} />
+
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        <div style={{
+          width: 32, height: 32, position: 'relative',
+        }}>
+          <svg width="32" height="32" viewBox="0 0 32 32">
+            <circle cx="16" cy="16" r="13" fill="none" stroke="#1e2638" strokeWidth="3" />
+            <circle
+              cx="16" cy="16" r="13" fill="none" stroke="#8b5cf6"
+              strokeWidth="3" strokeLinecap="round"
+              strokeDasharray={`${(stats.avgProgress / 100) * 81.68} 81.68`}
+              transform="rotate(-90 16 16)"
+              style={{ transition: 'stroke-dasharray 0.8s ease' }}
+            />
+          </svg>
+        </div>
+        <div>
+          <div style={{ fontSize: 14, fontWeight: 700, color: '#8b5cf6', lineHeight: 1 }}>
+            {stats.avgProgress}%
+          </div>
+          <div style={{ fontSize: 10, color: '#6b6358', fontWeight: 500 }}>avg progress</div>
+        </div>
+      </div>
+
+      <div style={{ width: 1, height: 24, backgroundColor: '#1e2638' }} />
+
+      <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+          <div style={{ width: 8, height: 8, borderRadius: '50%', backgroundColor: '#6b8f71' }} />
+          <span style={{ fontSize: 12, fontWeight: 600, color: '#6b8f71' }}>{stats.onTrack}</span>
+          <span style={{ fontSize: 11, color: '#6b6358' }}>on-track</span>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+          <div style={{ width: 8, height: 8, borderRadius: '50%', backgroundColor: '#d4a574' }} />
+          <span style={{ fontSize: 12, fontWeight: 600, color: '#d4a574' }}>{stats.atRisk}</span>
+          <span style={{ fontSize: 11, color: '#6b6358' }}>at-risk</span>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+          <div style={{ width: 8, height: 8, borderRadius: '50%', backgroundColor: '#ef4444' }} />
+          <span style={{ fontSize: 12, fontWeight: 600, color: '#ef4444' }}>{stats.behind}</span>
+          <span style={{ fontSize: 11, color: '#6b6358' }}>behind</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── Main Component ───
 
 export function OKRView() {
@@ -226,7 +453,7 @@ export function OKRView() {
   const [editingProgress, setEditingProgress] = useState<{ okrId: string; krIdx: number } | null>(null);
   const [editingNote, setEditingNote] = useState<{ okrId: string; krIdx: number } | null>(null);
 
-  useEffect(() => { setEdits(loadEdits()); }, []);
+  useEffect(() => { injectStyles(); setEdits(loadEdits()); }, []);
 
   const persistEdits = useCallback((next: OKREdits) => { setEdits(next); saveEdits(next); }, []);
 
@@ -400,6 +627,9 @@ export function OKRView() {
         </div>
       </div>
 
+      {/* ── Summary Bar ── */}
+      <SummaryBar stats={summaryStats} />
+
       {/* ── Summary Stats Row ── */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(170px, 1fr))', gap: 12, marginBottom: 28 }}>
         {[
@@ -488,7 +718,7 @@ export function OKRView() {
         </h2>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-          {filteredOkrs.map((okr) => {
+          {filteredOkrs.map((okr, cardIndex) => {
             const effectiveStatus = getStatus(okr.id, okr.status);
             const badge = statusBadge(effectiveStatus);
             const statusEdited = edits.statusOverrides[okr.id] !== undefined;
@@ -497,12 +727,20 @@ export function OKRView() {
             );
             const confidence = edits.confidence[okr.id] ?? 0;
 
+            const pulseClass = effectiveStatus === 'at-risk'
+              ? 'okr-pulse-at-risk'
+              : effectiveStatus === 'behind'
+              ? 'okr-pulse-behind'
+              : '';
+
             return (
               <div
                 key={okr.id}
+                className="okr-card-animated"
                 style={{
                   backgroundColor: '#131720', border: '1px solid #1e2638',
-                  borderRadius: 14, overflow: 'hidden', transition: 'border-color 0.2s',
+                  borderRadius: 14, overflow: 'hidden', transition: 'border-color 0.2s, box-shadow 0.3s',
+                  animationDelay: `${cardIndex * 100}ms`,
                 }}
                 onMouseEnter={(e) => { e.currentTarget.style.borderColor = '#2e3a4e'; }}
                 onMouseLeave={(e) => { e.currentTarget.style.borderColor = '#1e2638'; }}
@@ -518,8 +756,9 @@ export function OKRView() {
                         {okr.objective}
                       </h3>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                        {/* Status badge (clickable to cycle) */}
+                        {/* Status badge (clickable to cycle) with pulse animation */}
                         <button
+                          className={pulseClass}
                           onClick={() => cycleStatus(okr.id, effectiveStatus)}
                           title="Click to cycle status"
                           style={{
@@ -552,25 +791,14 @@ export function OKRView() {
                       </div>
                     </div>
 
-                    {/* Overall progress ring */}
-                    <div style={{ position: 'relative', width: 52, height: 52, flexShrink: 0 }}>
-                      <svg width="52" height="52" viewBox="0 0 52 52">
-                        <circle cx="26" cy="26" r="22" fill="none" stroke="#1e2638" strokeWidth="4" />
-                        <circle
-                          cx="26" cy="26" r="22" fill="none" stroke={badge.text}
-                          strokeWidth="4" strokeLinecap="round"
-                          strokeDasharray={`${(overallProgress / 100) * 138.2} 138.2`}
-                          transform="rotate(-90 26 26)"
-                          style={{ transition: 'stroke-dasharray 0.5s ease' }}
-                        />
-                      </svg>
-                      <span style={{
-                        position: 'absolute', inset: 0, display: 'flex', alignItems: 'center',
-                        justifyContent: 'center', fontSize: 13, fontWeight: 700, color: badge.text,
-                      }}>
-                        {overallProgress}%
-                      </span>
-                    </div>
+                    {/* Animated circular progress ring */}
+                    <AnimatedProgressRing
+                      progress={overallProgress}
+                      size={64}
+                      strokeWidth={5}
+                      color={badge.text}
+                      delay={cardIndex * 100 + 200}
+                    />
                   </div>
 
                   {/* Key Results */}
@@ -579,7 +807,8 @@ export function OKRView() {
                       const owner = resolveOwner(kr.owner);
                       const effectiveProgress = getProgress(okr.id, idx, kr.progress);
                       const progressEdited = edits.progressOverrides[okr.id]?.[idx] !== undefined;
-                      const barColor = effectiveProgress >= 60 ? '#6b8f71' : effectiveProgress >= 30 ? '#d4a574' : '#ef4444';
+                      const barColor = progressColor(effectiveProgress);
+                      const gradient = progressGradient(effectiveProgress);
                       const isEditingThis = editingProgress?.okrId === okr.id && editingProgress?.krIdx === idx;
                       const isEditingNoteHere = editingNote?.okrId === okr.id && editingNote?.krIdx === idx;
                       const noteText = edits.notes[okr.id]?.[idx] ?? '';
@@ -625,17 +854,37 @@ export function OKRView() {
                             </div>
                           </div>
 
-                          {/* Progress bar */}
+                          {/* Enhanced gradient progress bar with hover tooltip */}
                           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                             <div
-                              style={{ flex: 1, height: 5, backgroundColor: '#1e2638', borderRadius: 3, overflow: 'hidden', cursor: 'pointer' }}
+                              className="okr-bar-wrapper"
+                              style={{
+                                flex: 1, height: 7, backgroundColor: '#1e2638', borderRadius: 4,
+                                overflow: 'hidden', cursor: 'pointer', position: 'relative',
+                              }}
                               onClick={() => setEditingProgress({ okrId: okr.id, krIdx: idx })}
                               title="Click to edit progress"
                             >
                               <div style={{
-                                height: '100%', width: `${effectiveProgress}%`, borderRadius: 3,
-                                backgroundColor: barColor, transition: 'width 0.5s ease',
+                                height: '100%', width: `${effectiveProgress}%`, borderRadius: 4,
+                                background: gradient,
+                                transition: 'width 0.7s cubic-bezier(0.22, 1, 0.36, 1)',
+                                boxShadow: `0 0 8px ${barColor}40`,
                               }} />
+                              {/* Hover tooltip */}
+                              <div className="okr-progress-tooltip">
+                                <div style={{ fontSize: 11, fontWeight: 700, color: barColor, marginBottom: 2 }}>
+                                  {effectiveProgress}% complete
+                                </div>
+                                <div style={{ fontSize: 10, color: '#6b6358' }}>
+                                  Owner: {owner.name}
+                                </div>
+                                {progressEdited && (
+                                  <div style={{ fontSize: 10, color: '#d4a574', marginTop: 2 }}>
+                                    (edited from {kr.progress}%)
+                                  </div>
+                                )}
+                              </div>
                             </div>
                             {isEditingThis ? (
                               <InlineProgressEditor

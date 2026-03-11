@@ -30,6 +30,46 @@ import {
 import { nodes, teamMembers, exportPdf } from '@/lib/data';
 import type { Node } from '@/lib/data';
 
+// ─── CSS Keyframes injection ───
+
+const NODES_KEYFRAMES_ID = 'nodes-view-keyframes';
+
+function injectNodesKeyframes() {
+  if (typeof document === 'undefined') return;
+  if (document.getElementById(NODES_KEYFRAMES_ID)) return;
+  const style = document.createElement('style');
+  style.id = NODES_KEYFRAMES_ID;
+  style.textContent = `
+    @keyframes nv-fade-up {
+      from { opacity: 0; transform: translateY(20px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    @keyframes nv-progress-fill {
+      from { width: 0%; }
+    }
+    @keyframes nv-progress-shimmer {
+      0% { transform: translateX(-100%); }
+      100% { transform: translateX(200%); }
+    }
+    @keyframes nv-pulse-dot {
+      0%, 100% { opacity: 0.4; transform: scale(1); }
+      50% { opacity: 1; transform: scale(1.3); }
+    }
+    @keyframes nv-glow-breathe {
+      0%, 100% { box-shadow: 0 0 0px transparent; }
+      50% { box-shadow: var(--nv-glow-shadow); }
+    }
+    @keyframes nv-connection-dash {
+      to { stroke-dashoffset: -30; }
+    }
+    @keyframes nv-spin-slow {
+      from { transform: rotate(0deg); }
+      to { transform: rotate(360deg); }
+    }
+  `;
+  document.head.appendChild(style);
+}
+
 // ─── Icon mapping ───
 const iconMap: Record<string, React.ElementType> = {
   Globe,
@@ -39,6 +79,55 @@ const iconMap: Record<string, React.ElementType> = {
   Sprout,
   BookOpen,
 };
+
+// ─── Color extraction ───
+
+function getNodeHex(node: Node): string {
+  const colorMap: Record<string, string> = {
+    'text-violet-400': '#a78bfa',
+    'text-emerald-400': '#34d399',
+    'text-amber-400': '#fbbf24',
+    'text-orange-400': '#fb923c',
+    'text-teal-400': '#2dd4bf',
+    'text-purple-400': '#c084fc',
+  };
+  return colorMap[node.color] || '#d4a574';
+}
+
+function getNodeGradient(node: Node): string {
+  const gradMap: Record<string, [string, string]> = {
+    'text-violet-400': ['#a78bfa', '#6366f1'],
+    'text-emerald-400': ['#34d399', '#22c55e'],
+    'text-amber-400': ['#fbbf24', '#f59e0b'],
+    'text-orange-400': ['#fb923c', '#ef4444'],
+    'text-teal-400': ['#2dd4bf', '#06b6d4'],
+    'text-purple-400': ['#c084fc', '#a855f7'],
+  };
+  const [c1, c2] = gradMap[node.color] || ['#d4a574', '#c4925a'];
+  return `linear-gradient(135deg, ${c1}, ${c2})`;
+}
+
+function getMemberColor(memberId: string): string {
+  const member = teamMembers.find((m) => m.id === memberId);
+  if (!member) return '#a09888';
+  const colorMap: Record<string, string> = {
+    'bg-amber-500': '#f59e0b',
+    'bg-rose-400': '#fb7185',
+    'bg-violet-500': '#8b5cf6',
+    'bg-sky-400': '#38bdf8',
+    'bg-emerald-500': '#10b981',
+    'bg-purple-500': '#a855f7',
+    'bg-pink-400': '#f472b6',
+    'bg-teal-400': '#2dd4bf',
+    'bg-amber-400': '#fbbf24',
+    'bg-green-500': '#22c55e',
+    'bg-lime-500': '#84cc16',
+    'bg-orange-500': '#f97316',
+    'bg-indigo-400': '#818cf8',
+    'bg-slate-400': '#94a3b8',
+  };
+  return colorMap[member.color] || '#a09888';
+}
 
 // ─── Status / Priority helpers ───
 function statusStyle(status: Node['status']): { bg: string; text: string; label: string } {
@@ -88,7 +177,6 @@ const nodeMaturity: Record<string, { level: number; label: string }> = {
   'thesis-node': { level: 3, label: 'Active work, regular updates' },
 };
 
-// Maturity key mapping (node.id -> maturity key)
 const maturityKeyMap: Record<string, string> = {
   map: 'map-node',
   bioregions: 'bioregions-node',
@@ -174,6 +262,174 @@ function timeAgo(ts: number): string {
   return `${days}d ago`;
 }
 
+// ─── Node Connection Diagram SVG ───
+
+function NodeConnectionDiagram() {
+  const svgWidth = 800;
+  const svgHeight = 200;
+  const cx = svgWidth / 2;
+  const cy = svgHeight / 2;
+  const nodeRadius = 140;
+
+  // Positions for 6 nodes in a horizontal arc
+  const nodePositions = nodes.map((node, i) => {
+    const angle = Math.PI + ((i / (nodes.length - 1)) * Math.PI);
+    return {
+      node,
+      x: cx + Math.cos(angle) * nodeRadius * 1.8,
+      y: cy + Math.sin(angle) * nodeRadius * 0.5 + 10,
+    };
+  });
+
+  // Cross-node dependency connections mapped to indices
+  const connections: { from: number; to: number; strength: string }[] = [
+    { from: 5, to: 2, strength: 'strong' }, // Thesis -> Capital
+    { from: 2, to: 0, strength: 'strong' }, // Capital -> Map
+    { from: 0, to: 1, strength: 'medium' }, // Map -> Bioregions
+    { from: 3, to: 2, strength: 'medium' }, // Megaphone -> Capital
+    { from: 4, to: 5, strength: 'weak' },   // Cap2.0 -> Thesis
+  ];
+
+  return (
+    <div
+      style={{
+        backgroundColor: '#131720',
+        border: '1px solid #1e2638',
+        borderRadius: 14,
+        padding: '16px 20px',
+        marginBottom: 24,
+        overflow: 'hidden',
+        position: 'relative',
+      }}
+    >
+      {/* Header */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
+        <Signal size={16} style={{ color: '#8b5cf6' }} />
+        <h3 style={{ fontSize: 14, fontWeight: 700, color: '#f0ebe4', margin: 0 }}>Node Interconnections</h3>
+        <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 12 }}>
+          {(['strong', 'medium', 'weak'] as const).map((s) => (
+            <div key={s} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+              <div style={{ width: 12, height: 2, borderRadius: 1, backgroundColor: strengthColors[s] }} />
+              <span style={{ fontSize: 10, color: '#6b6358', textTransform: 'capitalize' }}>{s}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <svg
+        width="100%"
+        height={svgHeight}
+        viewBox={`0 0 ${svgWidth} ${svgHeight}`}
+        style={{ display: 'block' }}
+      >
+        <defs>
+          {connections.map((conn, i) => {
+            const color = strengthColors[conn.strength];
+            return (
+              <linearGradient key={i} id={`nv-conn-grad-${i}`} x1="0%" y1="0%" x2="100%" y2="0%">
+                <stop offset="0%" stopColor={color} stopOpacity="0.6" />
+                <stop offset="50%" stopColor={color} stopOpacity="0.3" />
+                <stop offset="100%" stopColor={color} stopOpacity="0.6" />
+              </linearGradient>
+            );
+          })}
+        </defs>
+
+        {/* Connection lines */}
+        {connections.map((conn, i) => {
+          const from = nodePositions[conn.from];
+          const to = nodePositions[conn.to];
+          if (!from || !to) return null;
+          const color = strengthColors[conn.strength];
+          const mx = (from.x + to.x) / 2;
+          const my = Math.min(from.y, to.y) - 30 - i * 8;
+
+          return (
+            <g key={`conn-${i}`}>
+              <path
+                d={`M ${from.x} ${from.y - 20} Q ${mx} ${my} ${to.x} ${to.y - 20}`}
+                fill="none"
+                stroke={color}
+                strokeWidth={conn.strength === 'strong' ? 2 : 1.5}
+                opacity={0.35}
+                strokeDasharray={conn.strength === 'weak' ? '4 4' : conn.strength === 'medium' ? '6 3' : 'none'}
+              />
+              {/* Animated particle */}
+              <circle r="2" fill={color} opacity="0.8">
+                <animateMotion
+                  dur={`${3 + i * 0.5}s`}
+                  repeatCount="indefinite"
+                  path={`M ${from.x} ${from.y - 20} Q ${mx} ${my} ${to.x} ${to.y - 20}`}
+                />
+              </circle>
+            </g>
+          );
+        })}
+
+        {/* Node circles */}
+        {nodePositions.map(({ node, x, y }, i) => {
+          const color = getNodeHex(node);
+          return (
+            <g key={node.id}>
+              {/* Ambient glow */}
+              <circle cx={x} cy={y} r={28} fill={color} opacity={0.06} />
+
+              {/* Main circle */}
+              <circle
+                cx={x}
+                cy={y}
+                r={20}
+                fill="#0d1018"
+                stroke={color}
+                strokeWidth={2}
+              />
+
+              {/* Inner dot */}
+              <circle cx={x} cy={y - 3} r={4} fill={color} opacity={0.6} />
+
+              {/* Label */}
+              <text
+                x={x}
+                y={y + 5}
+                textAnchor="middle"
+                fill={color}
+                fontSize={8}
+                fontWeight={700}
+              >
+                {node.shortName}
+              </text>
+
+              {/* Name below */}
+              <text
+                x={x}
+                y={y + 38}
+                textAnchor="middle"
+                fill="#a09888"
+                fontSize={10}
+                fontWeight={500}
+              >
+                {node.shortName}
+              </text>
+
+              {/* Progress bar below */}
+              <rect x={x - 16} y={y + 24} width={32} height={3} rx={1.5} fill="#1e2638" />
+              <rect
+                x={x - 16}
+                y={y + 24}
+                width={(node.progress / 100) * 32}
+                height={3}
+                rx={1.5}
+                fill={color}
+                opacity={0.6}
+              />
+            </g>
+          );
+        })}
+      </svg>
+    </div>
+  );
+}
+
 // ─── Component ───
 
 export function NodesView() {
@@ -182,9 +438,14 @@ export function NodesView() {
   const [updateNodeId, setUpdateNodeId] = useState<string | null>(null);
   const [updateText, setUpdateText] = useState('');
   const [nodeUpdates, setNodeUpdates] = useState<NodeUpdate[]>([]);
+  const [mounted, setMounted] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
-  // Load updates from localStorage on mount
+  useEffect(() => {
+    injectNodesKeyframes();
+    setMounted(true);
+  }, []);
+
   useEffect(() => {
     setNodeUpdates(loadUpdates());
   }, []);
@@ -228,18 +489,42 @@ export function NodesView() {
   return (
     <div ref={containerRef} style={{ padding: '32px 24px', maxWidth: 1200, margin: '0 auto' }}>
       {/* ── Header ── */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 32, flexWrap: 'wrap', gap: 16 }}>
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          marginBottom: 32,
+          flexWrap: 'wrap',
+          gap: 16,
+          animation: mounted ? 'nv-fade-up 0.5s ease both' : 'none',
+        }}
+      >
         <div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 6 }}>
-            <Signal size={24} style={{ color: '#d4a574' }} />
-            <h1 style={{ fontSize: 24, fontWeight: 700, color: '#f0ebe4', margin: 0 }}>Node Ecosystem</h1>
+            <div
+              style={{
+                width: 40,
+                height: 40,
+                borderRadius: 12,
+                background: 'linear-gradient(135deg, rgba(212, 165, 116, 0.2), rgba(107, 143, 113, 0.2))',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+            >
+              <Signal size={22} style={{ color: '#d4a574' }} />
+            </div>
+            <div>
+              <h1 style={{ fontSize: 26, fontWeight: 800, color: '#f0ebe4', margin: 0, letterSpacing: '-0.02em' }}>Node Ecosystem</h1>
+              <p style={{ fontSize: 14, color: '#a09888', margin: 0 }}>
+                Six interconnected nodes driving Frequency&apos;s mission forward
+              </p>
+            </div>
           </div>
-          <p style={{ fontSize: 14, color: '#a09888', margin: 0 }}>
-            Six interconnected nodes driving Frequency&apos;s mission forward
-          </p>
         </div>
 
-        {/* Overall progress ring + View Toggle + Export */}
+        {/* Controls */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
           {/* View Mode Toggle */}
           <div style={{
@@ -313,6 +598,8 @@ export function NodesView() {
             <Download size={14} />
             Export PDF
           </button>
+
+          {/* Overall progress ring */}
           <div style={{ position: 'relative', width: 56, height: 56 }}>
             <svg width="56" height="56" viewBox="0 0 56 56">
               <circle cx="28" cy="28" r="24" fill="none" stroke="#1e2638" strokeWidth="4" />
@@ -340,14 +627,22 @@ export function NodesView() {
         </div>
       </div>
 
+      {/* ── Node Connection Diagram ── */}
+      <div style={{ animation: mounted ? 'nv-fade-up 0.6s ease 0.05s both' : 'none' }}>
+        <NodeConnectionDiagram />
+      </div>
+
       {/* ── Ecosystem Health Dashboard ── */}
-      <div style={{
-        backgroundColor: '#131720',
-        border: '1px solid #1e2638',
-        borderRadius: 14,
-        padding: '24px 28px',
-        marginBottom: 24,
-      }}>
+      <div
+        style={{
+          backgroundColor: '#131720',
+          border: '1px solid #1e2638',
+          borderRadius: 14,
+          padding: '24px 28px',
+          marginBottom: 24,
+          animation: mounted ? 'nv-fade-up 0.6s ease 0.1s both' : 'none',
+        }}
+      >
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 20 }}>
           <Activity size={18} style={{ color: '#d4a574' }} />
           <h2 style={{ fontSize: 16, fontWeight: 700, color: '#f0ebe4', margin: 0 }}>Ecosystem Health Dashboard</h2>
@@ -389,12 +684,13 @@ export function NodesView() {
             <span style={{ fontSize: 11, color: '#6b6358' }}>Weighted avg</span>
           </div>
 
-          {/* Horizontal Bar Chart */}
+          {/* Horizontal Bar Chart with gradient fills */}
           <div style={{ flex: 1, minWidth: 280 }}>
             <div style={{ fontSize: 12, fontWeight: 600, color: '#a09888', marginBottom: 12 }}>Node Health Scores</div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
               {nodes.map((node) => {
                 const score = nodeHealthScores[node.id] || 0;
+                const color = getNodeHex(node);
                 return (
                   <div key={node.id} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                     <span style={{ fontSize: 11, fontWeight: 600, color: '#a09888', width: 90, flexShrink: 0, textAlign: 'right' }}>
@@ -406,10 +702,25 @@ export function NodesView() {
                           height: '100%',
                           width: `${score}%`,
                           borderRadius: 7,
-                          backgroundColor: healthColor(score),
-                          transition: 'width 0.5s ease',
+                          background: `linear-gradient(90deg, ${color}, ${color}88)`,
+                          transition: 'width 0.8s ease',
+                          position: 'relative',
+                          overflow: 'hidden',
                         }}
-                      />
+                      >
+                        {/* Shimmer effect */}
+                        <div
+                          style={{
+                            position: 'absolute',
+                            top: 0,
+                            left: 0,
+                            right: 0,
+                            bottom: 0,
+                            background: 'linear-gradient(90deg, transparent, rgba(255,255,255,0.15), transparent)',
+                            animation: 'nv-progress-shimmer 3s ease-in-out infinite',
+                          }}
+                        />
+                      </div>
                     </div>
                     <span style={{ fontSize: 12, fontWeight: 700, color: healthColor(score), width: 30, textAlign: 'right' }}>
                       {score}
@@ -454,6 +765,7 @@ export function NodesView() {
                         borderRadius: '50%',
                         backgroundColor: '#ef4444',
                         flexShrink: 0,
+                        animation: 'nv-pulse-dot 2s ease-in-out infinite',
                       }} />
                       <div style={{ flex: 1 }}>
                         <div style={{ fontSize: 12, fontWeight: 600, color: '#f0ebe4' }}>{node.name}</div>
@@ -469,7 +781,15 @@ export function NodesView() {
       </div>
 
       {/* ── Summary Stats Row ── */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 12, marginBottom: 32 }}>
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))',
+          gap: 12,
+          marginBottom: 32,
+          animation: mounted ? 'nv-fade-up 0.6s ease 0.15s both' : 'none',
+        }}
+      >
         {[
           { label: 'Active', value: activeCount, color: '#6b8f71', icon: Zap },
           { label: 'Building', value: buildingCount, color: '#d4a574', icon: Layers },
@@ -486,6 +806,15 @@ export function NodesView() {
               display: 'flex',
               alignItems: 'center',
               gap: 14,
+              transition: 'border-color 0.2s, box-shadow 0.2s',
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.borderColor = `${stat.color}40`;
+              e.currentTarget.style.boxShadow = `0 0 20px ${stat.color}10`;
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.borderColor = '#1e2638';
+              e.currentTarget.style.boxShadow = 'none';
             }}
           >
             <div
@@ -517,6 +846,7 @@ export function NodesView() {
           borderRadius: 14,
           overflow: 'hidden',
           marginBottom: 32,
+          animation: mounted ? 'nv-fade-up 0.5s ease both' : 'none',
         }}>
           {/* Table header */}
           <div style={{
@@ -534,11 +864,12 @@ export function NodesView() {
             ))}
           </div>
           {/* Table rows */}
-          {nodes.map((node) => {
+          {nodes.map((node, rowIndex) => {
             const sts = statusStyle(node.status);
             const pri = priorityStyle(node.priority);
             const score = nodeHealthScores[node.id] || 0;
             const metrics = nodeMetrics[node.id];
+            const color = getNodeHex(node);
             const leadMembers = node.leads
               .map((lid) => teamMembers.find((m) => m.id === lid))
               .filter(Boolean);
@@ -555,12 +886,20 @@ export function NodesView() {
                   borderBottom: '1px solid #1e2638',
                   alignItems: 'center',
                   transition: 'background-color 0.15s',
+                  animation: mounted ? `nv-fade-up 0.4s ease ${rowIndex * 0.05}s both` : 'none',
                 }}
-                onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'rgba(30, 38, 56, 0.2)'; }}
+                onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = `${color}08`; }}
                 onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent'; }}
               >
                 {/* Node */}
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <div style={{
+                    width: 6,
+                    height: 6,
+                    borderRadius: '50%',
+                    backgroundColor: color,
+                    flexShrink: 0,
+                  }} />
                   <span style={{ fontSize: 14, fontWeight: 600, color: '#f0ebe4' }}>{node.name}</span>
                 </div>
                 {/* Status */}
@@ -607,17 +946,46 @@ export function NodesView() {
                 {/* Progress */}
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                   <div style={{ flex: 1, height: 5, backgroundColor: '#1e2638', borderRadius: 3, overflow: 'hidden' }}>
-                    <div style={{ height: '100%', width: `${node.progress}%`, backgroundColor: sts.text, borderRadius: 3, transition: 'width 0.5s ease' }} />
+                    <div style={{
+                      height: '100%',
+                      width: `${node.progress}%`,
+                      background: `linear-gradient(90deg, ${color}, ${color}88)`,
+                      borderRadius: 3,
+                      transition: 'width 0.5s ease',
+                    }} />
                   </div>
                   <span style={{ fontSize: 12, fontWeight: 600, color: '#a09888', minWidth: 30 }}>{node.progress}%</span>
                 </div>
                 {/* Lead */}
-                <span style={{ fontSize: 12, color: '#a09888' }}>
-                  {leadMembers.map((m) => m!.name.split(' ')[0]).join(', ')}
-                </span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                  {leadMembers.slice(0, 2).map((m, i) => (
+                    <div
+                      key={m!.id}
+                      style={{
+                        width: 22,
+                        height: 22,
+                        borderRadius: '50%',
+                        background: `linear-gradient(135deg, ${getMemberColor(m!.id)}, ${getMemberColor(m!.id)}88)`,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        fontSize: 8,
+                        fontWeight: 700,
+                        color: '#0b0d14',
+                        border: '2px solid #131720',
+                        marginLeft: i > 0 ? -4 : 0,
+                      }}
+                    >
+                      {m!.avatar}
+                    </div>
+                  ))}
+                  <span style={{ fontSize: 12, color: '#a09888', marginLeft: 2 }}>
+                    {leadMembers.map((m) => m!.name.split(' ')[0]).join(', ')}
+                  </span>
+                </div>
                 {/* Last Update */}
                 <span style={{ fontSize: 11, color: '#6b6358' }}>
-                  {latestUpdate ? timeAgo(latestUpdate.timestamp) : metrics?.lastUpdate || '—'}
+                  {latestUpdate ? timeAgo(latestUpdate.timestamp) : metrics?.lastUpdate || '\u2014'}
                 </span>
               </div>
             );
@@ -628,7 +996,7 @@ export function NodesView() {
       {/* ── Node Cards Grid ── */}
       {viewMode === 'grid' && (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(360px, 1fr))', gap: 16 }}>
-          {nodes.map((node) => {
+          {nodes.map((node, cardIndex) => {
             const Icon = iconMap[node.icon] ?? Globe;
             const sts = statusStyle(node.status);
             const pri = priorityStyle(node.priority);
@@ -639,6 +1007,8 @@ export function NodesView() {
             const metrics = nodeMetrics[node.id];
             const latestUpdate = getLatestUpdate(node.id);
             const isUpdating = updateNodeId === node.id;
+            const color = getNodeHex(node);
+            const gradient = getNodeGradient(node);
 
             // Resolve lead names
             const leadMembers = node.leads
@@ -654,48 +1024,68 @@ export function NodesView() {
                 style={{
                   backgroundColor: '#131720',
                   border: '1px solid #1e2638',
-                  borderRadius: 14,
+                  borderRadius: 16,
                   overflow: 'hidden',
-                  transition: 'border-color 0.2s, box-shadow 0.2s',
+                  transition: 'border-color 0.3s, box-shadow 0.3s, transform 0.3s',
+                  animation: mounted ? `nv-fade-up 0.5s ease ${cardIndex * 0.08}s both` : 'none',
+                  position: 'relative',
                 }}
                 onMouseEnter={(e) => {
-                  e.currentTarget.style.borderColor = '#2e3a4e';
-                  e.currentTarget.style.boxShadow = '0 4px 20px rgba(0,0,0,0.3)';
+                  e.currentTarget.style.borderColor = `${color}50`;
+                  e.currentTarget.style.boxShadow = `0 8px 30px ${color}15, 0 0 0 1px ${color}15`;
+                  e.currentTarget.style.transform = 'translateY(-2px)';
                 }}
                 onMouseLeave={(e) => {
                   e.currentTarget.style.borderColor = '#1e2638';
                   e.currentTarget.style.boxShadow = 'none';
+                  e.currentTarget.style.transform = 'translateY(0)';
                 }}
               >
-                {/* Gradient top accent */}
+                {/* Gradient top accent bar */}
                 <div
                   style={{
-                    height: 3,
-                    background: `linear-gradient(to right, ${sts.text}, transparent)`,
+                    height: 4,
+                    background: gradient,
+                    opacity: 0.8,
                   }}
                 />
 
-                <div style={{ padding: '20px 20px 16px' }}>
+                {/* Gradient overlay in card background */}
+                <div
+                  style={{
+                    position: 'absolute',
+                    top: 0,
+                    left: 0,
+                    right: 0,
+                    height: 120,
+                    background: `linear-gradient(135deg, ${color}08, transparent)`,
+                    pointerEvents: 'none',
+                  }}
+                />
+
+                <div style={{ padding: '20px 20px 16px', position: 'relative' }}>
                   {/* Top row: icon + name + health badge + badges */}
                   <div style={{ display: 'flex', alignItems: 'flex-start', gap: 14, marginBottom: 12 }}>
+                    {/* Icon with gradient background */}
                     <div
                       style={{
-                        width: 44,
-                        height: 44,
-                        borderRadius: 12,
-                        background: `linear-gradient(135deg, ${node.gradient.includes('violet') ? 'rgba(139,92,246,0.12)' : node.gradient.includes('emerald') ? 'rgba(52,211,153,0.12)' : node.gradient.includes('amber') ? 'rgba(212,165,116,0.12)' : node.gradient.includes('orange') ? 'rgba(251,146,60,0.12)' : node.gradient.includes('teal') ? 'rgba(45,212,191,0.12)' : 'rgba(168,85,247,0.12)'}, transparent)`,
+                        width: 48,
+                        height: 48,
+                        borderRadius: 14,
+                        background: `linear-gradient(135deg, ${color}20, ${color}08)`,
+                        border: `1px solid ${color}25`,
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
                         flexShrink: 0,
                       }}
                     >
-                      <Icon size={22} className={node.color} style={{ color: sts.text }} />
+                      <Icon size={24} style={{ color }} />
                     </div>
 
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 4 }}>
-                        <h3 style={{ fontSize: 16, fontWeight: 700, color: '#f0ebe4', margin: 0 }}>{node.name}</h3>
+                        <h3 style={{ fontSize: 17, fontWeight: 700, color: '#f0ebe4', margin: 0 }}>{node.name}</h3>
                         {/* Health Score Badge */}
                         <span
                           style={{
@@ -761,29 +1151,45 @@ export function NodesView() {
                     {node.purpose}
                   </p>
 
-                  {/* Progress bar */}
+                  {/* Animated Progress bar with gradient fill */}
                   <div style={{ marginBottom: 16 }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
                       <span style={{ fontSize: 12, fontWeight: 600, color: '#a09888' }}>Progress</span>
-                      <span style={{ fontSize: 12, fontWeight: 700, color: '#f0ebe4' }}>{node.progress}%</span>
+                      <span style={{ fontSize: 13, fontWeight: 700, color }}>{node.progress}%</span>
                     </div>
                     <div
                       style={{
-                        height: 6,
+                        height: 8,
                         backgroundColor: '#1e2638',
-                        borderRadius: 3,
+                        borderRadius: 4,
                         overflow: 'hidden',
+                        position: 'relative',
                       }}
                     >
                       <div
                         style={{
                           height: '100%',
                           width: `${node.progress}%`,
-                          borderRadius: 3,
-                          background: `linear-gradient(90deg, ${sts.text}, ${sts.text}88)`,
-                          transition: 'width 0.5s ease',
+                          borderRadius: 4,
+                          background: gradient,
+                          transition: 'width 0.8s ease',
+                          position: 'relative',
+                          overflow: 'hidden',
                         }}
-                      />
+                      >
+                        {/* Shimmer animation */}
+                        <div
+                          style={{
+                            position: 'absolute',
+                            top: 0,
+                            left: 0,
+                            right: 0,
+                            bottom: 0,
+                            background: 'linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent)',
+                            animation: 'nv-progress-shimmer 2.5s ease-in-out infinite',
+                          }}
+                        />
+                      </div>
                     </div>
                   </div>
 
@@ -803,11 +1209,13 @@ export function NodesView() {
                           <div
                             key={lvl}
                             style={{
-                              width: 8,
-                              height: 8,
+                              width: 10,
+                              height: 10,
                               borderRadius: '50%',
-                              backgroundColor: lvl <= nodeMaturity[matKey].level ? sts.text : '#1e2638',
-                              transition: 'background-color 0.3s ease',
+                              backgroundColor: lvl <= nodeMaturity[matKey].level ? color : '#1e2638',
+                              border: lvl <= nodeMaturity[matKey].level ? `1px solid ${color}60` : '1px solid #2a3040',
+                              transition: 'background-color 0.3s ease, border-color 0.3s ease',
+                              boxShadow: lvl <= nodeMaturity[matKey].level ? `0 0 6px ${color}30` : 'none',
                             }}
                           />
                         ))}
@@ -815,7 +1223,7 @@ export function NodesView() {
                     </div>
                   )}
 
-                  {/* Leads */}
+                  {/* Lead member avatars */}
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                       <span style={{ fontSize: 12, color: '#6b6358', marginRight: 4 }}>Leads:</span>
@@ -825,10 +1233,10 @@ export function NodesView() {
                             key={member!.id}
                             title={member!.name}
                             style={{
-                              width: 28,
-                              height: 28,
+                              width: 30,
+                              height: 30,
                               borderRadius: '50%',
-                              background: 'linear-gradient(135deg, #c4925a, #d4a574)',
+                              background: `linear-gradient(135deg, ${getMemberColor(member!.id)}, ${getMemberColor(member!.id)}88)`,
                               display: 'flex',
                               alignItems: 'center',
                               justifyContent: 'center',
@@ -839,16 +1247,56 @@ export function NodesView() {
                               marginLeft: i > 0 ? -6 : 0,
                               zIndex: leadMembers.length - i,
                               position: 'relative',
+                              boxShadow: `0 0 8px ${getMemberColor(member!.id)}20`,
                             }}
                           >
                             {member!.avatar}
                           </div>
                         ))}
                       </div>
-                      <span style={{ fontSize: 12, color: '#a09888', marginLeft: 4 }}>
+                      <span style={{ fontSize: 12, color: '#a09888', marginLeft: 4, fontWeight: 500 }}>
                         {leadMembers.map((m) => m!.name.split(' ')[0]).join(', ')}
                       </span>
                     </div>
+                  </div>
+
+                  {/* Capability tags as styled pills */}
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginBottom: 12 }}>
+                    {node.capabilities.slice(0, 3).map((cap, idx) => (
+                      <span
+                        key={idx}
+                        style={{
+                          fontSize: 10,
+                          fontWeight: 500,
+                          color: `${color}cc`,
+                          backgroundColor: `${color}10`,
+                          border: `1px solid ${color}20`,
+                          padding: '3px 8px',
+                          borderRadius: 12,
+                          lineHeight: 1.3,
+                          whiteSpace: 'nowrap',
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                          maxWidth: 180,
+                        }}
+                      >
+                        {cap}
+                      </span>
+                    ))}
+                    {node.capabilities.length > 3 && (
+                      <span
+                        style={{
+                          fontSize: 10,
+                          fontWeight: 600,
+                          color: '#6b6358',
+                          backgroundColor: '#1a1f2e',
+                          padding: '3px 8px',
+                          borderRadius: 12,
+                        }}
+                      >
+                        +{node.capabilities.length - 3} more
+                      </span>
+                    )}
                   </div>
 
                   {/* Post Update Button & Latest Update */}
@@ -873,8 +1321,8 @@ export function NodesView() {
                           marginBottom: latestUpdate ? 8 : 0,
                         }}
                         onMouseEnter={(e) => {
-                          e.currentTarget.style.borderColor = '#d4a574';
-                          e.currentTarget.style.color = '#d4a574';
+                          e.currentTarget.style.borderColor = color;
+                          e.currentTarget.style.color = color;
                         }}
                         onMouseLeave={(e) => {
                           e.currentTarget.style.borderColor = '#1e2638';
@@ -909,7 +1357,7 @@ export function NodesView() {
                             lineHeight: 1.5,
                             boxSizing: 'border-box',
                           }}
-                          onFocus={(e) => { e.currentTarget.style.borderColor = '#d4a574'; }}
+                          onFocus={(e) => { e.currentTarget.style.borderColor = color; }}
                           onBlur={(e) => { e.currentTarget.style.borderColor = '#2e3a4e'; }}
                         />
                         <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
@@ -920,13 +1368,13 @@ export function NodesView() {
                               padding: '6px 14px',
                               borderRadius: 6,
                               border: 'none',
-                              backgroundColor: updateText.trim() ? '#d4a574' : '#2e3a4e',
+                              background: updateText.trim() ? gradient : '#2e3a4e',
                               color: updateText.trim() ? '#0b0d14' : '#6b6358',
                               fontSize: 12,
                               fontWeight: 600,
                               cursor: updateText.trim() ? 'pointer' : 'not-allowed',
                               fontFamily: 'inherit',
-                              transition: 'background-color 0.15s',
+                              transition: 'background 0.15s',
                             }}
                           >
                             Post
@@ -955,9 +1403,9 @@ export function NodesView() {
                     {latestUpdate && (
                       <div style={{
                         padding: '8px 12px',
-                        backgroundColor: 'rgba(212, 165, 116, 0.06)',
+                        backgroundColor: `${color}06`,
                         borderRadius: 8,
-                        borderLeft: '3px solid #d4a57440',
+                        borderLeft: `3px solid ${color}40`,
                       }}>
                         <div style={{ fontSize: 10, color: '#6b6358', marginBottom: 4 }}>
                           Latest update &middot; {timeAgo(latestUpdate.timestamp)}
@@ -988,14 +1436,14 @@ export function NodesView() {
                       fontFamily: 'inherit',
                       transition: 'color 0.15s',
                     }}
-                    onMouseEnter={(e) => { e.currentTarget.style.color = '#d4a574'; }}
+                    onMouseEnter={(e) => { e.currentTarget.style.color = color; }}
                     onMouseLeave={(e) => { e.currentTarget.style.color = '#a09888'; }}
                   >
-                    <span>{isExpanded ? 'Hide' : 'Show'} Capabilities ({node.capabilities.length})</span>
+                    <span>{isExpanded ? 'Hide' : 'Show'} Details ({node.capabilities.length} capabilities)</span>
                     {isExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
                   </button>
 
-                  {/* Expanded content: Capabilities + Metrics */}
+                  {/* Expanded content */}
                   {isExpanded && (
                     <div style={{ paddingTop: 8 }}>
                       {/* Node Metrics Row */}
@@ -1006,20 +1454,21 @@ export function NodesView() {
                           gap: 10,
                           marginBottom: 16,
                           padding: '12px',
-                          backgroundColor: 'rgba(30, 38, 56, 0.25)',
+                          backgroundColor: `${color}06`,
                           borderRadius: 10,
+                          border: `1px solid ${color}10`,
                         }}>
                           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                             <div style={{
                               width: 30,
                               height: 30,
                               borderRadius: 8,
-                              backgroundColor: 'rgba(139, 92, 246, 0.1)',
+                              backgroundColor: `${color}15`,
                               display: 'flex',
                               alignItems: 'center',
                               justifyContent: 'center',
                             }}>
-                              <CheckCircle2 size={14} style={{ color: '#8b5cf6' }} />
+                              <CheckCircle2 size={14} style={{ color }} />
                             </div>
                             <div>
                               <div style={{ fontSize: 14, fontWeight: 700, color: '#f0ebe4' }}>{metrics.activeTasks}</div>
@@ -1083,14 +1532,8 @@ export function NodesView() {
                         </div>
                       )}
 
-                      {/* Capabilities list */}
-                      <div
-                        style={{
-                          display: 'flex',
-                          flexDirection: 'column',
-                          gap: 6,
-                        }}
-                      >
+                      {/* All capabilities list */}
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                         {node.capabilities.map((cap, idx) => (
                           <div
                             key={idx}
@@ -1105,12 +1548,13 @@ export function NodesView() {
                           >
                             <span
                               style={{
-                                width: 5,
-                                height: 5,
+                                width: 6,
+                                height: 6,
                                 borderRadius: '50%',
-                                backgroundColor: sts.text,
+                                backgroundColor: color,
                                 flexShrink: 0,
                                 marginTop: 6,
+                                boxShadow: `0 0 4px ${color}30`,
                               }}
                             />
                             {cap}
@@ -1127,7 +1571,12 @@ export function NodesView() {
       )}
 
       {/* ── Cross-Node Dependencies ── */}
-      <div style={{ marginTop: 32 }}>
+      <div
+        style={{
+          marginTop: 32,
+          animation: mounted ? 'nv-fade-up 0.6s ease 0.3s both' : 'none',
+        }}
+      >
         <h2 style={{ fontSize: 18, fontWeight: 700, color: '#f0ebe4', marginBottom: 16 }}>
           Cross-Node Dependencies
         </h2>
@@ -1165,7 +1614,13 @@ export function NodesView() {
                   gap: 4,
                   paddingBottom: idx < crossDeps.length - 1 ? 16 : 0,
                   borderBottom: idx < crossDeps.length - 1 ? '1px solid #1e2638' : 'none',
+                  transition: 'background-color 0.15s',
+                  padding: '8px 12px',
+                  borderRadius: 8,
+                  marginBottom: -4,
                 }}
+                onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'rgba(30, 38, 56, 0.2)'; }}
+                onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent'; }}
               >
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 14, fontWeight: 600 }}>
                   {/* Strength dot */}
@@ -1175,7 +1630,7 @@ export function NodesView() {
                     borderRadius: '50%',
                     backgroundColor: strengthColors[dep.strength],
                     flexShrink: 0,
-                    boxShadow: `0 0 6px ${strengthColors[dep.strength]}40`,
+                    boxShadow: `0 0 8px ${strengthColors[dep.strength]}40`,
                   }} />
                   <span style={{ color: '#d4a574' }}>{dep.from}</span>
                   <ArrowRight size={14} style={{ color: '#6b6358' }} />

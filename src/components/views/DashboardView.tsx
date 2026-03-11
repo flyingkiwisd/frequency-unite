@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useRef } from 'react';
+import React, { useRef, useEffect, useState, useCallback } from 'react';
 import {
   Users,
   DollarSign,
@@ -39,15 +39,26 @@ const iconMap: Record<string, React.ElementType> = {
   BookOpen,
 };
 
+/* ─── Sparkline data (fabricated trends for each hero KPI) ─── */
+const sparklineData: number[][] = [
+  [30, 38, 42, 50, 55, 60, 65],       // Well-Stewards
+  [60, 85, 110, 130, 145, 165, 180],   // Revenue (K)
+  [10, 25, 35, 50, 60, 72, 85],        // DAF Raised (K)
+  [72, 74, 76, 75, 77, 76, 78],        // Retention %
+  [8.8, 9.0, 9.1, 9.0, 9.2, 9.4, 9.3],// Event NPS
+  [1, 2, 2, 3, 3, 4, 4],              // Active Nodes
+  [220, 200, 185, 170, 155, 140, 130], // Blue Spirit countdown
+];
+
 /* ─── Top-level KPI cards (curated) ─── */
 const heroKpis = [
-  { label: 'Well-Stewards', value: '~65', target: '144', icon: Users, trend: 'up' as const, color: '#d4a574' },
-  { label: '2026 Revenue', value: '$180K', target: '$2M', icon: DollarSign, trend: 'up' as const, color: '#e8b44c' },
-  { label: 'DAF Raised', value: '$85K', target: '$500K-$1M', icon: Heart, trend: 'up' as const, color: '#8b5cf6' },
-  { label: 'Member Retention', value: '78%', target: '85%+', icon: TrendingUp, trend: 'up' as const, color: '#6b8f71' },
-  { label: 'Event NPS', value: '9.3', target: '9.5', icon: Star, trend: 'flat' as const, color: '#e879a0' },
-  { label: 'Active Nodes', value: '4', target: '6', icon: Network, trend: 'up' as const, color: '#5eaed4' },
-  { label: 'Blue Spirit 6.0', value: '130', target: 'Jul 18, 2026', icon: Calendar, trend: 'flat' as const, color: '#e879a0' },
+  { label: 'Well-Stewards', value: '~65', numericValue: 65, target: '144', targetNumeric: 144, icon: Users, trend: 'up' as const, color: '#d4a574' },
+  { label: '2026 Revenue', value: '$180K', numericValue: 180, target: '$2M', targetNumeric: 2000, icon: DollarSign, trend: 'up' as const, color: '#e8b44c', prefix: '$', suffix: 'K' },
+  { label: 'DAF Raised', value: '$85K', numericValue: 85, target: '$500K-$1M', targetNumeric: 500, icon: Heart, trend: 'up' as const, color: '#8b5cf6', prefix: '$', suffix: 'K' },
+  { label: 'Member Retention', value: '78%', numericValue: 78, target: '85%+', targetNumeric: 85, icon: TrendingUp, trend: 'up' as const, color: '#6b8f71', suffix: '%' },
+  { label: 'Event NPS', value: '9.3', numericValue: 9.3, target: '9.5', targetNumeric: 9.5, icon: Star, trend: 'flat' as const, color: '#e879a0' },
+  { label: 'Active Nodes', value: '4', numericValue: 4, target: '6', targetNumeric: 6, icon: Network, trend: 'up' as const, color: '#5eaed4' },
+  { label: 'Blue Spirit 6.0', value: '130', numericValue: 130, target: 'Jul 18, 2026', targetNumeric: 200, icon: Calendar, trend: 'flat' as const, color: '#e879a0' },
 ];
 
 /* ─── Agent Signals (8-agent advisory board) ─── */
@@ -115,6 +126,189 @@ const quickLinks = [
   { label: 'Events', view: 'events', icon: Calendar, desc: 'Upcoming gatherings' },
 ];
 
+/* ─── Progress Ring Component ─── */
+function ProgressRing({ progress, color, size = 52, strokeWidth = 3.5 }: { progress: number; color: string; size?: number; strokeWidth?: number }) {
+  const radius = (size - strokeWidth) / 2;
+  const circumference = 2 * Math.PI * radius;
+  const [offset, setOffset] = useState(circumference);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setOffset(circumference - (progress / 100) * circumference);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [progress, circumference]);
+
+  return (
+    <svg width={size} height={size} style={{ transform: 'rotate(-90deg)', position: 'absolute', top: 0, right: 0 }}>
+      {/* Background ring */}
+      <circle
+        cx={size / 2}
+        cy={size / 2}
+        r={radius}
+        fill="none"
+        stroke="#1e2638"
+        strokeWidth={strokeWidth}
+      />
+      {/* Progress ring */}
+      <circle
+        cx={size / 2}
+        cy={size / 2}
+        r={radius}
+        fill="none"
+        stroke={color}
+        strokeWidth={strokeWidth}
+        strokeDasharray={circumference}
+        strokeDashoffset={offset}
+        strokeLinecap="round"
+        style={{
+          transition: 'stroke-dashoffset 1.2s cubic-bezier(0.4, 0, 0.2, 1)',
+          filter: `drop-shadow(0 0 4px ${color}66)`,
+        }}
+      />
+    </svg>
+  );
+}
+
+/* ─── Sparkline Component ─── */
+function Sparkline({ data, color, width = 80, height = 28 }: { data: number[]; color: string; width?: number; height?: number }) {
+  const min = Math.min(...data);
+  const max = Math.max(...data);
+  const range = max - min || 1;
+  const padding = 2;
+
+  const points = data.map((val, i) => {
+    const x = padding + (i / (data.length - 1)) * (width - padding * 2);
+    const y = height - padding - ((val - min) / range) * (height - padding * 2);
+    return `${x},${y}`;
+  }).join(' ');
+
+  // Area fill path (close at bottom)
+  const firstX = padding;
+  const lastX = padding + ((data.length - 1) / (data.length - 1)) * (width - padding * 2);
+  const areaPath = `M${firstX},${height} L${points.split(' ').map(p => p).join(' L')} L${lastX},${height} Z`;
+
+  const gradientId = `spark-${color.replace('#', '')}`;
+
+  return (
+    <svg width={width} height={height} style={{ display: 'block', overflow: 'visible' }}>
+      <defs>
+        <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor={color} stopOpacity="0.3" />
+          <stop offset="100%" stopColor={color} stopOpacity="0" />
+        </linearGradient>
+      </defs>
+      <path d={areaPath} fill={`url(#${gradientId})`} />
+      <polyline
+        points={points}
+        fill="none"
+        stroke={color}
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        style={{ filter: `drop-shadow(0 0 2px ${color}44)` }}
+      />
+      {/* End dot */}
+      <circle
+        cx={parseFloat(points.split(' ').pop()!.split(',')[0])}
+        cy={parseFloat(points.split(' ').pop()!.split(',')[1])}
+        r="2"
+        fill={color}
+        style={{ filter: `drop-shadow(0 0 3px ${color})` }}
+      />
+    </svg>
+  );
+}
+
+/* ─── Animated Counter Hook ─── */
+function useAnimatedCounter(target: number, duration: number = 1200, decimals: number = 0): number {
+  const [count, setCount] = useState(0);
+
+  useEffect(() => {
+    let startTime: number | null = null;
+    let animationFrame: number;
+
+    const animate = (timestamp: number) => {
+      if (!startTime) startTime = timestamp;
+      const elapsed = timestamp - startTime;
+      const progress = Math.min(elapsed / duration, 1);
+      // Ease out cubic
+      const eased = 1 - Math.pow(1 - progress, 3);
+      const current = eased * target;
+      setCount(parseFloat(current.toFixed(decimals)));
+
+      if (progress < 1) {
+        animationFrame = requestAnimationFrame(animate);
+      }
+    };
+
+    // Small delay so it starts after mount animation
+    const timer = setTimeout(() => {
+      animationFrame = requestAnimationFrame(animate);
+    }, 400);
+
+    return () => {
+      clearTimeout(timer);
+      if (animationFrame) cancelAnimationFrame(animationFrame);
+    };
+  }, [target, duration, decimals]);
+
+  return count;
+}
+
+/* ─── Animated KPI Value Display ─── */
+function AnimatedKpiValue({ kpi }: { kpi: typeof heroKpis[number] }) {
+  const decimals = kpi.label === 'Event NPS' ? 1 : 0;
+  const animatedValue = useAnimatedCounter(kpi.numericValue, 1400, decimals);
+
+  const prefix = kpi.prefix || (kpi.label === 'Well-Stewards' ? '~' : '');
+  const suffix = kpi.suffix || '';
+
+  return (
+    <span>
+      {prefix}{decimals > 0 ? animatedValue.toFixed(decimals) : Math.round(animatedValue)}{suffix}
+    </span>
+  );
+}
+
+/* ─── War Room Signal Count ─── */
+const urgentSignalCount = agentSignals.filter(s => s.level === 'critical' || s.level === 'warning').length;
+
+/* ─── Global Styles (injected once) ─── */
+const dashboardStyles = `
+  @keyframes dashboardPulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.4; }
+  }
+  @keyframes dashboardPulseRing {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(224, 96, 96, 0.4); }
+    50% { box-shadow: 0 0 0 4px rgba(224, 96, 96, 0); }
+  }
+  @keyframes warRoomPulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.5; transform: scale(0.85); }
+  }
+  @keyframes warRoomBorderShift {
+    0% { background-position: 0% 50%; }
+    50% { background-position: 100% 50%; }
+    100% { background-position: 0% 50%; }
+  }
+  .dashboard-card-enhanced {
+    transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1),
+                box-shadow 0.25s cubic-bezier(0.4, 0, 0.2, 1),
+                border-color 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  .dashboard-card-enhanced:hover {
+    transform: translateY(-2px) scale(1.015);
+  }
+  .signal-dot-critical {
+    animation: dashboardPulse 1.5s ease-in-out infinite;
+  }
+  .signal-dot-warning {
+    animation: dashboardPulse 2s ease-in-out infinite;
+  }
+`;
+
 /* ─── Component ─── */
 
 export function DashboardView({ onNavigate }: { onNavigate: (view: string) => void }) {
@@ -124,6 +318,92 @@ export function DashboardView({ onNavigate }: { onNavigate: (view: string) => vo
 
   return (
     <div ref={containerRef} className="space-y-8">
+      {/* Inject dashboard-specific styles */}
+      <style>{dashboardStyles}</style>
+
+      {/* ── War Room Summary Banner ── */}
+      <div
+        className="animate-fade-in"
+        style={{
+          position: 'relative',
+          borderRadius: 14,
+          padding: 2,
+          background: 'linear-gradient(135deg, #e06060, #e8b44c, #d4a574, #8b5cf6)',
+          backgroundSize: '300% 300%',
+          animation: 'warRoomBorderShift 6s ease infinite',
+          opacity: 0,
+        }}
+      >
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: 12,
+            padding: '12px 20px',
+            borderRadius: 12,
+            backgroundColor: '#131720',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <div style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <div
+                style={{
+                  width: 10,
+                  height: 10,
+                  borderRadius: '50%',
+                  backgroundColor: '#e06060',
+                  animation: 'warRoomPulse 1.5s ease-in-out infinite',
+                }}
+              />
+            </div>
+            <span style={{ fontSize: 13, fontWeight: 600, color: '#f0ebe4' }}>
+              {urgentSignalCount} signal{urgentSignalCount !== 1 ? 's' : ''} need attention
+            </span>
+            <div style={{ display: 'flex', gap: 6, marginLeft: 4 }}>
+              {agentSignals
+                .filter(s => s.level === 'critical' || s.level === 'warning')
+                .map((s, i) => (
+                  <span
+                    key={i}
+                    style={{
+                      fontSize: 10,
+                      fontWeight: 600,
+                      padding: '2px 8px',
+                      borderRadius: 999,
+                      backgroundColor: `${signalLevelColor[s.level]}18`,
+                      color: signalLevelColor[s.level],
+                    }}
+                  >
+                    {s.agent}
+                  </span>
+                ))}
+            </div>
+          </div>
+          <button
+            onClick={() => {
+              const el = document.getElementById('agent-signals-section');
+              if (el) el.scrollIntoView({ behavior: 'smooth' });
+            }}
+            style={{
+              fontSize: 11,
+              fontWeight: 500,
+              color: '#d4a574',
+              background: 'none',
+              border: 'none',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 4,
+              fontFamily: 'inherit',
+              padding: '4px 0',
+            }}
+          >
+            Review <ChevronRight size={12} />
+          </button>
+        </div>
+      </div>
+
       {/* ── Header ── */}
       <div className="animate-fade-in" style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16 }}>
         <div>
@@ -170,18 +450,51 @@ export function DashboardView({ onNavigate }: { onNavigate: (view: string) => vo
       >
         {heroKpis.map((kpi, i) => {
           const Icon = kpi.icon;
+          const progress = Math.min(Math.round((kpi.numericValue / kpi.targetNumeric) * 100), 100);
           return (
             <div
               key={kpi.label}
-              className="glow-card rounded-xl p-4 border animate-fade-in"
+              className="glow-card rounded-xl p-4 border animate-fade-in dashboard-card-enhanced"
               style={{
                 backgroundColor: '#131720',
                 borderColor: '#1e2638',
                 animationDelay: `${0.05 + i * 0.04}s`,
                 opacity: 0,
+                position: 'relative',
+                overflow: 'hidden',
+                // Hover glow is handled by inline pseudo-approach via boxShadow on hover
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.boxShadow = `0 0 20px ${kpi.color}25, 0 4px 16px rgba(0,0,0,0.3)`;
+                e.currentTarget.style.borderColor = `${kpi.color}50`;
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.boxShadow = 'none';
+                e.currentTarget.style.borderColor = '#1e2638';
               }}
             >
-              <div className="flex items-center justify-between mb-3">
+              {/* Progress Ring (top-right) */}
+              <div style={{ position: 'absolute', top: 10, right: 10 }}>
+                <ProgressRing progress={progress} color={kpi.color} size={44} strokeWidth={3} />
+                <div style={{
+                  position: 'absolute',
+                  top: 0,
+                  right: 0,
+                  width: 44,
+                  height: 44,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontSize: 9,
+                  fontWeight: 700,
+                  color: kpi.color,
+                  fontFamily: 'monospace',
+                }}>
+                  {progress}%
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between mb-3" style={{ paddingRight: 48 }}>
                 <div
                   className="w-9 h-9 rounded-lg flex items-center justify-center"
                   style={{ backgroundColor: `${kpi.color}15` }}
@@ -196,12 +509,16 @@ export function DashboardView({ onNavigate }: { onNavigate: (view: string) => vo
                 </div>
               </div>
               <div className="text-2xl font-bold text-text-primary tracking-tight">
-                {kpi.value}
+                <AnimatedKpiValue kpi={kpi} />
                 {kpi.label === 'Blue Spirit 6.0' && <span className="text-sm font-medium text-text-muted ml-1">days</span>}
               </div>
               <div className="text-xs text-text-muted mt-0.5">{kpi.label}</div>
               <div className="text-[11px] text-text-muted mt-1">
                 Target: <span className="text-text-secondary">{kpi.target}</span>
+              </div>
+              {/* Sparkline */}
+              <div style={{ marginTop: 8 }}>
+                <Sparkline data={sparklineData[i]} color={kpi.color} width={110} height={24} />
               </div>
             </div>
           );
@@ -209,7 +526,7 @@ export function DashboardView({ onNavigate }: { onNavigate: (view: string) => vo
       </div>
 
       {/* ── Agent Signals ── */}
-      <div className="animate-fade-in" style={{ animationDelay: '0.1s', opacity: 0 }}>
+      <div id="agent-signals-section" className="animate-fade-in" style={{ animationDelay: '0.1s', opacity: 0 }}>
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-lg font-semibold text-text-primary flex items-center gap-2">
             <Radio size={18} className="text-accent" />
@@ -226,10 +543,15 @@ export function DashboardView({ onNavigate }: { onNavigate: (view: string) => vo
           {agentSignals.map((signal, i) => {
             const SigIcon = signal.icon;
             const borderColor = signalLevelColor[signal.level];
+            const pulseClass = signal.level === 'critical'
+              ? 'signal-dot-critical'
+              : signal.level === 'warning'
+                ? 'signal-dot-warning'
+                : '';
             return (
               <div
                 key={i}
-                className="rounded-xl p-4 border flex items-start gap-3 animate-fade-in"
+                className="rounded-xl p-4 border flex items-start gap-3 animate-fade-in dashboard-card-enhanced"
                 style={{
                   backgroundColor: '#131720',
                   borderColor: '#1e2638',
@@ -237,6 +559,14 @@ export function DashboardView({ onNavigate }: { onNavigate: (view: string) => vo
                   borderLeftColor: borderColor,
                   animationDelay: `${0.12 + i * 0.04}s`,
                   opacity: 0,
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.boxShadow = `0 0 16px ${borderColor}20`;
+                  e.currentTarget.style.borderColor = '#1e2638';
+                  e.currentTarget.style.borderLeftColor = borderColor;
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.boxShadow = 'none';
                 }}
               >
                 <div
@@ -253,12 +583,24 @@ export function DashboardView({ onNavigate }: { onNavigate: (view: string) => vo
                     >
                       {signal.agent}
                     </span>
-                    <span
-                      className="text-[10px] font-medium uppercase tracking-wider"
-                      style={{ color: borderColor }}
-                    >
-                      {signal.level}
-                    </span>
+                    {/* Pulsing status dot */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                      <div
+                        className={pulseClass}
+                        style={{
+                          width: 6,
+                          height: 6,
+                          borderRadius: '50%',
+                          backgroundColor: borderColor,
+                        }}
+                      />
+                      <span
+                        className="text-[10px] font-medium uppercase tracking-wider"
+                        style={{ color: borderColor }}
+                      >
+                        {signal.level}
+                      </span>
+                    </div>
                   </div>
                   <p className="text-xs text-text-secondary leading-relaxed">{signal.message}</p>
                 </div>
@@ -291,12 +633,20 @@ export function DashboardView({ onNavigate }: { onNavigate: (view: string) => vo
             return (
               <div
                 key={okr.id}
-                className="glow-card rounded-xl p-5 border animate-fade-in"
+                className="glow-card rounded-xl p-5 border animate-fade-in dashboard-card-enhanced"
                 style={{
                   backgroundColor: '#131720',
                   borderColor: '#1e2638',
                   animationDelay: `${0.2 + i * 0.06}s`,
                   opacity: 0,
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.boxShadow = `0 0 20px ${cfg.text}20, 0 4px 16px rgba(0,0,0,0.2)`;
+                  e.currentTarget.style.borderColor = `${cfg.text}40`;
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.boxShadow = 'none';
+                  e.currentTarget.style.borderColor = '#1e2638';
                 }}
               >
                 <div className="flex items-start justify-between mb-3">
@@ -372,7 +722,7 @@ export function DashboardView({ onNavigate }: { onNavigate: (view: string) => vo
             return (
               <div
                 key={phase.id}
-                className="flex-shrink-0 rounded-xl p-4 border animate-fade-in"
+                className="flex-shrink-0 rounded-xl p-4 border animate-fade-in dashboard-card-enhanced"
                 style={{
                   width: 210,
                   backgroundColor: pCfg.bg || '#131720',
@@ -380,6 +730,14 @@ export function DashboardView({ onNavigate }: { onNavigate: (view: string) => vo
                   boxShadow: pCfg.glow !== 'none' ? `0 0 20px ${pCfg.glow}` : 'none',
                   animationDelay: `${0.35 + i * 0.06}s`,
                   opacity: 0,
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.boxShadow = `0 0 24px ${dotColor}30, 0 4px 16px rgba(0,0,0,0.2)`;
+                  e.currentTarget.style.borderColor = dotColor;
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.boxShadow = pCfg.glow !== 'none' ? `0 0 20px ${pCfg.glow}` : 'none';
+                  e.currentTarget.style.borderColor = pCfg.border;
                 }}
               >
                 <div className="flex items-center gap-2 mb-2">
@@ -433,7 +791,7 @@ export function DashboardView({ onNavigate }: { onNavigate: (view: string) => vo
             return (
               <div
                 key={node.id}
-                className="glow-card rounded-xl p-4 border cursor-pointer hover:border-border-2 transition-colors animate-fade-in"
+                className="glow-card rounded-xl p-4 border cursor-pointer transition-colors animate-fade-in dashboard-card-enhanced"
                 style={{
                   backgroundColor: '#131720',
                   borderColor: '#1e2638',
@@ -441,6 +799,14 @@ export function DashboardView({ onNavigate }: { onNavigate: (view: string) => vo
                   opacity: 0,
                 }}
                 onClick={() => onNavigate('nodes')}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.boxShadow = `0 0 20px ${nCfg.text}20, 0 4px 16px rgba(0,0,0,0.2)`;
+                  e.currentTarget.style.borderColor = `${nCfg.text}40`;
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.boxShadow = 'none';
+                  e.currentTarget.style.borderColor = '#1e2638';
+                }}
               >
                 <div className="flex items-center justify-between mb-3">
                   <div className="flex items-center gap-2.5">
@@ -510,12 +876,20 @@ export function DashboardView({ onNavigate }: { onNavigate: (view: string) => vo
           {upcomingEvents.map((evt, i) => (
             <div
               key={evt.id}
-              className="glow-card rounded-xl p-5 border animate-fade-in"
+              className="glow-card rounded-xl p-5 border animate-fade-in dashboard-card-enhanced"
               style={{
                 backgroundColor: '#131720',
                 borderColor: '#1e2638',
                 animationDelay: `${0.65 + i * 0.06}s`,
                 opacity: 0,
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.boxShadow = '0 0 20px rgba(139, 92, 246, 0.15), 0 4px 16px rgba(0,0,0,0.2)';
+                e.currentTarget.style.borderColor = 'rgba(139, 92, 246, 0.3)';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.boxShadow = 'none';
+                e.currentTarget.style.borderColor = '#1e2638';
               }}
             >
               <div className="flex items-start justify-between mb-2">
@@ -570,12 +944,20 @@ export function DashboardView({ onNavigate }: { onNavigate: (view: string) => vo
               <button
                 key={link.view}
                 onClick={() => onNavigate(link.view)}
-                className="glow-card rounded-xl p-4 border text-left hover:border-border-2 transition-all group animate-fade-in"
+                className="glow-card rounded-xl p-4 border text-left transition-all group animate-fade-in dashboard-card-enhanced"
                 style={{
                   backgroundColor: '#131720',
                   borderColor: '#1e2638',
                   animationDelay: `${0.8 + i * 0.04}s`,
                   opacity: 0,
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.boxShadow = '0 0 20px rgba(212, 165, 116, 0.15), 0 4px 16px rgba(0,0,0,0.2)';
+                  e.currentTarget.style.borderColor = 'rgba(212, 165, 116, 0.3)';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.boxShadow = 'none';
+                  e.currentTarget.style.borderColor = '#1e2638';
                 }}
               >
                 <Icon

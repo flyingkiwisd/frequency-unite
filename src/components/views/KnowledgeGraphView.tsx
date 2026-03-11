@@ -1,395 +1,421 @@
 'use client';
 
-import React, { useState, useMemo, useCallback } from 'react';
+import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import {
   Network,
-  Target,
-  Users,
-  AlertTriangle,
-  Scale,
   Globe,
-  Filter,
-  Link2,
-  CircleDot,
-  Maximize2,
+  TreePine,
+  Gem,
+  Megaphone,
+  Sprout,
+  BookOpen,
+  Users,
   Info,
+  Zap,
 } from 'lucide-react';
+import { nodes, teamMembers } from '@/lib/data';
+import type { Node, TeamMember } from '@/lib/data';
 
-// ─── Types ───
+// ─── Icon Mapping ───
 
-type EntityType = 'decision' | 'okr' | 'node' | 'person' | 'risk';
-
-interface GraphEntity {
-  id: string;
-  label: string;
-  type: EntityType;
-  description?: string;
-}
-
-interface GraphLink {
-  source: string;
-  target: string;
-  label: string;
-}
-
-// ─── Entity Type Config ───
-
-const entityTypeConfig: Record<
-  EntityType,
-  { label: string; plural: string; color: string; bgAlpha: string; icon: React.ElementType }
-> = {
-  decision: {
-    label: 'Decision',
-    plural: 'Decisions',
-    color: '#8b5cf6',
-    bgAlpha: 'rgba(139, 92, 246, 0.15)',
-    icon: Scale,
-  },
-  okr: {
-    label: 'OKR',
-    plural: 'OKRs',
-    color: '#d4a574',
-    bgAlpha: 'rgba(212, 165, 116, 0.15)',
-    icon: Target,
-  },
-  node: {
-    label: 'Node',
-    plural: 'Nodes',
-    color: '#34d399',
-    bgAlpha: 'rgba(52, 211, 153, 0.15)',
-    icon: Globe,
-  },
-  person: {
-    label: 'Person',
-    plural: 'People',
-    color: '#38bdf8',
-    bgAlpha: 'rgba(56, 189, 248, 0.15)',
-    icon: Users,
-  },
-  risk: {
-    label: 'Risk',
-    plural: 'Risks',
-    color: '#f43f5e',
-    bgAlpha: 'rgba(244, 63, 94, 0.15)',
-    icon: AlertTriangle,
-  },
+const iconMap: Record<string, React.ElementType> = {
+  Globe,
+  TreePine,
+  Gem,
+  Megaphone,
+  Sprout,
+  BookOpen,
 };
 
-// ─── Mock Data: Entities ───
+// ─── Color extraction from node data ───
 
-const entities: GraphEntity[] = [
-  // Nodes (6)
-  { id: 'n-map', label: 'Map', type: 'node', description: 'Geographic mapping of conscious economy projects worldwide' },
-  { id: 'n-bioregions', label: 'Bioregions', type: 'node', description: 'Place-based regenerative economic pilots in bioregional contexts' },
-  { id: 'n-capital', label: 'Capital', type: 'node', description: 'DAF-powered conscious capital deployment and deal flow' },
-  { id: 'n-megaphone', label: 'Megaphone', type: 'node', description: 'Content, media, and distribution amplifying the conscious economy' },
-  { id: 'n-cap2', label: 'Cap 2.0', type: 'node', description: 'Reimagining capitalism through new economic models and theory' },
-  { id: 'n-thesis', label: 'Thesis', type: 'node', description: 'Thesis of Change scoring rubric for investment evaluation' },
-
-  // OKRs (5)
-  { id: 'o-stewards', label: 'Build 144 stewards', type: 'okr', description: 'Enroll 144 founding stewards by end of Q2 2026' },
-  { id: 'o-daf', label: 'Operationalize DAF', type: 'okr', description: 'Deploy first tranche of DAF capital into aligned deals' },
-  { id: 'o-nodes', label: 'Activate nodes', type: 'okr', description: 'Get all 6 nodes to active status with leads and OKRs' },
-  { id: 'o-bluespirit', label: 'Blue Spirit', type: 'okr', description: 'Execute Blue Spirit retreat with measurable community outcomes' },
-  { id: 'o-ops', label: 'Stabilize ops', type: 'okr', description: 'Hire fractional PM and establish operational cadence' },
-
-  // Decisions (7)
-  { id: 'd-teal', label: 'Teal governance', type: 'decision', description: 'Adopt teal self-management governance model organization-wide' },
-  { id: 'd-daf', label: 'DAF approved', type: 'decision', description: 'Approved donor-advised fund structure through fiscal sponsor' },
-  { id: 'd-pricing', label: 'Membership pricing', type: 'decision', description: 'Set individual membership tiers at $144/mo, $1,440/yr, $14,400 lifetime' },
-  { id: 'd-hemisphere', label: 'Two-hemisphere model', type: 'decision', description: 'Structure org into Being (nonprofit) and Doing (capital) hemispheres' },
-  { id: 'd-bluespirit', label: 'Blue Spirit confirmed', type: 'decision', description: 'Confirmed Blue Spirit retreat venue and dates for Q2 2026' },
-  { id: 'd-ceo', label: 'CEO search', type: 'decision', description: 'Initiate search for CEO to lead operational execution' },
-  { id: 'd-accountability', label: 'Node accountability', type: 'decision', description: 'Require quarterly OKR reporting from all node leads' },
-
-  // People (5)
-  { id: 'p-james', label: 'James', type: 'person', description: 'Founder and visionary leader driving Frequency\'s mission' },
-  { id: 'p-sian', label: 'Sian', type: 'person', description: 'Core team, operations and community orchestration' },
-  { id: 'p-fairman', label: 'Fairman', type: 'person', description: 'Core team, governance and strategic counsel' },
-  { id: 'p-greg', label: 'Greg', type: 'person', description: 'Capital node lead, investment and deal evaluation' },
-  { id: 'p-dave', label: 'Dave', type: 'person', description: 'Community lead, pods and enrollment strategy' },
-
-  // Risks (4)
-  { id: 'r-runway', label: 'Cash runway < 6 months', type: 'risk', description: 'Operating reserves projected to last less than 6 months at current burn' },
-  { id: 'r-keyperson', label: 'Key person dependency on Sian', type: 'risk', description: 'Critical operational knowledge concentrated in one team member' },
-  { id: 'r-bluespirit', label: 'Blue Spirit undersells', type: 'risk', description: 'Retreat fails to meet enrollment targets, creating financial shortfall' },
-  { id: 'r-parttime', label: 'Node leads part-time only', type: 'risk', description: 'All node leads operating part-time, limiting execution velocity' },
-];
-
-// ─── Mock Data: Links ───
-
-const links: GraphLink[] = [
-  // DAF → Capital → Greg → OKR chain
-  { source: 'd-daf', target: 'n-capital', label: 'Establishes funding vehicle for' },
-  { source: 'n-capital', target: 'p-greg', label: 'Led by' },
-  { source: 'p-greg', target: 'o-daf', label: 'Owns objective' },
-  { source: 'o-daf', target: 'n-capital', label: 'Activates' },
-
-  // Teal governance connections
-  { source: 'd-teal', target: 'p-james', label: 'Championed by' },
-  { source: 'd-teal', target: 'p-fairman', label: 'Advised by' },
-  { source: 'd-teal', target: 'd-hemisphere', label: 'Enables' },
-  { source: 'd-teal', target: 'd-accountability', label: 'Requires' },
-
-  // Two-hemisphere model connections
-  { source: 'd-hemisphere', target: 'n-capital', label: 'Structures Doing side' },
-  { source: 'd-hemisphere', target: 'n-thesis', label: 'Grounds Being side in' },
-
-  // Membership & Stewards
-  { source: 'd-pricing', target: 'o-stewards', label: 'Defines economics for' },
-  { source: 'o-stewards', target: 'p-dave', label: 'Owned by' },
-  { source: 'p-dave', target: 'n-megaphone', label: 'Amplifies through' },
-
-  // Blue Spirit connections
-  { source: 'd-bluespirit', target: 'o-bluespirit', label: 'Drives' },
-  { source: 'o-bluespirit', target: 'p-sian', label: 'Coordinated by' },
-  { source: 'r-bluespirit', target: 'o-bluespirit', label: 'Threatens' },
-  { source: 'r-bluespirit', target: 'r-runway', label: 'Could worsen' },
-
-  // Node activation chain
-  { source: 'o-nodes', target: 'n-map', label: 'Activates' },
-  { source: 'o-nodes', target: 'n-bioregions', label: 'Activates' },
-  { source: 'o-nodes', target: 'n-megaphone', label: 'Activates' },
-  { source: 'o-nodes', target: 'n-cap2', label: 'Activates' },
-  { source: 'd-accountability', target: 'o-nodes', label: 'Holds accountable' },
-
-  // Operations & CEO
-  { source: 'o-ops', target: 'p-sian', label: 'Depends on' },
-  { source: 'd-ceo', target: 'o-ops', label: 'Will resolve' },
-  { source: 'd-ceo', target: 'p-james', label: 'Initiated by' },
-
-  // Risk connections
-  { source: 'r-runway', target: 'o-ops', label: 'Pressures' },
-  { source: 'r-runway', target: 'd-pricing', label: 'Urgency for' },
-  { source: 'r-keyperson', target: 'p-sian', label: 'Concerns' },
-  { source: 'r-keyperson', target: 'd-ceo', label: 'Motivates' },
-  { source: 'r-parttime', target: 'o-nodes', label: 'Slows' },
-  { source: 'r-parttime', target: 'r-runway', label: 'Compounds' },
-
-  // Cross-node dependencies
-  { source: 'n-thesis', target: 'n-capital', label: 'Scoring rubric feeds' },
-  { source: 'n-capital', target: 'n-map', label: 'Funded projects mapped by' },
-  { source: 'n-map', target: 'n-bioregions', label: 'Geography informs' },
-  { source: 'n-megaphone', target: 'n-capital', label: 'Amplifies deal flow for' },
-  { source: 'n-cap2', target: 'n-thesis', label: 'Theory grounds' },
-
-  // James connections
-  { source: 'p-james', target: 'n-thesis', label: 'Leads' },
-  { source: 'p-james', target: 'o-stewards', label: 'Vision for' },
-
-  // Sian connections
-  { source: 'p-sian', target: 'n-bioregions', label: 'Supports' },
-
-  // Fairman connections
-  { source: 'p-fairman', target: 'd-hemisphere', label: 'Counsels on' },
-];
-
-// ─── Radial Layout ───
-
-function computeLayout(
-  items: GraphEntity[],
-  activeFilters: Set<EntityType>,
-  centerX: number,
-  centerY: number
-): Map<string, { x: number; y: number }> {
-  const positions = new Map<string, { x: number; y: number }>();
-  const filtered = items.filter((e) => activeFilters.has(e.type));
-
-  // Group by type for radial clusters
-  const groups: Record<EntityType, GraphEntity[]> = {
-    decision: [],
-    okr: [],
-    node: [],
-    person: [],
-    risk: [],
+function getNodeHex(node: Node): string {
+  const colorMap: Record<string, string> = {
+    'text-violet-400': '#a78bfa',
+    'text-emerald-400': '#34d399',
+    'text-amber-400': '#fbbf24',
+    'text-orange-400': '#fb923c',
+    'text-teal-400': '#2dd4bf',
+    'text-purple-400': '#c084fc',
   };
-  filtered.forEach((e) => groups[e.type].push(e));
+  return colorMap[node.color] || '#d4a574';
+}
 
-  const activeTypes = (Object.keys(groups) as EntityType[]).filter(
-    (t) => groups[t].length > 0
-  );
+function getMemberColor(member: TeamMember): string {
+  const colorMap: Record<string, string> = {
+    'bg-amber-500': '#f59e0b',
+    'bg-rose-400': '#fb7185',
+    'bg-violet-500': '#8b5cf6',
+    'bg-sky-400': '#38bdf8',
+    'bg-emerald-500': '#10b981',
+    'bg-purple-500': '#a855f7',
+    'bg-pink-400': '#f472b6',
+    'bg-teal-400': '#2dd4bf',
+    'bg-amber-400': '#fbbf24',
+    'bg-green-500': '#22c55e',
+    'bg-lime-500': '#84cc16',
+    'bg-orange-500': '#f97316',
+    'bg-indigo-400': '#818cf8',
+    'bg-slate-400': '#94a3b8',
+  };
+  return colorMap[member.color] || '#a09888';
+}
 
-  // Distribute type clusters around center
-  activeTypes.forEach((type, typeIndex) => {
-    const clusterAngle = (typeIndex / activeTypes.length) * 2 * Math.PI - Math.PI / 2;
-    const clusterRadius = 220;
-    const clusterCenterX = centerX + Math.cos(clusterAngle) * clusterRadius;
-    const clusterCenterY = centerY + Math.sin(clusterAngle) * clusterRadius;
+// ─── Relationship types ───
 
-    const items = groups[type];
-    if (items.length === 1) {
-      positions.set(items[0].id, { x: clusterCenterX, y: clusterCenterY });
-    } else {
-      // Spread items in a smaller arc around the cluster center
-      const spreadRadius = Math.min(70 + items.length * 12, 120);
-      items.forEach((item, i) => {
-        const itemAngle = clusterAngle + ((i - (items.length - 1) / 2) * 0.45);
-        positions.set(item.id, {
-          x: clusterCenterX + Math.cos(itemAngle) * spreadRadius,
-          y: clusterCenterY + Math.sin(itemAngle) * spreadRadius,
-        });
+type RelationType = 'leads' | 'supports' | 'node-link';
+
+interface GraphRelation {
+  sourceId: string;
+  targetId: string;
+  type: RelationType;
+  label: string;
+}
+
+// ─── Build graph data from real data ───
+
+function buildRelations(): GraphRelation[] {
+  const relations: GraphRelation[] = [];
+
+  // Node-to-node cross-dependencies
+  const nodeDeps: { from: string; to: string; label: string }[] = [
+    { from: 'thesis', to: 'capital', label: 'Scoring rubric' },
+    { from: 'capital', to: 'map', label: 'Funded projects' },
+    { from: 'map', to: 'bioregions', label: 'Geography data' },
+    { from: 'megaphone', to: 'capital', label: 'Amplification' },
+    { from: 'capitalism2', to: 'thesis', label: 'Theory input' },
+    { from: 'map', to: 'megaphone', label: 'Story mapping' },
+  ];
+
+  nodeDeps.forEach((dep) => {
+    relations.push({
+      sourceId: `node-${dep.from}`,
+      targetId: `node-${dep.to}`,
+      type: 'node-link',
+      label: dep.label,
+    });
+  });
+
+  // Team member leads node
+  nodes.forEach((node) => {
+    node.leads.forEach((leadId) => {
+      relations.push({
+        sourceId: `member-${leadId}`,
+        targetId: `node-${node.id}`,
+        type: 'leads',
+        label: 'leads',
+      });
+    });
+  });
+
+  // Additional support connections for key team members
+  const supportLinks: { memberId: string; nodeId: string }[] = [
+    { memberId: 'sian', nodeId: 'bioregions' },
+    { memberId: 'james', nodeId: 'thesis' },
+    { memberId: 'dave', nodeId: 'megaphone' },
+    { memberId: 'colleen', nodeId: 'capital' },
+    { memberId: 'max', nodeId: 'megaphone' },
+  ];
+
+  supportLinks.forEach((link) => {
+    // Don't add duplicate if already a lead
+    const node = nodes.find((n) => n.id === link.nodeId);
+    if (node && !node.leads.includes(link.memberId)) {
+      relations.push({
+        sourceId: `member-${link.memberId}`,
+        targetId: `node-${link.nodeId}`,
+        type: 'supports',
+        label: 'supports',
       });
     }
+  });
+
+  return relations;
+}
+
+// ─── Layout computation ───
+
+interface PositionedEntity {
+  id: string;
+  x: number;
+  y: number;
+  type: 'node' | 'member';
+  data: Node | TeamMember;
+}
+
+function computeRadialLayout(
+  centerX: number,
+  centerY: number,
+  nodeRadius: number,
+  memberRadius: number
+): PositionedEntity[] {
+  const positions: PositionedEntity[] = [];
+
+  // Place 6 nodes as main hubs in a ring
+  nodes.forEach((node, index) => {
+    const angle = (index / nodes.length) * 2 * Math.PI - Math.PI / 2;
+    positions.push({
+      id: `node-${node.id}`,
+      x: centerX + Math.cos(angle) * nodeRadius,
+      y: centerY + Math.sin(angle) * nodeRadius,
+      type: 'node',
+      data: node,
+    });
+  });
+
+  // Place team members orbiting around the nodes they lead/support
+  const relations = buildRelations();
+  const memberNodes = new Map<string, { nodeIds: string[]; angles: number[] }>();
+
+  // Gather which nodes each member connects to
+  teamMembers.forEach((member) => {
+    const connectedNodeIds: string[] = [];
+    relations.forEach((r) => {
+      if (r.sourceId === `member-${member.id}` && r.targetId.startsWith('node-')) {
+        connectedNodeIds.push(r.targetId);
+      }
+    });
+    if (connectedNodeIds.length > 0) {
+      memberNodes.set(member.id, { nodeIds: connectedNodeIds, angles: [] });
+    }
+  });
+
+  // For each member, place them near their primary node
+  const nodePositionMap = new Map<string, { x: number; y: number }>();
+  positions.forEach((p) => {
+    if (p.type === 'node') {
+      nodePositionMap.set(p.id, { x: p.x, y: p.y });
+    }
+  });
+
+  // Track how many members orbit each node to space them
+  const nodeOrbitCounters = new Map<string, number>();
+
+  teamMembers.forEach((member) => {
+    const info = memberNodes.get(member.id);
+    if (!info || info.nodeIds.length === 0) return;
+
+    const primaryNodeId = info.nodeIds[0];
+    const nodePos = nodePositionMap.get(primaryNodeId);
+    if (!nodePos) return;
+
+    const count = nodeOrbitCounters.get(primaryNodeId) || 0;
+    nodeOrbitCounters.set(primaryNodeId, count + 1);
+
+    // Calculate angle from center to this node, then offset for orbit
+    const nodeAngle = Math.atan2(nodePos.y - centerY, nodePos.x - centerX);
+    const orbitAngle = nodeAngle + (count - 1) * 0.5 - 0.25;
+    const orbitDist = 75 + (count % 2) * 20;
+
+    positions.push({
+      id: `member-${member.id}`,
+      x: nodePos.x + Math.cos(orbitAngle) * orbitDist,
+      y: nodePos.y + Math.sin(orbitAngle) * orbitDist,
+      type: 'member',
+      data: member,
+    });
   });
 
   return positions;
 }
 
+// ─── Relation colors ───
+
+const relationColors: Record<RelationType, string> = {
+  leads: '#d4a574',
+  supports: '#8b5cf6',
+  'node-link': '#6b8f71',
+};
+
+// ─── CSS Keyframes (injected once) ───
+
+const KEYFRAMES_ID = 'kg-view-keyframes';
+
+function injectKeyframes() {
+  if (typeof document === 'undefined') return;
+  if (document.getElementById(KEYFRAMES_ID)) return;
+  const style = document.createElement('style');
+  style.id = KEYFRAMES_ID;
+  style.textContent = `
+    @keyframes kg-dash-flow {
+      to { stroke-dashoffset: -40; }
+    }
+    @keyframes kg-pulse-glow {
+      0%, 100% { opacity: 0.3; r: 38; }
+      50% { opacity: 0.6; r: 44; }
+    }
+    @keyframes kg-node-breathe {
+      0%, 100% { transform: scale(1); }
+      50% { transform: scale(1.03); }
+    }
+    @keyframes kg-fade-in {
+      from { opacity: 0; transform: translateY(8px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    @keyframes kg-orbit-pulse {
+      0%, 100% { opacity: 0.15; }
+      50% { opacity: 0.35; }
+    }
+    @keyframes kg-connection-particle {
+      0% { offset-distance: 0%; opacity: 0; }
+      10% { opacity: 1; }
+      90% { opacity: 1; }
+      100% { offset-distance: 100%; opacity: 0; }
+    }
+  `;
+  document.head.appendChild(style);
+}
+
 // ─── Component ───
 
 export function KnowledgeGraphView() {
-  const [selectedEntity, setSelectedEntity] = useState<string | null>(null);
-  const [activeFilters, setActiveFilters] = useState<Set<EntityType>>(
-    new Set(['decision', 'okr', 'node', 'person', 'risk'])
-  );
   const [hoveredEntity, setHoveredEntity] = useState<string | null>(null);
+  const [selectedEntity, setSelectedEntity] = useState<string | null>(null);
+  const [animationTick, setAnimationTick] = useState(0);
+  const svgRef = useRef<SVGSVGElement>(null);
 
-  const graphWidth = 700;
-  const graphHeight = 620;
+  useEffect(() => {
+    injectKeyframes();
+  }, []);
+
+  // Slow animation tick for subtle ambient effects
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setAnimationTick((t) => (t + 1) % 360);
+    }, 100);
+    return () => clearInterval(interval);
+  }, []);
+
+  const graphWidth = 900;
+  const graphHeight = 750;
   const centerX = graphWidth / 2;
   const centerY = graphHeight / 2;
 
-  // Compute positions
+  const relations = useMemo(() => buildRelations(), []);
+
   const positions = useMemo(
-    () => computeLayout(entities, activeFilters, centerX, centerY),
-    [activeFilters, centerX, centerY]
+    () => computeRadialLayout(centerX, centerY, 220, 310),
+    [centerX, centerY]
   );
 
-  // Visible entities and links
-  const visibleEntities = useMemo(
-    () => entities.filter((e) => activeFilters.has(e.type)),
-    [activeFilters]
+  const positionMap = useMemo(() => {
+    const map = new Map<string, PositionedEntity>();
+    positions.forEach((p) => map.set(p.id, p));
+    return map;
+  }, [positions]);
+
+  // Determine connected entities for hover/select highlighting
+  const getConnectedIds = useCallback(
+    (entityId: string): Set<string> => {
+      const connected = new Set<string>();
+      connected.add(entityId);
+      relations.forEach((r) => {
+        if (r.sourceId === entityId) connected.add(r.targetId);
+        if (r.targetId === entityId) connected.add(r.sourceId);
+      });
+      return connected;
+    },
+    [relations]
   );
 
-  const visibleLinks = useMemo(
-    () =>
-      links.filter(
-        (l) => positions.has(l.source) && positions.has(l.target)
-      ),
-    [positions]
+  const activeEntityId = hoveredEntity || selectedEntity;
+  const connectedSet = useMemo(
+    () => (activeEntityId ? getConnectedIds(activeEntityId) : null),
+    [activeEntityId, getConnectedIds]
   );
 
-  // Selected entity data
-  const selectedData = useMemo(() => {
-    if (!selectedEntity) return null;
-    const entity = entities.find((e) => e.id === selectedEntity);
-    if (!entity) return null;
-    const connected = links
-      .filter((l) => l.source === selectedEntity || l.target === selectedEntity)
-      .map((l) => {
-        const otherId = l.source === selectedEntity ? l.target : l.source;
-        const other = entities.find((e) => e.id === otherId);
-        return {
-          entity: other,
-          link: l,
-          direction: l.source === selectedEntity ? 'outgoing' : 'incoming',
-        };
+  // Detail panel data
+  const detailEntity = useMemo(() => {
+    const id = selectedEntity || hoveredEntity;
+    if (!id) return null;
+    const pos = positionMap.get(id);
+    if (!pos) return null;
+
+    const connections = relations
+      .filter((r) => r.sourceId === id || r.targetId === id)
+      .map((r) => {
+        const otherId = r.sourceId === id ? r.targetId : r.sourceId;
+        const otherPos = positionMap.get(otherId);
+        return { relation: r, other: otherPos };
       })
-      .filter((c) => c.entity && activeFilters.has(c.entity.type));
-    return { entity, connected };
-  }, [selectedEntity, activeFilters]);
+      .filter((c) => c.other);
 
-  // Stats
-  const stats = useMemo(() => {
-    const connectionCount = new Map<string, number>();
-    visibleEntities.forEach((e) => connectionCount.set(e.id, 0));
-    visibleLinks.forEach((l) => {
-      connectionCount.set(l.source, (connectionCount.get(l.source) ?? 0) + 1);
-      connectionCount.set(l.target, (connectionCount.get(l.target) ?? 0) + 1);
-    });
+    return { entity: pos, connections };
+  }, [selectedEntity, hoveredEntity, positionMap, relations]);
 
-    let mostConnected = { id: '', count: 0 };
-    let orphanCount = 0;
-    connectionCount.forEach((count, id) => {
-      if (count > mostConnected.count) {
-        mostConnected = { id, count };
-      }
-      if (count === 0) orphanCount++;
-    });
-
-    const mostConnectedEntity = entities.find((e) => e.id === mostConnected.id);
-
-    return {
-      totalEntities: visibleEntities.length,
-      totalLinks: visibleLinks.length,
-      mostConnected: mostConnectedEntity
-        ? `${mostConnectedEntity.label} (${mostConnected.count})`
-        : 'N/A',
-      orphanCount,
-    };
-  }, [visibleEntities, visibleLinks]);
-
-  // Toggle filter
-  const toggleFilter = useCallback((type: EntityType) => {
-    setActiveFilters((prev) => {
-      const next = new Set(prev);
-      if (next.has(type)) {
-        if (next.size > 1) next.delete(type);
-      } else {
-        next.add(type);
-      }
-      return next;
-    });
-  }, []);
-
-  // Check if an entity is connected to selected
-  const isConnectedToSelected = useCallback(
-    (entityId: string): boolean => {
-      if (!selectedEntity) return false;
-      return links.some(
-        (l) =>
-          (l.source === selectedEntity && l.target === entityId) ||
-          (l.target === selectedEntity && l.source === entityId)
-      );
+  // ─── SVG path for curved connection lines ───
+  const getCurvedPath = useCallback(
+    (x1: number, y1: number, x2: number, y2: number): string => {
+      const dx = x2 - x1;
+      const dy = y2 - y1;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      const curvature = dist * 0.15;
+      const mx = (x1 + x2) / 2;
+      const my = (y1 + y2) / 2;
+      // Perpendicular offset for curve
+      const nx = -dy / dist;
+      const ny = dx / dist;
+      const cx = mx + nx * curvature;
+      const cy = my + ny * curvature;
+      return `M ${x1} ${y1} Q ${cx} ${cy} ${x2} ${y2}`;
     },
-    [selectedEntity]
-  );
-
-  // Check if a link is connected to selected
-  const isLinkHighlighted = useCallback(
-    (link: GraphLink): boolean => {
-      if (!selectedEntity) return true;
-      return link.source === selectedEntity || link.target === selectedEntity;
-    },
-    [selectedEntity]
+    []
   );
 
   return (
-    <div style={{ padding: '32px 24px', maxWidth: 1200, margin: '0 auto' }}>
+    <div style={{ padding: '32px 24px', maxWidth: 1300, margin: '0 auto' }}>
       {/* Header */}
-      <div style={{ marginBottom: 32 }}>
+      <div
+        style={{
+          marginBottom: 28,
+          animation: 'kg-fade-in 0.5s ease both',
+        }}
+      >
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 6 }}>
-          <Network size={24} style={{ color: '#8b5cf6' }} />
-          <h1
+          <div
             style={{
-              fontSize: 24,
-              fontWeight: 700,
-              color: '#f0ebe4',
-              margin: 0,
+              width: 40,
+              height: 40,
+              borderRadius: 12,
+              background: 'linear-gradient(135deg, rgba(139, 92, 246, 0.2), rgba(212, 165, 116, 0.2))',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
             }}
           >
-            Knowledge Graph
-          </h1>
+            <Network size={22} style={{ color: '#8b5cf6' }} />
+          </div>
+          <div>
+            <h1 style={{ fontSize: 26, fontWeight: 800, color: '#f0ebe4', margin: 0, letterSpacing: '-0.02em' }}>
+              Knowledge Graph
+            </h1>
+            <p style={{ fontSize: 14, color: '#a09888', margin: 0 }}>
+              A living network of nodes, people, and relationships powering the Frequency ecosystem
+            </p>
+          </div>
         </div>
-        <p style={{ fontSize: 14, color: '#a09888', margin: 0, paddingLeft: 36 }}>
-          Visualizing relationships between decisions, objectives, nodes, people, and risks across the Frequency ecosystem
-        </p>
       </div>
 
-      {/* Stats Row */}
+      {/* Stats summary */}
       <div
         style={{
           display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))',
           gap: 12,
           marginBottom: 24,
+          animation: 'kg-fade-in 0.6s ease 0.1s both',
         }}
       >
         {[
-          { label: 'Total Entities', value: stats.totalEntities, color: '#d4a574', icon: CircleDot },
-          { label: 'Total Links', value: stats.totalLinks, color: '#8b5cf6', icon: Link2 },
-          { label: 'Most Connected', value: stats.mostConnected, color: '#34d399', icon: Maximize2 },
-          { label: 'Orphan Count', value: stats.orphanCount, color: '#f43f5e', icon: AlertTriangle },
+          { label: 'Active Nodes', value: nodes.length, color: '#6b8f71', icon: Zap },
+          { label: 'Team Members', value: teamMembers.length, color: '#38bdf8', icon: Users },
+          { label: 'Connections', value: relations.length, color: '#8b5cf6', icon: Network },
+          {
+            label: 'Avg Progress',
+            value: `${Math.round(nodes.reduce((s, n) => s + n.progress, 0) / nodes.length)}%`,
+            color: '#d4a574',
+            icon: Globe,
+          },
         ].map((stat) => (
           <div
             key={stat.label}
@@ -408,7 +434,7 @@ export function KnowledgeGraphView() {
                 width: 36,
                 height: 36,
                 borderRadius: 10,
-                backgroundColor: `${stat.color}12`,
+                backgroundColor: `${stat.color}15`,
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
@@ -417,480 +443,810 @@ export function KnowledgeGraphView() {
             >
               <stat.icon size={18} style={{ color: stat.color }} />
             </div>
-            <div style={{ minWidth: 0 }}>
-              <div
-                style={{
-                  fontSize: typeof stat.value === 'number' ? 20 : 14,
-                  fontWeight: 700,
-                  color: '#f0ebe4',
-                  whiteSpace: 'nowrap',
-                  overflow: 'hidden',
-                  textOverflow: 'ellipsis',
-                }}
-              >
-                {stat.value}
-              </div>
+            <div>
+              <div style={{ fontSize: 20, fontWeight: 700, color: '#f0ebe4' }}>{stat.value}</div>
               <div style={{ fontSize: 11, color: '#6b6358' }}>{stat.label}</div>
             </div>
           </div>
         ))}
       </div>
 
-      {/* Filter Bar */}
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: 8,
-          marginBottom: 20,
-          flexWrap: 'wrap',
-        }}
-      >
-        <Filter size={16} style={{ color: '#6b6358', flexShrink: 0 }} />
-        <span style={{ fontSize: 12, fontWeight: 600, color: '#6b6358', marginRight: 4 }}>
-          Filter:
-        </span>
-        {(Object.keys(entityTypeConfig) as EntityType[]).map((type) => {
-          const config = entityTypeConfig[type];
-          const isActive = activeFilters.has(type);
-          const count = entities.filter((e) => e.type === type).length;
-          return (
-            <button
-              key={type}
-              onClick={() => toggleFilter(type)}
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: 6,
-                padding: '5px 12px',
-                borderRadius: 8,
-                border: `1px solid ${isActive ? config.color + '50' : '#1e2638'}`,
-                backgroundColor: isActive ? config.bgAlpha : 'transparent',
-                color: isActive ? config.color : '#6b6358',
-                fontSize: 12,
-                fontWeight: 600,
-                cursor: 'pointer',
-                transition: 'all 0.15s ease',
-                fontFamily: 'inherit',
-              }}
-            >
-              <config.icon size={13} />
-              {config.plural}
-              <span
-                style={{
-                  fontSize: 10,
-                  opacity: 0.7,
-                  backgroundColor: isActive ? `${config.color}20` : 'rgba(255,255,255,0.04)',
-                  borderRadius: 6,
-                  padding: '1px 6px',
-                }}
-              >
-                {count}
-              </span>
-            </button>
-          );
-        })}
-      </div>
-
       {/* Main Content: Graph + Detail Panel */}
       <div
         style={{
           display: 'grid',
-          gridTemplateColumns: selectedData ? '1fr 320px' : '1fr',
+          gridTemplateColumns: detailEntity ? '1fr 340px' : '1fr',
           gap: 16,
-          transition: 'grid-template-columns 0.2s ease',
+          transition: 'grid-template-columns 0.3s ease',
+          animation: 'kg-fade-in 0.7s ease 0.2s both',
         }}
       >
         {/* Graph Container */}
         <div
           style={{
-            backgroundColor: '#131720',
+            backgroundColor: '#0d1018',
             border: '1px solid #1e2638',
-            borderRadius: 14,
+            borderRadius: 16,
             overflow: 'hidden',
             position: 'relative',
           }}
         >
-          {/* Graph Legend */}
+          {/* Ambient corner glows */}
           <div
             style={{
               position: 'absolute',
-              top: 14,
-              left: 14,
-              display: 'flex',
-              flexDirection: 'column',
-              gap: 4,
+              top: -80,
+              left: -80,
+              width: 250,
+              height: 250,
+              borderRadius: '50%',
+              background: 'radial-gradient(circle, rgba(139, 92, 246, 0.06) 0%, transparent 70%)',
+              pointerEvents: 'none',
+            }}
+          />
+          <div
+            style={{
+              position: 'absolute',
+              bottom: -80,
+              right: -80,
+              width: 250,
+              height: 250,
+              borderRadius: '50%',
+              background: 'radial-gradient(circle, rgba(212, 165, 116, 0.06) 0%, transparent 70%)',
+              pointerEvents: 'none',
+            }}
+          />
+
+          {/* Legend */}
+          <div
+            style={{
+              position: 'absolute',
+              top: 16,
+              left: 16,
               zIndex: 5,
-              backgroundColor: 'rgba(19, 23, 32, 0.9)',
-              borderRadius: 8,
-              padding: '10px 12px',
+              backgroundColor: 'rgba(13, 16, 24, 0.92)',
+              backdropFilter: 'blur(8px)',
+              borderRadius: 12,
+              padding: '14px 16px',
               border: '1px solid #1e2638',
             }}
           >
-            {(Object.keys(entityTypeConfig) as EntityType[])
-              .filter((t) => activeFilters.has(t))
-              .map((type) => {
-                const config = entityTypeConfig[type];
-                return (
-                  <div key={type} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                    <div
-                      style={{
-                        width: 8,
-                        height: 8,
-                        borderRadius: '50%',
-                        backgroundColor: config.color,
-                      }}
-                    />
-                    <span style={{ fontSize: 10, color: '#a09888' }}>{config.plural}</span>
-                  </div>
-                );
-              })}
+            <div style={{ fontSize: 10, fontWeight: 700, color: '#6b6358', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 10 }}>
+              Legend
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {/* Node types */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <div style={{ width: 18, height: 18, borderRadius: 6, border: '2px solid #6b8f71', background: 'rgba(107, 143, 113, 0.15)' }} />
+                <span style={{ fontSize: 11, color: '#a09888' }}>Frequency Node</span>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <div style={{ width: 18, height: 18, borderRadius: '50%', border: '2px solid #38bdf8', background: 'rgba(56, 189, 248, 0.15)' }} />
+                <span style={{ fontSize: 11, color: '#a09888' }}>Team Member</span>
+              </div>
+              <div style={{ height: 1, backgroundColor: '#1e2638', margin: '4px 0' }} />
+              {/* Relationship types */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <div style={{ width: 18, height: 2, backgroundColor: '#d4a574', borderRadius: 1 }} />
+                <span style={{ fontSize: 11, color: '#a09888' }}>Leads</span>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <div style={{ width: 18, height: 2, backgroundColor: '#8b5cf6', borderRadius: 1, opacity: 0.6 }} />
+                <span style={{ fontSize: 11, color: '#a09888' }}>Supports</span>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <div style={{ width: 18, height: 2, backgroundColor: '#6b8f71', borderRadius: 1 }} />
+                <span style={{ fontSize: 11, color: '#a09888' }}>Node Link</span>
+              </div>
+            </div>
           </div>
 
-          {/* Instruction hint */}
+          {/* Hint */}
           <div
             style={{
               position: 'absolute',
-              top: 14,
-              right: 14,
+              top: 16,
+              right: 16,
+              zIndex: 5,
               display: 'flex',
               alignItems: 'center',
-              gap: 5,
-              zIndex: 5,
-              backgroundColor: 'rgba(19, 23, 32, 0.9)',
+              gap: 6,
+              backgroundColor: 'rgba(13, 16, 24, 0.92)',
+              backdropFilter: 'blur(8px)',
               borderRadius: 8,
-              padding: '6px 10px',
+              padding: '8px 12px',
               border: '1px solid #1e2638',
             }}
           >
             <Info size={12} style={{ color: '#6b6358' }} />
-            <span style={{ fontSize: 10, color: '#6b6358' }}>Click a node to inspect</span>
+            <span style={{ fontSize: 11, color: '#6b6358' }}>Hover to highlight connections. Click to pin.</span>
           </div>
 
           {/* SVG Graph */}
           <svg
+            ref={svgRef}
             width="100%"
             height={graphHeight}
             viewBox={`0 0 ${graphWidth} ${graphHeight}`}
-            style={{ display: 'block' }}
+            style={{ display: 'block', cursor: 'default' }}
+            onClick={(e) => {
+              if (e.target === e.currentTarget || (e.target as Element).tagName === 'rect') {
+                setSelectedEntity(null);
+              }
+            }}
           >
-            {/* Background pattern */}
             <defs>
-              <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
-                <path
-                  d="M 40 0 L 0 0 0 40"
-                  fill="none"
-                  stroke="#1e2638"
-                  strokeWidth="0.5"
-                  opacity="0.4"
-                />
+              {/* Background grid pattern */}
+              <pattern id="kg-grid" width="50" height="50" patternUnits="userSpaceOnUse">
+                <path d="M 50 0 L 0 0 0 50" fill="none" stroke="#1a1f2e" strokeWidth="0.3" />
               </pattern>
-              {/* Glow filter for selected */}
-              <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
-                <feGaussianBlur stdDeviation="4" result="blur" />
-                <feComposite in="SourceGraphic" in2="blur" operator="over" />
+
+              {/* Radial center gradient */}
+              <radialGradient id="kg-center-glow" cx="50%" cy="50%" r="50%">
+                <stop offset="0%" stopColor="#8b5cf6" stopOpacity="0.04" />
+                <stop offset="60%" stopColor="#8b5cf6" stopOpacity="0.01" />
+                <stop offset="100%" stopColor="#8b5cf6" stopOpacity="0" />
+              </radialGradient>
+
+              {/* Glow filters per color */}
+              {['#a78bfa', '#34d399', '#fbbf24', '#fb923c', '#2dd4bf', '#c084fc', '#d4a574', '#8b5cf6', '#6b8f71', '#38bdf8'].map(
+                (color, i) => (
+                  <filter key={i} id={`kg-glow-${color.replace('#', '')}`} x="-100%" y="-100%" width="300%" height="300%">
+                    <feGaussianBlur in="SourceGraphic" stdDeviation="6" result="blur" />
+                    <feFlood floodColor={color} floodOpacity="0.4" result="color" />
+                    <feComposite in="color" in2="blur" operator="in" result="glow" />
+                    <feMerge>
+                      <feMergeNode in="glow" />
+                      <feMergeNode in="SourceGraphic" />
+                    </feMerge>
+                  </filter>
+                )
+              )}
+
+              {/* Soft shadow for node cards */}
+              <filter id="kg-shadow" x="-30%" y="-30%" width="160%" height="160%">
+                <feGaussianBlur in="SourceAlpha" stdDeviation="3" />
+                <feOffset dx="0" dy="2" />
+                <feComponentTransfer>
+                  <feFuncA type="linear" slope="0.25" />
+                </feComponentTransfer>
+                <feMerge>
+                  <feMergeNode />
+                  <feMergeNode in="SourceGraphic" />
+                </feMerge>
               </filter>
             </defs>
-            <rect width={graphWidth} height={graphHeight} fill="url(#grid)" />
 
-            {/* Links */}
-            {visibleLinks.map((link, idx) => {
-              const sourcePos = positions.get(link.source);
-              const targetPos = positions.get(link.target);
+            {/* Background */}
+            <rect width={graphWidth} height={graphHeight} fill="#0d1018" />
+            <rect width={graphWidth} height={graphHeight} fill="url(#kg-grid)" />
+
+            {/* Center ambient glow */}
+            <circle cx={centerX} cy={centerY} r={300} fill="url(#kg-center-glow)" />
+
+            {/* Orbit ring for nodes */}
+            <circle
+              cx={centerX}
+              cy={centerY}
+              r={220}
+              fill="none"
+              stroke="#1a1f2e"
+              strokeWidth="1"
+              strokeDasharray="8 8"
+              style={{ animation: 'kg-orbit-pulse 4s ease-in-out infinite' }}
+            />
+
+            {/* Center label */}
+            <text
+              x={centerX}
+              y={centerY - 10}
+              textAnchor="middle"
+              fill="#2a3040"
+              fontSize={14}
+              fontWeight={700}
+              letterSpacing="0.1em"
+            >
+              FREQUENCY
+            </text>
+            <text
+              x={centerX}
+              y={centerY + 8}
+              textAnchor="middle"
+              fill="#1e2638"
+              fontSize={10}
+              fontWeight={600}
+              letterSpacing="0.15em"
+            >
+              UNITE
+            </text>
+
+            {/* Connection lines */}
+            {relations.map((relation, idx) => {
+              const sourcePos = positionMap.get(relation.sourceId);
+              const targetPos = positionMap.get(relation.targetId);
               if (!sourcePos || !targetPos) return null;
 
-              const highlighted = isLinkHighlighted(link);
-              const isHovered =
-                hoveredEntity === link.source || hoveredEntity === link.target;
+              const color = relationColors[relation.type];
+              const isHighlighted =
+                connectedSet &&
+                (connectedSet.has(relation.sourceId) && connectedSet.has(relation.targetId));
+              const isDimmed = connectedSet && !isHighlighted;
+
+              const pathD = getCurvedPath(sourcePos.x, sourcePos.y, targetPos.x, targetPos.y);
 
               return (
-                <line
-                  key={`link-${idx}`}
-                  x1={sourcePos.x}
-                  y1={sourcePos.y}
-                  x2={targetPos.x}
-                  y2={targetPos.y}
-                  stroke={highlighted || isHovered ? '#3e4a5e' : '#1a1f2e'}
-                  strokeWidth={highlighted && selectedEntity ? 1.5 : 0.8}
-                  opacity={
-                    selectedEntity
-                      ? highlighted
-                        ? 0.8
-                        : 0.15
-                      : isHovered
-                        ? 0.6
-                        : 0.35
-                  }
-                  style={{ transition: 'opacity 0.2s ease, stroke 0.2s ease' }}
-                />
-              );
-            })}
+                <g key={`rel-${idx}`}>
+                  {/* Glow layer for highlighted connections */}
+                  {isHighlighted && (
+                    <path
+                      d={pathD}
+                      fill="none"
+                      stroke={color}
+                      strokeWidth={4}
+                      opacity={0.15}
+                      style={{ filter: 'blur(3px)' }}
+                    />
+                  )}
 
-            {/* Link labels (only for selected entity connections) */}
-            {selectedEntity &&
-              visibleLinks
-                .filter((l) => isLinkHighlighted(l))
-                .map((link, idx) => {
-                  const sourcePos = positions.get(link.source);
-                  const targetPos = positions.get(link.target);
-                  if (!sourcePos || !targetPos) return null;
+                  {/* Main path */}
+                  <path
+                    d={pathD}
+                    fill="none"
+                    stroke={color}
+                    strokeWidth={isHighlighted ? 2 : 1}
+                    opacity={isDimmed ? 0.06 : isHighlighted ? 0.7 : 0.2}
+                    strokeDasharray={relation.type === 'supports' ? '6 4' : relation.type === 'node-link' ? '10 5' : 'none'}
+                    style={{
+                      transition: 'opacity 0.3s ease, stroke-width 0.3s ease',
+                    }}
+                  />
 
-                  const mx = (sourcePos.x + targetPos.x) / 2;
-                  const my = (sourcePos.y + targetPos.y) / 2;
+                  {/* Animated dash flow on highlighted connections */}
+                  {isHighlighted && (
+                    <path
+                      d={pathD}
+                      fill="none"
+                      stroke={color}
+                      strokeWidth={1.5}
+                      opacity={0.5}
+                      strokeDasharray="4 16"
+                      style={{
+                        animation: 'kg-dash-flow 2s linear infinite',
+                      }}
+                    />
+                  )}
 
-                  return (
+                  {/* Relationship label on highlighted node-link relations */}
+                  {isHighlighted && relation.type === 'node-link' && (
                     <text
-                      key={`label-${idx}`}
-                      x={mx}
-                      y={my - 6}
+                      x={(sourcePos.x + targetPos.x) / 2}
+                      y={(sourcePos.y + targetPos.y) / 2 - 8}
                       textAnchor="middle"
-                      fill="#6b6358"
-                      fontSize={8}
-                      fontWeight={500}
+                      fill={color}
+                      fontSize={9}
+                      fontWeight={600}
+                      opacity={0.8}
                       style={{ pointerEvents: 'none' }}
                     >
-                      {link.label}
+                      {relation.label}
                     </text>
-                  );
-                })}
-
-            {/* Entity Nodes */}
-            {visibleEntities.map((entity) => {
-              const pos = positions.get(entity.id);
-              if (!pos) return null;
-
-              const config = entityTypeConfig[entity.type];
-              const isSelected = selectedEntity === entity.id;
-              const isConnected = isConnectedToSelected(entity.id);
-              const isHovered = hoveredEntity === entity.id;
-              const dimmed =
-                selectedEntity !== null && !isSelected && !isConnected;
-
-              const nodeRadius = isSelected ? 26 : isHovered ? 24 : 22;
-
-              return (
-                <g
-                  key={entity.id}
-                  style={{ cursor: 'pointer', transition: 'opacity 0.2s ease' }}
-                  opacity={dimmed ? 0.25 : 1}
-                  onClick={() =>
-                    setSelectedEntity((prev) =>
-                      prev === entity.id ? null : entity.id
-                    )
-                  }
-                  onMouseEnter={() => setHoveredEntity(entity.id)}
-                  onMouseLeave={() => setHoveredEntity(null)}
-                >
-                  {/* Outer glow ring for selected */}
-                  {isSelected && (
-                    <circle
-                      cx={pos.x}
-                      cy={pos.y}
-                      r={nodeRadius + 6}
-                      fill="none"
-                      stroke={config.color}
-                      strokeWidth={1.5}
-                      opacity={0.3}
-                      filter="url(#glow)"
-                    />
                   )}
-
-                  {/* Connection indicator ring */}
-                  {isConnected && !isSelected && (
-                    <circle
-                      cx={pos.x}
-                      cy={pos.y}
-                      r={nodeRadius + 4}
-                      fill="none"
-                      stroke={config.color}
-                      strokeWidth={1}
-                      opacity={0.4}
-                      strokeDasharray="3 3"
-                    />
-                  )}
-
-                  {/* Node circle */}
-                  <circle
-                    cx={pos.x}
-                    cy={pos.y}
-                    r={nodeRadius}
-                    fill={isSelected ? `${config.color}30` : '#0d1018'}
-                    stroke={
-                      isSelected
-                        ? config.color
-                        : isHovered || isConnected
-                          ? `${config.color}80`
-                          : '#1e2638'
-                    }
-                    strokeWidth={isSelected ? 2 : 1.5}
-                    style={{ transition: 'all 0.15s ease' }}
-                  />
-
-                  {/* Type indicator dot */}
-                  <circle
-                    cx={pos.x}
-                    cy={pos.y - 1}
-                    r={4}
-                    fill={config.color}
-                    opacity={0.9}
-                  />
-
-                  {/* Label */}
-                  <text
-                    x={pos.x}
-                    y={pos.y + nodeRadius + 14}
-                    textAnchor="middle"
-                    fill={isSelected || isConnected ? '#f0ebe4' : '#a09888'}
-                    fontSize={10}
-                    fontWeight={isSelected ? 700 : 500}
-                    style={{ pointerEvents: 'none', transition: 'fill 0.15s ease' }}
-                  >
-                    {entity.label}
-                  </text>
                 </g>
               );
             })}
+
+            {/* Team member nodes (render first so Frequency nodes overlay) */}
+            {positions
+              .filter((p) => p.type === 'member')
+              .map((entity) => {
+                const member = entity.data as TeamMember;
+                const color = getMemberColor(member);
+                const isActive = activeEntityId === entity.id;
+                const isConnected = connectedSet?.has(entity.id);
+                const isDimmed = connectedSet && !isConnected;
+                const r = isActive ? 20 : 16;
+
+                return (
+                  <g
+                    key={entity.id}
+                    style={{
+                      cursor: 'pointer',
+                      transition: 'opacity 0.3s ease',
+                    }}
+                    opacity={isDimmed ? 0.12 : 1}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setSelectedEntity((prev) => (prev === entity.id ? null : entity.id));
+                    }}
+                    onMouseEnter={() => setHoveredEntity(entity.id)}
+                    onMouseLeave={() => setHoveredEntity(null)}
+                  >
+                    {/* Glow ring on active */}
+                    {isActive && (
+                      <circle
+                        cx={entity.x}
+                        cy={entity.y}
+                        r={r + 8}
+                        fill="none"
+                        stroke={color}
+                        strokeWidth={1.5}
+                        opacity={0.3}
+                        style={{
+                          animation: 'kg-pulse-glow 2s ease-in-out infinite',
+                        }}
+                      />
+                    )}
+
+                    {/* Connected ring */}
+                    {isConnected && !isActive && (
+                      <circle
+                        cx={entity.x}
+                        cy={entity.y}
+                        r={r + 5}
+                        fill="none"
+                        stroke={color}
+                        strokeWidth={1}
+                        opacity={0.35}
+                        strokeDasharray="3 3"
+                      />
+                    )}
+
+                    {/* Background circle */}
+                    <circle
+                      cx={entity.x}
+                      cy={entity.y}
+                      r={r}
+                      fill={isActive ? `${color}25` : '#0d1018'}
+                      stroke={isActive ? color : isConnected ? `${color}70` : '#1e2638'}
+                      strokeWidth={isActive ? 2 : 1.5}
+                      style={{ transition: 'all 0.25s ease' }}
+                    />
+
+                    {/* Avatar text */}
+                    <text
+                      x={entity.x}
+                      y={entity.y + 1}
+                      textAnchor="middle"
+                      dominantBaseline="central"
+                      fill={isActive || isConnected ? color : '#6b6358'}
+                      fontSize={isActive ? 11 : 9}
+                      fontWeight={700}
+                      style={{ pointerEvents: 'none', transition: 'fill 0.2s ease' }}
+                    >
+                      {member.avatar}
+                    </text>
+
+                    {/* Name label */}
+                    <text
+                      x={entity.x}
+                      y={entity.y + r + 12}
+                      textAnchor="middle"
+                      fill={isActive || isConnected ? '#f0ebe4' : '#6b6358'}
+                      fontSize={9}
+                      fontWeight={isActive ? 600 : 400}
+                      style={{ pointerEvents: 'none', transition: 'fill 0.2s ease' }}
+                    >
+                      {member.name.split(' ')[0]}
+                    </text>
+                  </g>
+                );
+              })}
+
+            {/* Frequency Node hubs (larger, more prominent) */}
+            {positions
+              .filter((p) => p.type === 'node')
+              .map((entity) => {
+                const node = entity.data as Node;
+                const color = getNodeHex(node);
+                const Icon = iconMap[node.icon] || Globe;
+                const isActive = activeEntityId === entity.id;
+                const isConnected = connectedSet?.has(entity.id);
+                const isDimmed = connectedSet && !isConnected;
+                const baseR = 34;
+                const r = isActive ? 38 : isConnected ? 36 : baseR;
+
+                return (
+                  <g
+                    key={entity.id}
+                    style={{
+                      cursor: 'pointer',
+                      transition: 'opacity 0.3s ease',
+                    }}
+                    opacity={isDimmed ? 0.15 : 1}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setSelectedEntity((prev) => (prev === entity.id ? null : entity.id));
+                    }}
+                    onMouseEnter={() => setHoveredEntity(entity.id)}
+                    onMouseLeave={() => setHoveredEntity(null)}
+                  >
+                    {/* Ambient pulsing glow */}
+                    <circle
+                      cx={entity.x}
+                      cy={entity.y}
+                      r={r + 16}
+                      fill={color}
+                      opacity={isActive ? 0.08 : 0.03}
+                      style={{
+                        transition: 'opacity 0.3s ease',
+                      }}
+                    />
+
+                    {/* Active glow ring */}
+                    {isActive && (
+                      <>
+                        <circle
+                          cx={entity.x}
+                          cy={entity.y}
+                          r={r + 10}
+                          fill="none"
+                          stroke={color}
+                          strokeWidth={2}
+                          opacity={0.25}
+                        >
+                          <animate
+                            attributeName="r"
+                            values={`${r + 8};${r + 14};${r + 8}`}
+                            dur="2.5s"
+                            repeatCount="indefinite"
+                          />
+                          <animate
+                            attributeName="opacity"
+                            values="0.25;0.1;0.25"
+                            dur="2.5s"
+                            repeatCount="indefinite"
+                          />
+                        </circle>
+                        <circle
+                          cx={entity.x}
+                          cy={entity.y}
+                          r={r + 5}
+                          fill="none"
+                          stroke={color}
+                          strokeWidth={1.5}
+                          opacity={0.4}
+                        />
+                      </>
+                    )}
+
+                    {/* Connected indicator ring */}
+                    {isConnected && !isActive && (
+                      <circle
+                        cx={entity.x}
+                        cy={entity.y}
+                        r={r + 6}
+                        fill="none"
+                        stroke={color}
+                        strokeWidth={1}
+                        opacity={0.3}
+                        strokeDasharray="5 5"
+                      >
+                        <animate
+                          attributeName="stroke-dashoffset"
+                          values="0;-20"
+                          dur="3s"
+                          repeatCount="indefinite"
+                        />
+                      </circle>
+                    )}
+
+                    {/* Main hexagonal-ish node shape (approximated with rounded rect) */}
+                    <rect
+                      x={entity.x - r}
+                      y={entity.y - r}
+                      width={r * 2}
+                      height={r * 2}
+                      rx={14}
+                      ry={14}
+                      fill={isActive ? `${color}18` : '#0d1018'}
+                      stroke={isActive ? color : isConnected ? `${color}60` : '#1e2638'}
+                      strokeWidth={isActive ? 2.5 : 1.5}
+                      filter="url(#kg-shadow)"
+                      style={{ transition: 'all 0.25s ease' }}
+                    />
+
+                    {/* Inner gradient overlay */}
+                    <rect
+                      x={entity.x - r + 1}
+                      y={entity.y - r + 1}
+                      width={r * 2 - 2}
+                      height={r * 2 - 2}
+                      rx={13}
+                      ry={13}
+                      fill={`${color}08`}
+                      style={{ pointerEvents: 'none' }}
+                    />
+
+                    {/* Icon placeholder (colored dot since we cannot render React icons in SVG foreignObject reliably) */}
+                    <circle
+                      cx={entity.x}
+                      cy={entity.y - 6}
+                      r={8}
+                      fill={`${color}25`}
+                      stroke={color}
+                      strokeWidth={1.5}
+                    />
+                    <circle cx={entity.x} cy={entity.y - 6} r={3} fill={color} />
+
+                    {/* Node short name */}
+                    <text
+                      x={entity.x}
+                      y={entity.y + 12}
+                      textAnchor="middle"
+                      fill={isActive || isConnected ? '#f0ebe4' : '#a09888'}
+                      fontSize={11}
+                      fontWeight={700}
+                      style={{ pointerEvents: 'none', transition: 'fill 0.2s ease' }}
+                    >
+                      {node.shortName}
+                    </text>
+
+                    {/* Progress indicator below */}
+                    <rect
+                      x={entity.x - 18}
+                      y={entity.y + r + 6}
+                      width={36}
+                      height={3}
+                      rx={1.5}
+                      fill="#1e2638"
+                    />
+                    <rect
+                      x={entity.x - 18}
+                      y={entity.y + r + 6}
+                      width={(node.progress / 100) * 36}
+                      height={3}
+                      rx={1.5}
+                      fill={color}
+                      opacity={0.7}
+                    />
+
+                    {/* Progress text */}
+                    <text
+                      x={entity.x}
+                      y={entity.y + r + 18}
+                      textAnchor="middle"
+                      fill={color}
+                      fontSize={8}
+                      fontWeight={600}
+                      opacity={0.7}
+                      style={{ pointerEvents: 'none' }}
+                    >
+                      {node.progress}%
+                    </text>
+
+                    {/* Status dot */}
+                    <circle
+                      cx={entity.x + r - 6}
+                      cy={entity.y - r + 6}
+                      r={4}
+                      fill={
+                        node.status === 'active'
+                          ? '#6b8f71'
+                          : node.status === 'building'
+                            ? '#d4a574'
+                            : node.status === 'pilot'
+                              ? '#60a5fa'
+                              : '#6b6358'
+                      }
+                      stroke="#0d1018"
+                      strokeWidth={2}
+                    />
+                  </g>
+                );
+              })}
           </svg>
         </div>
 
         {/* Detail Panel */}
-        {selectedData && (
+        {detailEntity && (
           <div
             style={{
               backgroundColor: '#131720',
               border: '1px solid #1e2638',
-              borderRadius: 14,
-              padding: 0,
+              borderRadius: 16,
               overflow: 'hidden',
               alignSelf: 'start',
+              animation: 'kg-fade-in 0.3s ease both',
             }}
           >
-            {/* Panel header */}
+            {/* Header */}
             <div
               style={{
-                padding: '18px 20px 14px',
+                padding: '20px 20px 16px',
                 borderBottom: '1px solid #1e2638',
+                background:
+                  detailEntity.entity.type === 'node'
+                    ? `linear-gradient(135deg, ${getNodeHex(detailEntity.entity.data as Node)}0a, transparent)`
+                    : `linear-gradient(135deg, ${getMemberColor(detailEntity.entity.data as TeamMember)}0a, transparent)`,
               }}
             >
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
-                <div
-                  style={{
-                    width: 32,
-                    height: 32,
-                    borderRadius: 10,
-                    backgroundColor: entityTypeConfig[selectedData.entity.type].bgAlpha,
-                    border: `1px solid ${entityTypeConfig[selectedData.entity.type].color}30`,
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    flexShrink: 0,
-                  }}
-                >
-                  {React.createElement(entityTypeConfig[selectedData.entity.type].icon, {
-                    size: 16,
-                    style: { color: entityTypeConfig[selectedData.entity.type].color },
-                  })}
-                </div>
-                <div style={{ minWidth: 0 }}>
-                  <h3
-                    style={{
-                      fontSize: 15,
-                      fontWeight: 700,
-                      color: '#f0ebe4',
-                      margin: 0,
-                      lineHeight: 1.2,
-                    }}
-                  >
-                    {selectedData.entity.label}
-                  </h3>
-                  <span
-                    style={{
-                      fontSize: 10,
-                      fontWeight: 600,
-                      textTransform: 'uppercase',
-                      letterSpacing: '0.06em',
-                      color: entityTypeConfig[selectedData.entity.type].color,
-                    }}
-                  >
-                    {entityTypeConfig[selectedData.entity.type].label}
-                  </span>
-                </div>
-              </div>
+              {detailEntity.entity.type === 'node' ? (
+                (() => {
+                  const node = detailEntity.entity.data as Node;
+                  const color = getNodeHex(node);
+                  return (
+                    <>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 10 }}>
+                        <div
+                          style={{
+                            width: 40,
+                            height: 40,
+                            borderRadius: 12,
+                            backgroundColor: `${color}15`,
+                            border: `1px solid ${color}30`,
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                          }}
+                        >
+                          {React.createElement(iconMap[node.icon] || Globe, {
+                            size: 20,
+                            style: { color },
+                          })}
+                        </div>
+                        <div>
+                          <h3 style={{ fontSize: 16, fontWeight: 700, color: '#f0ebe4', margin: 0 }}>
+                            {node.name}
+                          </h3>
+                          <span style={{ fontSize: 10, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em', color }}>
+                            {node.status} / {node.priority}
+                          </span>
+                        </div>
+                      </div>
+                      <p style={{ fontSize: 12, color: '#a09888', lineHeight: 1.55, margin: 0 }}>
+                        {node.purpose}
+                      </p>
 
-              {selectedData.entity.description && (
-                <p
-                  style={{
-                    fontSize: 12,
-                    color: '#a09888',
-                    lineHeight: 1.55,
-                    margin: 0,
-                  }}
-                >
-                  {selectedData.entity.description}
-                </p>
+                      {/* Progress bar */}
+                      <div style={{ marginTop: 14 }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
+                          <span style={{ fontSize: 11, fontWeight: 600, color: '#6b6358' }}>Progress</span>
+                          <span style={{ fontSize: 11, fontWeight: 700, color }}>{node.progress}%</span>
+                        </div>
+                        <div style={{ height: 4, backgroundColor: '#1e2638', borderRadius: 2, overflow: 'hidden' }}>
+                          <div
+                            style={{
+                              height: '100%',
+                              width: `${node.progress}%`,
+                              borderRadius: 2,
+                              background: `linear-gradient(90deg, ${color}, ${color}88)`,
+                              transition: 'width 0.5s ease',
+                            }}
+                          />
+                        </div>
+                      </div>
+
+                      {/* Capabilities */}
+                      <div style={{ marginTop: 14 }}>
+                        <span style={{ fontSize: 10, fontWeight: 700, color: '#6b6358', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+                          Capabilities
+                        </span>
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginTop: 8 }}>
+                          {node.capabilities.slice(0, 4).map((cap, i) => (
+                            <span
+                              key={i}
+                              style={{
+                                fontSize: 10,
+                                fontWeight: 500,
+                                color: '#a09888',
+                                backgroundColor: '#1a1f2e',
+                                padding: '3px 8px',
+                                borderRadius: 6,
+                                border: '1px solid #252d3d',
+                              }}
+                            >
+                              {cap}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    </>
+                  );
+                })()
+              ) : (
+                (() => {
+                  const member = detailEntity.entity.data as TeamMember;
+                  const color = getMemberColor(member);
+                  return (
+                    <>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 10 }}>
+                        <div
+                          style={{
+                            width: 40,
+                            height: 40,
+                            borderRadius: '50%',
+                            background: `linear-gradient(135deg, ${color}, ${color}88)`,
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            fontSize: 14,
+                            fontWeight: 700,
+                            color: '#0b0d14',
+                          }}
+                        >
+                          {member.avatar}
+                        </div>
+                        <div>
+                          <h3 style={{ fontSize: 16, fontWeight: 700, color: '#f0ebe4', margin: 0 }}>
+                            {member.name}
+                          </h3>
+                          <span style={{ fontSize: 11, color, fontWeight: 500 }}>{member.role}</span>
+                        </div>
+                      </div>
+                      <p style={{ fontSize: 12, color: '#a09888', lineHeight: 1.55, margin: 0 }}>
+                        {member.roleOneSentence}
+                      </p>
+
+                      {/* Status */}
+                      <div style={{ marginTop: 12, display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <span
+                          style={{
+                            fontSize: 10,
+                            fontWeight: 600,
+                            color: member.status === 'active' ? '#6b8f71' : '#d4a574',
+                            backgroundColor: member.status === 'active' ? 'rgba(107, 143, 113, 0.15)' : 'rgba(212, 165, 116, 0.15)',
+                            padding: '3px 8px',
+                            borderRadius: 6,
+                            textTransform: 'capitalize',
+                          }}
+                        >
+                          {member.status}
+                        </span>
+                        {member.hoursPerWeek && (
+                          <span style={{ fontSize: 10, color: '#6b6358' }}>
+                            {member.hoursPerWeek} hrs/wk
+                          </span>
+                        )}
+                      </div>
+                    </>
+                  );
+                })()
               )}
             </div>
 
-            {/* Connections list */}
+            {/* Connections */}
             <div style={{ padding: '14px 20px' }}>
-              <div
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 6,
-                  marginBottom: 12,
-                }}
-              >
-                <Link2 size={14} style={{ color: '#d4a574' }} />
-                <span
-                  style={{
-                    fontSize: 12,
-                    fontWeight: 600,
-                    color: '#d4a574',
-                  }}
-                >
-                  Connections ({selectedData.connected.length})
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 12 }}>
+                <Network size={13} style={{ color: '#d4a574' }} />
+                <span style={{ fontSize: 12, fontWeight: 600, color: '#d4a574' }}>
+                  Connections ({detailEntity.connections.length})
                 </span>
               </div>
 
-              {selectedData.connected.length === 0 ? (
-                <p
-                  style={{
-                    fontSize: 12,
-                    color: '#6b6358',
-                    fontStyle: 'italic',
-                    margin: 0,
-                  }}
-                >
-                  No visible connections with current filters
+              {detailEntity.connections.length === 0 ? (
+                <p style={{ fontSize: 12, color: '#6b6358', fontStyle: 'italic', margin: 0 }}>
+                  No connections
                 </p>
               ) : (
-                <div
-                  style={{
-                    display: 'flex',
-                    flexDirection: 'column',
-                    gap: 8,
-                    maxHeight: 400,
-                    overflowY: 'auto',
-                  }}
-                >
-                  {selectedData.connected.map((conn, idx) => {
-                    if (!conn.entity) return null;
-                    const connConfig = entityTypeConfig[conn.entity.type];
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 320, overflowY: 'auto' }}>
+                  {detailEntity.connections.map((conn, idx) => {
+                    if (!conn.other) return null;
+                    const isNode = conn.other.type === 'node';
+                    const color = isNode
+                      ? getNodeHex(conn.other.data as Node)
+                      : getMemberColor(conn.other.data as TeamMember);
+                    const label = isNode
+                      ? (conn.other.data as Node).name
+                      : (conn.other.data as TeamMember).name;
+                    const relColor = relationColors[conn.relation.type];
+
                     return (
                       <div
                         key={idx}
-                        onClick={() => setSelectedEntity(conn.entity!.id)}
+                        onClick={() => setSelectedEntity(conn.other!.id)}
                         style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 10,
+                          padding: '8px 10px',
                           backgroundColor: '#0d1018',
                           border: '1px solid #1a1f2e',
                           borderRadius: 10,
-                          padding: '10px 12px',
                           cursor: 'pointer',
                           transition: 'border-color 0.15s ease',
                         }}
                         onMouseEnter={(e) => {
-                          e.currentTarget.style.borderColor = connConfig.color + '40';
+                          e.currentTarget.style.borderColor = `${color}40`;
                         }}
                         onMouseLeave={(e) => {
                           e.currentTarget.style.borderColor = '#1a1f2e';
@@ -898,59 +1254,33 @@ export function KnowledgeGraphView() {
                       >
                         <div
                           style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: 8,
-                            marginBottom: 4,
+                            width: 8,
+                            height: 8,
+                            borderRadius: isNode ? 3 : '50%',
+                            backgroundColor: color,
+                            flexShrink: 0,
                           }}
-                        >
-                          <div
-                            style={{
-                              width: 6,
-                              height: 6,
-                              borderRadius: '50%',
-                              backgroundColor: connConfig.color,
-                              flexShrink: 0,
-                            }}
-                          />
-                          <span
-                            style={{
-                              fontSize: 13,
-                              fontWeight: 600,
-                              color: '#f0ebe4',
-                            }}
-                          >
-                            {conn.entity.label}
-                          </span>
-                          <span
-                            style={{
-                              fontSize: 9,
-                              fontWeight: 600,
-                              textTransform: 'uppercase',
-                              letterSpacing: '0.06em',
-                              color: connConfig.color,
-                              backgroundColor: connConfig.bgAlpha,
-                              borderRadius: 4,
-                              padding: '1px 6px',
-                              marginLeft: 'auto',
-                              flexShrink: 0,
-                            }}
-                          >
-                            {connConfig.label}
-                          </span>
+                        />
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontSize: 12, fontWeight: 600, color: '#f0ebe4' }}>
+                            {label}
+                          </div>
                         </div>
-                        <div
+                        <span
                           style={{
-                            fontSize: 11,
-                            color: '#6b6358',
-                            paddingLeft: 14,
+                            fontSize: 9,
+                            fontWeight: 600,
+                            textTransform: 'uppercase',
+                            letterSpacing: '0.05em',
+                            color: relColor,
+                            backgroundColor: `${relColor}15`,
+                            padding: '2px 6px',
+                            borderRadius: 4,
+                            flexShrink: 0,
                           }}
                         >
-                          <span style={{ color: '#a09888', fontWeight: 500 }}>
-                            {conn.direction === 'outgoing' ? '\u2192' : '\u2190'}
-                          </span>{' '}
-                          {conn.link.label}
-                        </div>
+                          {conn.relation.type.replace('-', ' ')}
+                        </span>
                       </div>
                     );
                   })}
@@ -958,66 +1288,51 @@ export function KnowledgeGraphView() {
               )}
             </div>
 
-            {/* Deselect button */}
-            <div
-              style={{
-                padding: '0 20px 14px',
-              }}
-            >
-              <button
-                onClick={() => setSelectedEntity(null)}
-                style={{
-                  width: '100%',
-                  padding: '8px 0',
-                  borderRadius: 8,
-                  border: '1px solid #1e2638',
-                  backgroundColor: 'transparent',
-                  color: '#6b6358',
-                  fontSize: 12,
-                  fontWeight: 500,
-                  cursor: 'pointer',
-                  fontFamily: 'inherit',
-                  transition: 'color 0.15s, border-color 0.15s',
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.color = '#a09888';
-                  e.currentTarget.style.borderColor = '#2e3a4e';
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.color = '#6b6358';
-                  e.currentTarget.style.borderColor = '#1e2638';
-                }}
-              >
-                Clear Selection
-              </button>
-            </div>
+            {/* Clear button */}
+            {selectedEntity && (
+              <div style={{ padding: '0 20px 16px' }}>
+                <button
+                  onClick={() => setSelectedEntity(null)}
+                  style={{
+                    width: '100%',
+                    padding: '8px 0',
+                    borderRadius: 8,
+                    border: '1px solid #1e2638',
+                    backgroundColor: 'transparent',
+                    color: '#6b6358',
+                    fontSize: 12,
+                    fontWeight: 500,
+                    cursor: 'pointer',
+                    fontFamily: 'inherit',
+                    transition: 'color 0.15s, border-color 0.15s',
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.color = '#a09888';
+                    e.currentTarget.style.borderColor = '#2e3a4e';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.color = '#6b6358';
+                    e.currentTarget.style.borderColor = '#1e2638';
+                  }}
+                >
+                  Clear Selection
+                </button>
+              </div>
+            )}
           </div>
         )}
       </div>
 
-      {/* Entity Type Breakdown */}
-      <div style={{ marginTop: 24 }}>
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 8,
-            marginBottom: 14,
-          }}
-        >
-          <CircleDot size={16} style={{ color: '#d4a574' }} />
-          <h2
-            style={{
-              fontSize: 16,
-              fontWeight: 600,
-              color: '#e8c9a0',
-              margin: 0,
-            }}
-          >
-            Entity Breakdown
-          </h2>
-        </div>
-
+      {/* Node Overview Grid */}
+      <div
+        style={{
+          marginTop: 24,
+          animation: 'kg-fade-in 0.8s ease 0.3s both',
+        }}
+      >
+        <h2 style={{ fontSize: 16, fontWeight: 700, color: '#f0ebe4', marginBottom: 14 }}>
+          Node Overview
+        </h2>
         <div
           style={{
             display: 'grid',
@@ -1025,127 +1340,113 @@ export function KnowledgeGraphView() {
             gap: 12,
           }}
         >
-          {(Object.keys(entityTypeConfig) as EntityType[]).map((type) => {
-            const config = entityTypeConfig[type];
-            const typeEntities = entities.filter((e) => e.type === type);
-            const typeLinks = links.filter(
-              (l) =>
-                entities.find((e) => e.id === l.source)?.type === type ||
-                entities.find((e) => e.id === l.target)?.type === type
-            );
+          {nodes.map((node) => {
+            const color = getNodeHex(node);
+            const Icon = iconMap[node.icon] || Globe;
+            const leadMembers = node.leads
+              .map((lid) => teamMembers.find((m) => m.id === lid))
+              .filter(Boolean);
 
             return (
               <div
-                key={type}
+                key={node.id}
+                onClick={() => {
+                  setSelectedEntity(`node-${node.id}`);
+                  setHoveredEntity(null);
+                }}
                 style={{
                   backgroundColor: '#131720',
                   border: '1px solid #1e2638',
                   borderRadius: 12,
                   padding: '16px 18px',
-                  transition: 'border-color 0.2s',
+                  cursor: 'pointer',
+                  transition: 'border-color 0.2s, box-shadow 0.2s',
+                  position: 'relative',
+                  overflow: 'hidden',
                 }}
                 onMouseEnter={(e) => {
-                  e.currentTarget.style.borderColor = `${config.color}40`;
+                  e.currentTarget.style.borderColor = `${color}50`;
+                  e.currentTarget.style.boxShadow = `0 4px 20px ${color}10`;
                 }}
                 onMouseLeave={(e) => {
                   e.currentTarget.style.borderColor = '#1e2638';
+                  e.currentTarget.style.boxShadow = 'none';
                 }}
               >
+                {/* Top gradient accent */}
                 <div
                   style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 10,
-                    marginBottom: 12,
+                    position: 'absolute',
+                    top: 0,
+                    left: 0,
+                    right: 0,
+                    height: 3,
+                    background: `linear-gradient(90deg, ${color}, transparent)`,
                   }}
-                >
+                />
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
                   <div
                     style={{
                       width: 32,
                       height: 32,
                       borderRadius: 8,
-                      backgroundColor: config.bgAlpha,
+                      backgroundColor: `${color}15`,
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
                     }}
                   >
-                    <config.icon size={16} style={{ color: config.color }} />
+                    <Icon size={16} style={{ color }} />
                   </div>
                   <div>
-                    <div style={{ fontSize: 14, fontWeight: 700, color: '#f0ebe4' }}>
-                      {typeEntities.length}
-                    </div>
-                    <div style={{ fontSize: 11, color: '#6b6358' }}>{config.plural}</div>
+                    <div style={{ fontSize: 14, fontWeight: 700, color: '#f0ebe4' }}>{node.shortName}</div>
+                    <div style={{ fontSize: 10, color: '#6b6358', textTransform: 'capitalize' }}>{node.status}</div>
                   </div>
                 </div>
 
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 10 }}>
-                  <Link2 size={11} style={{ color: '#6b6358' }} />
-                  <span style={{ fontSize: 11, color: '#6b6358' }}>
-                    {typeLinks.length} connections
-                  </span>
+                {/* Progress */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+                  <div style={{ flex: 1, height: 4, backgroundColor: '#1e2638', borderRadius: 2, overflow: 'hidden' }}>
+                    <div
+                      style={{
+                        height: '100%',
+                        width: `${node.progress}%`,
+                        backgroundColor: color,
+                        borderRadius: 2,
+                        transition: 'width 0.5s ease',
+                      }}
+                    />
+                  </div>
+                  <span style={{ fontSize: 11, fontWeight: 700, color }}>{node.progress}%</span>
                 </div>
 
-                {/* Mini entity list */}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                  {typeEntities.map((entity) => (
+                {/* Leads */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                  {leadMembers.map((m, i) => (
                     <div
-                      key={entity.id}
-                      onClick={() =>
-                        setSelectedEntity((prev) =>
-                          prev === entity.id ? null : entity.id
-                        )
-                      }
+                      key={m!.id}
                       style={{
+                        width: 22,
+                        height: 22,
+                        borderRadius: '50%',
+                        background: `linear-gradient(135deg, ${getMemberColor(m!)}, ${getMemberColor(m!)}88)`,
                         display: 'flex',
                         alignItems: 'center',
-                        gap: 6,
-                        padding: '4px 8px',
-                        borderRadius: 6,
-                        cursor: 'pointer',
-                        backgroundColor:
-                          selectedEntity === entity.id
-                            ? config.bgAlpha
-                            : 'transparent',
-                        transition: 'background-color 0.15s',
-                      }}
-                      onMouseEnter={(e) => {
-                        if (selectedEntity !== entity.id) {
-                          e.currentTarget.style.backgroundColor =
-                            'rgba(255,255,255,0.03)';
-                        }
-                      }}
-                      onMouseLeave={(e) => {
-                        if (selectedEntity !== entity.id) {
-                          e.currentTarget.style.backgroundColor = 'transparent';
-                        }
+                        justifyContent: 'center',
+                        fontSize: 8,
+                        fontWeight: 700,
+                        color: '#0b0d14',
+                        border: '2px solid #131720',
+                        marginLeft: i > 0 ? -4 : 0,
                       }}
                     >
-                      <div
-                        style={{
-                          width: 5,
-                          height: 5,
-                          borderRadius: '50%',
-                          backgroundColor: config.color,
-                          flexShrink: 0,
-                        }}
-                      />
-                      <span
-                        style={{
-                          fontSize: 12,
-                          color:
-                            selectedEntity === entity.id
-                              ? config.color
-                              : '#a09888',
-                          fontWeight:
-                            selectedEntity === entity.id ? 600 : 400,
-                        }}
-                      >
-                        {entity.label}
-                      </span>
+                      {m!.avatar}
                     </div>
                   ))}
+                  <span style={{ fontSize: 11, color: '#6b6358', marginLeft: 4 }}>
+                    {leadMembers.map((m) => m!.name.split(' ')[0]).join(', ')}
+                  </span>
                 </div>
               </div>
             );

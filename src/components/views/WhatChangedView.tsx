@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   Sparkles,
   TrendingUp,
@@ -21,6 +21,13 @@ import {
   ArrowRight,
   Zap,
   Shield,
+  Star,
+  Eye,
+  Tag,
+  ChevronRight,
+  Wrench,
+  Lightbulb,
+  GitCommit,
 } from 'lucide-react';
 
 /* ─── Types ─── */
@@ -33,18 +40,87 @@ type Sentiment = 'positive' | 'neutral' | 'negative';
 
 type ImpactLevel = 'high' | 'medium' | 'low';
 
+type ChangeType = 'feature' | 'fix' | 'update' | 'decision';
+
 interface ChangeItem {
   id: string;
   category: Category;
   sentiment: Sentiment;
   impact: ImpactLevel;
+  changeType: ChangeType;
   description: string;
   detail: string;
   triggeredBy: string;
   timestamp: string;
   timeAgo: string;
   daysAgo: number;
+  affectedAreas: string[];
+  isNew?: boolean;
 }
+
+/* ─── Inline Keyframes ─── */
+
+const animationStyles = `
+@keyframes timelineReveal {
+  0% {
+    opacity: 0;
+    transform: translateY(-16px) scale(0.97);
+  }
+  60% {
+    opacity: 1;
+    transform: translateY(2px) scale(1.003);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes timelineDotPulse {
+  0% { box-shadow: 0 0 0 0 rgba(212, 165, 116, 0.4); }
+  70% { box-shadow: 0 0 0 8px rgba(212, 165, 116, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(212, 165, 116, 0); }
+}
+
+@keyframes timelineLineGrow {
+  from { height: 0%; }
+  to { height: 100%; }
+}
+
+@keyframes newBadgePulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.6; }
+}
+
+@keyframes shimmerHighlight {
+  0% { background-position: -200% center; }
+  100% { background-position: 200% center; }
+}
+
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    max-height: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    max-height: 500px;
+    transform: translateY(0);
+  }
+}
+
+@keyframes statCardEntrance {
+  from {
+    opacity: 0;
+    transform: translateY(12px) scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+`;
 
 /* ─── Config ─── */
 
@@ -69,6 +145,37 @@ const impactConfig: Record<ImpactLevel, { label: string; color: string; bg: stri
   low: { label: 'Low', color: '#a09888', bg: 'rgba(160, 152, 136, 0.12)' },
 };
 
+const changeTypeConfig: Record<ChangeType, { label: string; color: string; bg: string; border: string; icon: React.ElementType }> = {
+  feature: {
+    label: 'Feature',
+    color: '#34d399',
+    bg: 'rgba(52, 211, 153, 0.1)',
+    border: '1px solid rgba(52, 211, 153, 0.25)',
+    icon: Star,
+  },
+  fix: {
+    label: 'Fix',
+    color: '#f87171',
+    bg: 'rgba(248, 113, 113, 0.1)',
+    border: '1px solid rgba(248, 113, 113, 0.25)',
+    icon: Wrench,
+  },
+  update: {
+    label: 'Update',
+    color: '#d4a574',
+    bg: 'rgba(212, 165, 116, 0.1)',
+    border: '1px solid rgba(212, 165, 116, 0.25)',
+    icon: ArrowUpRight,
+  },
+  decision: {
+    label: 'Decision',
+    color: '#8b5cf6',
+    bg: 'rgba(139, 92, 246, 0.1)',
+    border: '1px solid rgba(139, 92, 246, 0.25)',
+    icon: Lightbulb,
+  },
+};
+
 const timeFilters: { key: TimeFilter; label: string; maxDays: number }[] = [
   { key: 'today', label: 'Today', maxDays: 1 },
   { key: 'this-week', label: 'This Week', maxDays: 7 },
@@ -83,224 +190,302 @@ const changesData: ChangeItem[] = [
     category: 'membership',
     sentiment: 'positive',
     impact: 'high',
+    changeType: 'feature',
     description: '3 new well-steward applications received this week',
     detail: 'Applications from Costa Rica, UK, and California — all referred by existing members. Essence interviews scheduled.',
     triggeredBy: 'Maximillian',
     timestamp: '2026-03-09',
     timeAgo: '2 hours ago',
     daysAgo: 0,
+    affectedAreas: ['Membership Pipeline', 'Onboarding'],
+    isNew: true,
   },
   {
     id: 'chg-2',
     category: 'financial',
     sentiment: 'positive',
     impact: 'medium',
+    changeType: 'update',
     description: 'Monthly burn came in at $21.8K — under target',
     detail: 'February burn was $3.2K under the $25K/mo target. Travel costs lower than projected; contractor spend stable.',
     triggeredBy: 'Colleen Galbraith',
     timestamp: '2026-03-09',
     timeAgo: '4 hours ago',
     daysAgo: 0,
+    affectedAreas: ['Budget', 'Runway'],
+    isNew: true,
   },
   {
     id: 'chg-3',
     category: 'nodes',
     sentiment: 'negative',
     impact: 'high',
+    changeType: 'fix',
     description: 'Nicoya pilot Phase 1 delayed by 2 weeks',
     detail: 'Local permitting process taking longer than expected. Gareth working with community leaders on expedited review.',
     triggeredBy: 'Gareth Hermann',
     timestamp: '2026-03-08',
     timeAgo: '1 day ago',
     daysAgo: 1,
+    affectedAreas: ['Bioregions Node', 'Timeline'],
+    isNew: true,
   },
   {
     id: 'chg-4',
     category: 'governance',
     sentiment: 'positive',
     impact: 'medium',
+    changeType: 'feature',
     description: 'Teal governance decision log now maintained for 30 consecutive days',
     detail: 'Every council meeting has produced a documented decision log since February 7. Transparency streak intact.',
     triggeredBy: 'Core Stewardship Team',
     timestamp: '2026-03-08',
     timeAgo: '1 day ago',
     daysAgo: 1,
+    affectedAreas: ['Governance', 'Transparency'],
   },
   {
     id: 'chg-5',
     category: 'events',
     sentiment: 'neutral',
     impact: 'high',
+    changeType: 'update',
     description: 'Blue Spirit ticket sales at 32/70 — 46% capacity',
     detail: 'Registration pace is on track but not accelerating. Early-bird pricing ends March 31. Marketing push planned.',
     triggeredBy: 'Sian Hodges',
     timestamp: '2026-03-08',
     timeAgo: '1 day ago',
     daysAgo: 1,
+    affectedAreas: ['Events', 'Revenue'],
   },
   {
     id: 'chg-6',
     category: 'nodes',
     sentiment: 'positive',
     impact: 'high',
+    changeType: 'decision',
     description: 'Map Node MVP specs approved by Wisdom Council',
     detail: 'The coordination layer specs passed Wisdom Council review. Development sprint begins next week with Fairman leading.',
     triggeredBy: 'Wisdom Council',
     timestamp: '2026-03-07',
     timeAgo: '2 days ago',
     daysAgo: 2,
+    affectedAreas: ['Map Node', 'Development'],
   },
   {
     id: 'chg-7',
     category: 'membership',
     sentiment: 'positive',
     impact: 'high',
+    changeType: 'update',
     description: 'Member retention improved to 82% (was 78%)',
     detail: 'Pod engagement and monthly calls driving better retention. 4 at-risk members re-engaged after personal outreach.',
     triggeredBy: 'Maximillian',
     timestamp: '2026-03-07',
     timeAgo: '2 days ago',
     daysAgo: 2,
+    affectedAreas: ['Membership', 'Community Health'],
   },
   {
     id: 'chg-8',
     category: 'nodes',
     sentiment: 'positive',
     impact: 'medium',
+    changeType: 'feature',
     description: 'Anthem studio session completed — 3 tracks in production',
     detail: 'Raamayan wrapped a powerful studio session. Cultural heartbeat tracks enter mixing phase next week.',
     triggeredBy: 'Raamayan Ananda',
     timestamp: '2026-03-06',
     timeAgo: '3 days ago',
     daysAgo: 3,
+    affectedAreas: ['Megaphone Node', 'Culture'],
   },
   {
     id: 'chg-9',
     category: 'financial',
     sentiment: 'positive',
     impact: 'medium',
+    changeType: 'update',
     description: 'DAF compliance review passed with no issues',
     detail: 'Quarterly compliance check completed. All donor-advised fund documentation meets regulatory standards.',
     triggeredBy: 'Colleen Galbraith',
     timestamp: '2026-03-06',
     timeAgo: '3 days ago',
     daysAgo: 3,
+    affectedAreas: ['Compliance', 'DAF'],
   },
   {
     id: 'chg-10',
     category: 'culture',
     sentiment: 'negative',
     impact: 'medium',
+    changeType: 'fix',
     description: 'Pod attendance dropped 15% in February',
     detail: 'Participation dipped across 3 of 4 active pods. Scheduling conflicts cited as primary reason. Pod leads meeting to discuss format changes.',
     triggeredBy: 'Dave Wolstencroft',
     timestamp: '2026-03-05',
     timeAgo: '4 days ago',
     daysAgo: 4,
+    affectedAreas: ['Pods', 'Engagement'],
   },
   {
     id: 'chg-11',
     category: 'nodes',
     sentiment: 'positive',
     impact: 'medium',
+    changeType: 'feature',
     description: 'Capital Node scored 3 new deals this week',
     detail: 'Greg reports 3 new investment opportunities under evaluation, bringing active pipeline to 8 deals total.',
     triggeredBy: 'Greg Berry',
     timestamp: '2026-03-05',
     timeAgo: '4 days ago',
     daysAgo: 4,
+    affectedAreas: ['Capital Node', 'Pipeline'],
   },
   {
     id: 'chg-12',
     category: 'financial',
     sentiment: 'positive',
     impact: 'high',
+    changeType: 'update',
     description: 'Cash runway extended to 14 months',
     detail: 'Combination of lower burn rate and new membership revenue pushed runway from 12 to 14 months. Healthy position.',
     triggeredBy: 'James Hodges',
     timestamp: '2026-03-04',
     timeAgo: '5 days ago',
     daysAgo: 5,
+    affectedAreas: ['Financial Health', 'Runway'],
   },
   {
     id: 'chg-13',
     category: 'governance',
     sentiment: 'positive',
     impact: 'high',
+    changeType: 'decision',
     description: 'Board approved CEO search timeline',
     detail: 'Board agreed to formally begin CEO search after Blue Spirit. James transitions to strategic advisor role by Q4 2026.',
     triggeredBy: 'Board',
     timestamp: '2026-03-04',
     timeAgo: '5 days ago',
     daysAgo: 5,
+    affectedAreas: ['Leadership', 'Governance'],
   },
   {
     id: 'chg-14',
     category: 'nodes',
     sentiment: 'neutral',
     impact: 'medium',
+    changeType: 'feature',
     description: 'DECO framework v1 documentation started',
     detail: 'First draft of the decentralized coordination framework is underway. Targeting completion by end of March.',
     triggeredBy: 'Alex James Fairman',
     timestamp: '2026-03-03',
     timeAgo: '6 days ago',
     daysAgo: 6,
+    affectedAreas: ['DECO', 'Documentation'],
   },
   {
     id: 'chg-15',
     category: 'culture',
     sentiment: 'positive',
     impact: 'low',
+    changeType: 'feature',
     description: "Women's Council charter drafting began",
     detail: 'An emerging group of women stewards initiated a formal charter to define purpose, cadence, and decision authority.',
     triggeredBy: 'Community Members',
     timestamp: '2026-03-02',
     timeAgo: '1 week ago',
     daysAgo: 7,
+    affectedAreas: ['Culture', 'Governance'],
   },
   {
     id: 'chg-16',
     category: 'membership',
     sentiment: 'neutral',
     impact: 'medium',
+    changeType: 'decision',
     description: 'Membership tier restructuring proposal submitted',
     detail: 'New tiered pricing model proposed with Steward ($500/yr), Guardian ($2,500/yr), and Founder ($10K/yr) levels.',
     triggeredBy: 'Maximillian',
     timestamp: '2026-03-01',
     timeAgo: '8 days ago',
     daysAgo: 8,
+    affectedAreas: ['Membership', 'Pricing'],
   },
   {
     id: 'chg-17',
     category: 'events',
     sentiment: 'positive',
     impact: 'medium',
+    changeType: 'update',
     description: 'Cabo 5.0 post-event survey completed — 9.3 NPS',
     detail: 'Final survey results in. Strongest scores in community connection and governance sessions. Food scored lowest.',
     triggeredBy: 'Sian Hodges',
     timestamp: '2026-02-25',
     timeAgo: '12 days ago',
     daysAgo: 12,
+    affectedAreas: ['Events', 'NPS'],
   },
   {
     id: 'chg-18',
     category: 'governance',
     sentiment: 'neutral',
     impact: 'low',
+    changeType: 'update',
     description: 'Node lead quarterly report template finalized',
     detail: 'Standardized reporting template approved. All node leads will use it starting Q2 2026.',
     triggeredBy: 'Core Stewardship Team',
     timestamp: '2026-02-20',
     timeAgo: '17 days ago',
     daysAgo: 17,
+    affectedAreas: ['Reporting', 'Nodes'],
   },
 ];
+
+/* ─── Helper: Group by time period ─── */
+
+function groupByTimePeriod(items: ChangeItem[]): { label: string; items: ChangeItem[] }[] {
+  const groups: { label: string; items: ChangeItem[] }[] = [];
+  const today: ChangeItem[] = [];
+  const thisWeek: ChangeItem[] = [];
+  const thisMonth: ChangeItem[] = [];
+  const older: ChangeItem[] = [];
+
+  items.forEach((item) => {
+    if (item.daysAgo === 0) today.push(item);
+    else if (item.daysAgo <= 7) thisWeek.push(item);
+    else if (item.daysAgo <= 30) thisMonth.push(item);
+    else older.push(item);
+  });
+
+  if (today.length > 0) groups.push({ label: 'Today', items: today });
+  if (thisWeek.length > 0) groups.push({ label: 'This Week', items: thisWeek });
+  if (thisMonth.length > 0) groups.push({ label: 'This Month', items: thisMonth });
+  if (older.length > 0) groups.push({ label: 'Earlier', items: older });
+
+  return groups;
+}
 
 /* ─── Component ─── */
 
 export function WhatChangedView() {
   const [timeFilter, setTimeFilter] = useState<TimeFilter>('this-week');
   const [categoryFilter, setCategoryFilter] = useState<Category | 'all'>('all');
+  const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  function toggleExpand(id: string) {
+    setExpandedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
 
   /* Derived data */
   const filteredChanges = useMemo(() => {
@@ -311,6 +496,12 @@ export function WhatChangedView() {
       return inTime && inCategory;
     });
   }, [timeFilter, categoryFilter]);
+
+  const groupedChanges = useMemo(() => groupByTimePeriod(filteredChanges), [filteredChanges]);
+
+  const newSinceLastVisit = useMemo(() => {
+    return filteredChanges.filter((c) => c.isNew);
+  }, [filteredChanges]);
 
   const stats = useMemo(() => {
     const total = filteredChanges.length;
@@ -330,28 +521,157 @@ export function WhatChangedView() {
     return counts;
   }, [timeFilter]);
 
+  // Running index counter for staggered animations across groups
+  let globalItemIndex = 0;
+
   return (
     <div style={{ padding: '32px 40px', maxWidth: 1000, margin: '0 auto' }}>
+      {/* Inject animations */}
+      <style>{animationStyles}</style>
+
       {/* ── Header ── */}
       <div className="animate-fade-in" style={{ marginBottom: 32 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 8 }}>
-          <Sparkles size={28} style={{ color: '#d4a574' }} />
-          <h1
+          <div
             style={{
-              fontSize: 28,
-              fontWeight: 700,
-              color: '#f0ebe4',
-              margin: 0,
-              letterSpacing: '-0.01em',
+              width: 40,
+              height: 40,
+              borderRadius: 12,
+              background: 'linear-gradient(135deg, rgba(212, 165, 116, 0.2), rgba(139, 92, 246, 0.2))',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
             }}
           >
-            <span className="gradient-text">What Changed</span>
-          </h1>
+            <Sparkles size={22} style={{ color: '#d4a574' }} />
+          </div>
+          <div>
+            <h1
+              style={{
+                fontSize: 28,
+                fontWeight: 700,
+                color: '#f0ebe4',
+                margin: 0,
+                letterSpacing: '-0.01em',
+              }}
+            >
+              <span className="gradient-text">What Changed</span>
+            </h1>
+            <p style={{ fontSize: 14, color: '#a09888', margin: 0, marginTop: 2 }}>
+              Activity digest across the Frequency ecosystem. Track momentum, celebrate wins, and catch what needs attention.
+            </p>
+          </div>
         </div>
-        <p style={{ fontSize: 14, color: '#a09888', margin: 0, paddingLeft: 40 }}>
-          Activity digest across the Frequency ecosystem &middot; Track momentum, celebrate wins, and catch what needs attention.
-        </p>
       </div>
+
+      {/* ── "New Since Your Last Visit" Section ── */}
+      {newSinceLastVisit.length > 0 && (
+        <div
+          className="animate-fade-in"
+          style={{
+            marginBottom: 24,
+            animationDelay: '0.03s',
+          }}
+        >
+          <div
+            style={{
+              position: 'relative',
+              borderRadius: 14,
+              padding: 1,
+              background: 'linear-gradient(135deg, rgba(212, 165, 116, 0.5), rgba(139, 92, 246, 0.4), rgba(52, 211, 153, 0.3))',
+              backgroundSize: '200% 200%',
+              animation: 'shimmerHighlight 4s ease-in-out infinite',
+            }}
+          >
+            <div
+              style={{
+                backgroundColor: '#131720',
+                borderRadius: 13,
+                padding: '16px 20px',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+                <div
+                  style={{
+                    width: 24,
+                    height: 24,
+                    borderRadius: 7,
+                    backgroundColor: 'rgba(212, 165, 116, 0.15)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}
+                >
+                  <Eye size={13} style={{ color: '#d4a574' }} />
+                </div>
+                <span style={{ fontSize: 12, fontWeight: 700, color: '#d4a574', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+                  New Since Your Last Visit
+                </span>
+                <span
+                  style={{
+                    fontSize: 10,
+                    fontWeight: 700,
+                    backgroundColor: 'rgba(212, 165, 116, 0.2)',
+                    color: '#d4a574',
+                    borderRadius: 8,
+                    padding: '2px 8px',
+                    animation: 'newBadgePulse 2s ease-in-out infinite',
+                  }}
+                >
+                  {newSinceLastVisit.length} new
+                </span>
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                {newSinceLastVisit.map((change) => {
+                  const catCfg = categoryConfig[change.category];
+                  const sentCfg = sentimentConfig[change.sentiment];
+                  const ctCfg = changeTypeConfig[change.changeType];
+                  const CtIcon = ctCfg.icon;
+                  return (
+                    <div
+                      key={change.id}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 10,
+                        padding: '8px 12px',
+                        borderRadius: 8,
+                        backgroundColor: change.sentiment === 'positive'
+                          ? 'rgba(52, 211, 153, 0.04)'
+                          : change.sentiment === 'negative'
+                            ? 'rgba(248, 113, 113, 0.04)'
+                            : 'rgba(255,255,255,0.02)',
+                        borderLeft: `3px solid ${sentCfg.color}`,
+                        cursor: 'pointer',
+                        transition: 'background-color 0.15s',
+                      }}
+                      onClick={() => toggleExpand(change.id)}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.04)';
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.backgroundColor = change.sentiment === 'positive'
+                          ? 'rgba(52, 211, 153, 0.04)'
+                          : change.sentiment === 'negative'
+                            ? 'rgba(248, 113, 113, 0.04)'
+                            : 'rgba(255,255,255,0.02)';
+                      }}
+                    >
+                      <CtIcon size={12} style={{ color: ctCfg.color, flexShrink: 0 }} />
+                      <span style={{ fontSize: 13, color: '#f0ebe4', fontWeight: 500, flex: 1 }}>
+                        {change.description}
+                      </span>
+                      <span style={{ fontSize: 10, color: '#6b6358', flexShrink: 0 }}>
+                        {change.timeAgo}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ── Time Filter ── */}
       <div className="animate-fade-in" style={{ marginBottom: 20, animationDelay: '0.05s' }}>
@@ -484,6 +804,7 @@ export function WhatChangedView() {
             border: '1px solid #1e2638',
             borderRadius: 14,
             padding: '16px 20px',
+            animation: mounted ? 'statCardEntrance 0.4s ease-out 0.2s both' : 'none',
           }}
         >
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
@@ -515,6 +836,7 @@ export function WhatChangedView() {
             border: '1px solid #1e2638',
             borderRadius: 14,
             padding: '16px 20px',
+            animation: mounted ? 'statCardEntrance 0.4s ease-out 0.28s both' : 'none',
           }}
         >
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
@@ -547,6 +869,7 @@ export function WhatChangedView() {
             border: '1px solid #1e2638',
             borderRadius: 14,
             padding: '16px 20px',
+            animation: mounted ? 'statCardEntrance 0.4s ease-out 0.36s both' : 'none',
           }}
         >
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
@@ -579,6 +902,7 @@ export function WhatChangedView() {
             border: '1px solid #1e2638',
             borderRadius: 14,
             padding: '16px 20px',
+            animation: mounted ? 'statCardEntrance 0.4s ease-out 0.44s both' : 'none',
           }}
         >
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
@@ -604,172 +928,484 @@ export function WhatChangedView() {
         </div>
       </div>
 
-      {/* ── Change Cards ── */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-        {filteredChanges.map((change, idx) => {
-          const catCfg = categoryConfig[change.category];
-          const sentCfg = sentimentConfig[change.sentiment];
-          const impCfg = impactConfig[change.impact];
-          const CatIcon = catCfg.icon;
-          const SentIcon = sentCfg.icon;
-
-          return (
+      {/* ── Changelog Timeline ── */}
+      <div style={{ position: 'relative' }}>
+        {groupedChanges.map((group, groupIdx) => (
+          <div key={group.label} style={{ marginBottom: 8 }}>
+            {/* Time Period Header / Date Marker */}
             <div
-              key={change.id}
-              className="animate-fade-in"
               style={{
-                backgroundColor: '#131720',
-                border: '1px solid #1e2638',
-                borderRadius: 14,
-                padding: '20px 24px',
-                borderLeftWidth: 3,
-                borderLeftColor: sentCfg.color,
-                transition: 'border-color 0.2s, box-shadow 0.2s',
-                animationDelay: `${0.2 + idx * 0.04}s`,
-                opacity: 0,
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.borderColor = '#2e3a4e';
-                e.currentTarget.style.borderLeftColor = sentCfg.color;
-                e.currentTarget.style.boxShadow = '0 2px 16px rgba(0,0,0,0.2)';
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.borderColor = '#1e2638';
-                e.currentTarget.style.borderLeftColor = sentCfg.color;
-                e.currentTarget.style.boxShadow = 'none';
+                display: 'flex',
+                alignItems: 'center',
+                gap: 12,
+                marginBottom: 16,
+                paddingLeft: 20,
+                position: 'relative',
+                animation: mounted ? `timelineReveal 0.45s ease-out ${0.2 + groupIdx * 0.1}s both` : 'none',
               }}
             >
-              {/* Top row: sentiment indicator + badges + timestamp */}
+              {/* Timeline dot for group header */}
+              <div
+                style={{
+                  position: 'absolute',
+                  left: 0,
+                  width: 12,
+                  height: 12,
+                  borderRadius: '50%',
+                  backgroundColor: '#d4a574',
+                  border: '2px solid #0d1117',
+                  boxShadow: '0 0 0 3px rgba(212, 165, 116, 0.2)',
+                  zIndex: 2,
+                }}
+              />
               <div
                 style={{
                   display: 'flex',
                   alignItems: 'center',
-                  justifyContent: 'space-between',
-                  marginBottom: 12,
-                  flexWrap: 'wrap',
                   gap: 8,
+                  paddingLeft: 16,
                 }}
               >
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  {/* Sentiment indicator */}
-                  <div
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 5,
-                      backgroundColor: sentCfg.bg,
-                      borderRadius: 12,
-                      padding: '3px 10px',
-                    }}
-                  >
-                    <SentIcon size={12} style={{ color: sentCfg.color }} />
-                    <span
-                      style={{
-                        fontSize: 10,
-                        fontWeight: 600,
-                        color: sentCfg.color,
-                      }}
-                    >
-                      {sentCfg.label}
-                    </span>
-                  </div>
-
-                  {/* Category badge */}
-                  <span
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 4,
-                      fontSize: 10,
-                      fontWeight: 600,
-                      textTransform: 'uppercase',
-                      letterSpacing: '0.06em',
-                      color: catCfg.color,
-                      backgroundColor: `${catCfg.color}15`,
-                      borderRadius: 12,
-                      padding: '3px 10px',
-                    }}
-                  >
-                    <CatIcon size={10} />
-                    {catCfg.label}
-                  </span>
-
-                  {/* Impact badge */}
-                  <span
-                    style={{
-                      fontSize: 10,
-                      fontWeight: 600,
-                      color: impCfg.color,
-                      backgroundColor: impCfg.bg,
-                      borderRadius: 12,
-                      padding: '3px 10px',
-                    }}
-                  >
-                    {impCfg.label}
-                  </span>
-                </div>
-
-                {/* Timestamp */}
+                <Calendar size={13} style={{ color: '#d4a574' }} />
                 <span
                   style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 4,
-                    fontSize: 11,
-                    color: '#6b6358',
+                    fontSize: 13,
+                    fontWeight: 700,
+                    color: '#d4a574',
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.06em',
                   }}
                 >
-                  <Clock size={10} />
-                  {change.timeAgo}
+                  {group.label}
                 </span>
-              </div>
-
-              {/* Description */}
-              <h3
-                style={{
-                  fontSize: 15,
-                  fontWeight: 600,
-                  color: '#f0ebe4',
-                  margin: '0 0 6px 0',
-                  lineHeight: 1.4,
-                }}
-              >
-                {change.description}
-              </h3>
-
-              {/* Detail */}
-              <p
-                style={{
-                  fontSize: 13,
-                  color: '#a09888',
-                  lineHeight: 1.6,
-                  margin: '0 0 12px 0',
-                }}
-              >
-                {change.detail}
-              </p>
-
-              {/* Bottom: triggered by */}
-              <div
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 6,
-                  fontSize: 11,
-                  color: '#6b6358',
-                }}
-              >
-                <Zap size={10} style={{ color: '#4a443e' }} />
-                <span>
-                  Triggered by:{' '}
-                  <span style={{ color: '#8b7a6b', fontWeight: 500 }}>
-                    {change.triggeredBy}
-                  </span>
+                <span
+                  style={{
+                    fontSize: 10,
+                    fontWeight: 600,
+                    color: '#6b6358',
+                    backgroundColor: 'rgba(212, 165, 116, 0.1)',
+                    borderRadius: 8,
+                    padding: '2px 8px',
+                  }}
+                >
+                  {group.items.length} {group.items.length === 1 ? 'change' : 'changes'}
                 </span>
               </div>
             </div>
-          );
-        })}
+
+            {/* Change cards in this group */}
+            <div
+              style={{
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 12,
+                paddingLeft: 20,
+                position: 'relative',
+                marginBottom: 24,
+              }}
+            >
+              {/* Vertical timeline line */}
+              <div
+                style={{
+                  position: 'absolute',
+                  left: 5,
+                  top: -8,
+                  bottom: -16,
+                  width: 2,
+                  backgroundColor: '#1e2638',
+                  zIndex: 0,
+                }}
+              />
+
+              {group.items.map((change, idx) => {
+                const catCfg = categoryConfig[change.category];
+                const sentCfg = sentimentConfig[change.sentiment];
+                const impCfg = impactConfig[change.impact];
+                const ctCfg = changeTypeConfig[change.changeType];
+                const CatIcon = catCfg.icon;
+                const SentIcon = sentCfg.icon;
+                const CtIcon = ctCfg.icon;
+                const isExpanded = expandedIds.has(change.id);
+
+                // Diff-style colors
+                const diffBorderColor = change.sentiment === 'positive'
+                  ? 'rgba(52, 211, 153, 0.25)'  // green for additions
+                  : change.sentiment === 'negative'
+                    ? 'rgba(248, 113, 113, 0.25)'
+                    : 'rgba(212, 165, 116, 0.15)'; // amber for changes/neutral
+
+                const diffAccentColor = change.sentiment === 'positive'
+                  ? '#34d399'
+                  : change.sentiment === 'negative'
+                    ? '#f87171'
+                    : '#d4a574';
+
+                const currentGlobalIdx = globalItemIndex++;
+
+                return (
+                  <div
+                    key={change.id}
+                    style={{
+                      position: 'relative',
+                      paddingLeft: 24,
+                      animation: mounted
+                        ? `timelineReveal 0.4s ease-out ${0.3 + currentGlobalIdx * 0.05}s both`
+                        : 'none',
+                    }}
+                  >
+                    {/* Timeline dot for each item */}
+                    <div
+                      style={{
+                        position: 'absolute',
+                        left: -1,
+                        top: 18,
+                        width: 14,
+                        height: 14,
+                        borderRadius: '50%',
+                        backgroundColor: sentCfg.bg,
+                        border: `2px solid ${sentCfg.color}`,
+                        zIndex: 2,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                      }}
+                    >
+                      <div
+                        style={{
+                          width: 4,
+                          height: 4,
+                          borderRadius: '50%',
+                          backgroundColor: sentCfg.color,
+                        }}
+                      />
+                    </div>
+
+                    {/* Card */}
+                    <div
+                      style={{
+                        backgroundColor: '#131720',
+                        border: `1px solid ${diffBorderColor}`,
+                        borderRadius: 14,
+                        padding: '18px 22px',
+                        borderLeftWidth: 3,
+                        borderLeftColor: diffAccentColor,
+                        transition: 'border-color 0.2s, box-shadow 0.2s, transform 0.2s',
+                        cursor: 'pointer',
+                        position: 'relative',
+                        overflow: 'hidden',
+                      }}
+                      onClick={() => toggleExpand(change.id)}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.borderColor = '#2e3a4e';
+                        e.currentTarget.style.borderLeftColor = diffAccentColor;
+                        e.currentTarget.style.boxShadow = '0 4px 20px rgba(0,0,0,0.2)';
+                        e.currentTarget.style.transform = 'translateX(2px)';
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.borderColor = diffBorderColor;
+                        e.currentTarget.style.borderLeftColor = diffAccentColor;
+                        e.currentTarget.style.boxShadow = 'none';
+                        e.currentTarget.style.transform = 'translateX(0)';
+                      }}
+                    >
+                      {/* "New" indicator overlay for new items */}
+                      {change.isNew && (
+                        <div
+                          style={{
+                            position: 'absolute',
+                            top: 0,
+                            right: 0,
+                            width: 50,
+                            height: 50,
+                            background: 'radial-gradient(circle at top right, rgba(212, 165, 116, 0.1), transparent 70%)',
+                            pointerEvents: 'none',
+                          }}
+                        />
+                      )}
+
+                      {/* Top row: badges + timestamp */}
+                      <div
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          marginBottom: 10,
+                          flexWrap: 'wrap',
+                          gap: 6,
+                        }}
+                      >
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                          {/* New badge */}
+                          {change.isNew && (
+                            <span
+                              style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: 3,
+                                fontSize: 9,
+                                fontWeight: 700,
+                                textTransform: 'uppercase',
+                                letterSpacing: '0.08em',
+                                color: '#d4a574',
+                                backgroundColor: 'rgba(212, 165, 116, 0.15)',
+                                border: '1px solid rgba(212, 165, 116, 0.3)',
+                                borderRadius: 6,
+                                padding: '2px 7px',
+                                animation: 'newBadgePulse 2.5s ease-in-out infinite',
+                              }}
+                            >
+                              NEW
+                            </span>
+                          )}
+
+                          {/* Change type badge */}
+                          <span
+                            style={{
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: 4,
+                              fontSize: 10,
+                              fontWeight: 700,
+                              textTransform: 'uppercase',
+                              letterSpacing: '0.06em',
+                              color: ctCfg.color,
+                              backgroundColor: ctCfg.bg,
+                              border: ctCfg.border,
+                              borderRadius: 8,
+                              padding: '3px 9px',
+                            }}
+                          >
+                            <CtIcon size={10} />
+                            {ctCfg.label}
+                          </span>
+
+                          {/* Sentiment indicator */}
+                          <div
+                            style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: 4,
+                              backgroundColor: sentCfg.bg,
+                              borderRadius: 12,
+                              padding: '3px 9px',
+                            }}
+                          >
+                            <SentIcon size={11} style={{ color: sentCfg.color }} />
+                            <span
+                              style={{
+                                fontSize: 10,
+                                fontWeight: 600,
+                                color: sentCfg.color,
+                              }}
+                            >
+                              {sentCfg.label}
+                            </span>
+                          </div>
+
+                          {/* Category badge */}
+                          <span
+                            style={{
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: 4,
+                              fontSize: 10,
+                              fontWeight: 600,
+                              textTransform: 'uppercase',
+                              letterSpacing: '0.06em',
+                              color: catCfg.color,
+                              backgroundColor: `${catCfg.color}15`,
+                              borderRadius: 12,
+                              padding: '3px 9px',
+                            }}
+                          >
+                            <CatIcon size={10} />
+                            {catCfg.label}
+                          </span>
+
+                          {/* Impact badge */}
+                          <span
+                            style={{
+                              fontSize: 10,
+                              fontWeight: 600,
+                              color: impCfg.color,
+                              backgroundColor: impCfg.bg,
+                              borderRadius: 12,
+                              padding: '3px 9px',
+                            }}
+                          >
+                            {impCfg.label}
+                          </span>
+                        </div>
+
+                        {/* Timestamp + expand indicator */}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                          <span
+                            style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: 4,
+                              fontSize: 11,
+                              color: '#6b6358',
+                            }}
+                          >
+                            <Clock size={10} />
+                            {change.timeAgo}
+                          </span>
+                          <ChevronRight
+                            size={14}
+                            style={{
+                              color: '#4a443e',
+                              transition: 'transform 0.2s',
+                              transform: isExpanded ? 'rotate(90deg)' : 'rotate(0deg)',
+                            }}
+                          />
+                        </div>
+                      </div>
+
+                      {/* Description with diff-style highlighting */}
+                      <h3
+                        style={{
+                          fontSize: 15,
+                          fontWeight: 600,
+                          color: '#f0ebe4',
+                          margin: '0 0 6px 0',
+                          lineHeight: 1.4,
+                          display: 'flex',
+                          alignItems: 'flex-start',
+                          gap: 8,
+                        }}
+                      >
+                        {/* Diff prefix symbol */}
+                        <span
+                          style={{
+                            fontSize: 14,
+                            fontWeight: 700,
+                            color: change.sentiment === 'positive' ? '#34d399'
+                              : change.sentiment === 'negative' ? '#f87171'
+                              : '#d4a574',
+                            fontFamily: 'monospace',
+                            flexShrink: 0,
+                            width: 16,
+                            textAlign: 'center',
+                            opacity: 0.7,
+                          }}
+                        >
+                          {change.sentiment === 'positive' ? '+' : change.sentiment === 'negative' ? '!' : '~'}
+                        </span>
+                        <span
+                          style={{
+                            backgroundColor: change.sentiment === 'positive'
+                              ? 'rgba(52, 211, 153, 0.06)'
+                              : change.sentiment === 'negative'
+                                ? 'rgba(248, 113, 113, 0.06)'
+                                : 'rgba(212, 165, 116, 0.06)',
+                            borderRadius: 4,
+                            padding: '1px 4px',
+                          }}
+                        >
+                          {change.description}
+                        </span>
+                      </h3>
+
+                      {/* Collapsed preview of detail */}
+                      {!isExpanded && (
+                        <p
+                          style={{
+                            fontSize: 13,
+                            color: '#6b6358',
+                            lineHeight: 1.5,
+                            margin: '0 0 8px 24px',
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            whiteSpace: 'nowrap',
+                            maxWidth: '90%',
+                          }}
+                        >
+                          {change.detail}
+                        </p>
+                      )}
+
+                      {/* Expanded detail */}
+                      {isExpanded && (
+                        <div
+                          style={{
+                            marginLeft: 24,
+                            animation: 'slideDown 0.3s ease-out both',
+                          }}
+                        >
+                          <p
+                            style={{
+                              fontSize: 13,
+                              color: '#a09888',
+                              lineHeight: 1.6,
+                              margin: '0 0 12px 0',
+                            }}
+                          >
+                            {change.detail}
+                          </p>
+
+                          {/* Impact indicators - affected areas */}
+                          {change.affectedAreas.length > 0 && (
+                            <div
+                              style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: 6,
+                                marginBottom: 10,
+                                flexWrap: 'wrap',
+                              }}
+                            >
+                              <Tag size={10} style={{ color: '#4a443e' }} />
+                              <span style={{ fontSize: 10, fontWeight: 600, color: '#4a443e', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+                                Affected:
+                              </span>
+                              {change.affectedAreas.map((area, areaIdx) => (
+                                <span
+                                  key={areaIdx}
+                                  style={{
+                                    fontSize: 10,
+                                    fontWeight: 500,
+                                    color: '#8b7a6b',
+                                    backgroundColor: 'rgba(255,255,255,0.04)',
+                                    border: '1px solid rgba(255,255,255,0.06)',
+                                    borderRadius: 6,
+                                    padding: '2px 8px',
+                                  }}
+                                >
+                                  {area}
+                                </span>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      {/* Bottom: triggered by */}
+                      <div
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 6,
+                          fontSize: 11,
+                          color: '#6b6358',
+                          marginLeft: 24,
+                        }}
+                      >
+                        <Zap size={10} style={{ color: '#4a443e' }} />
+                        <span>
+                          Triggered by:{' '}
+                          <span style={{ color: '#8b7a6b', fontWeight: 500 }}>
+                            {change.triggeredBy}
+                          </span>
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        ))}
 
         {/* Empty state */}
         {filteredChanges.length === 0 && (

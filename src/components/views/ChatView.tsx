@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import {
   Hash,
   Shield,
@@ -19,6 +19,7 @@ import {
   ChevronDown,
   Pin,
   Users,
+  MessageCircle,
 } from 'lucide-react';
 import { chatChannels, chatMessages, type ChatChannel } from '@/lib/data';
 
@@ -83,6 +84,20 @@ const channelMembers: Record<string, number> = {
   coherence: 6,
 };
 
+/* ── Last message preview per channel ── */
+function getLastMessagePreview(channelId: string): string | null {
+  const msgs = chatMessages.filter((m) => m.channel === channelId);
+  if (msgs.length === 0) return null;
+  const last = msgs[msgs.length - 1];
+  const name = last.sender.split(' ')[0];
+  const text =
+    last.message.length > 36 ? last.message.slice(0, 36) + '...' : last.message;
+  return `${name}: ${text}`;
+}
+
+/* ── "You" sender detection (James Hodges = the user) ── */
+const CURRENT_USER = 'James Hodges';
+
 function getInitials(name: string): string {
   return name
     .split(' ')
@@ -94,42 +109,92 @@ function getInitials(name: string): string {
 
 export function ChatView() {
   const [selectedChannel, setSelectedChannel] = useState('core-team');
+  const [prevChannel, setPrevChannel] = useState('core-team');
   const [messageInput, setMessageInput] = useState('');
+  const [transitioning, setTransitioning] = useState(false);
+  const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>({});
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const messagesContainerRef = useRef<HTMLDivElement>(null);
 
   const currentChannel = chatChannels.find((c) => c.id === selectedChannel);
   const channelMsgs = chatMessages.filter((m) => m.channel === selectedChannel);
 
-  useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [selectedChannel]);
-
   const ChannelIcon = currentChannel ? iconMap[currentChannel.icon] || Hash : Hash;
+
+  /* ── Smooth channel switch with fade ── */
+  const switchChannel = useCallback(
+    (id: string) => {
+      if (id === selectedChannel) return;
+      setTransitioning(true);
+      setPrevChannel(selectedChannel);
+      setTimeout(() => {
+        setSelectedChannel(id);
+        setTransitioning(false);
+      }, 180);
+    },
+    [selectedChannel]
+  );
+
+  useEffect(() => {
+    if (!transitioning) {
+      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [selectedChannel, transitioning]);
+
+  const toggleGroup = (label: string) => {
+    setCollapsedGroups((prev) => ({ ...prev, [label]: !prev[label] }));
+  };
 
   return (
     <div style={{ display: 'flex', height: '100%', overflow: 'hidden' }}>
-      {/* CSS Animation for typing indicator */}
+      {/* CSS Animations */}
       <style>{`
         @keyframes typingDot {
           0%, 60%, 100% { opacity: 0.3; transform: translateY(0); }
-          30% { opacity: 1; transform: translateY(-2px); }
+          30% { opacity: 1; transform: translateY(-4px); }
         }
         .typing-dot {
           display: inline-block;
-          width: 4px;
-          height: 4px;
+          width: 5px;
+          height: 5px;
           border-radius: 50%;
           background-color: #d4a574;
           animation: typingDot 1.4s infinite;
         }
         .typing-dot:nth-child(2) { animation-delay: 0.2s; }
         .typing-dot:nth-child(3) { animation-delay: 0.4s; }
+        @keyframes msgFadeIn {
+          from { opacity: 0; transform: translateY(8px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes channelFadeIn {
+          from { opacity: 0; }
+          to { opacity: 1; }
+        }
+        .chat-msg-enter {
+          animation: msgFadeIn 0.3s ease forwards;
+        }
+        .channel-content-enter {
+          animation: channelFadeIn 0.2s ease forwards;
+        }
+        @keyframes unreadPulse {
+          0%, 100% { transform: scale(1); }
+          50% { transform: scale(1.12); }
+        }
+        .sidebar-channel:hover {
+          background-color: #1a1f2e !important;
+        }
+        .reaction-pill:hover {
+          background-color: rgba(212, 165, 116, 0.18) !important;
+          border-color: rgba(212, 165, 116, 0.35) !important;
+        }
       `}</style>
+
       {/* ── Channel Sidebar ── */}
       <div
         style={{
-          width: 260,
-          minWidth: 260,
+          width: 272,
+          minWidth: 272,
           backgroundColor: '#0f1219',
           borderRight: '1px solid #1e2638',
           display: 'flex',
@@ -137,10 +202,10 @@ export function ChatView() {
           overflow: 'hidden',
         }}
       >
-        {/* Channel Header */}
+        {/* Sidebar Header */}
         <div
           style={{
-            padding: '16px 16px 12px',
+            padding: '18px 18px 14px',
             borderBottom: '1px solid #1e2638',
           }}
         >
@@ -156,108 +221,186 @@ export function ChatView() {
             Channels
           </h2>
           <p style={{ fontSize: 11, color: '#6b6358', margin: '4px 0 0' }}>
-            {chatChannels.length} channels
+            {chatChannels.length} channels &middot;{' '}
+            {chatChannels.reduce((s, c) => s + c.unread, 0)} unread
           </p>
         </div>
 
         {/* Channel Groups */}
-        <div style={{ flex: 1, overflowY: 'auto', padding: '8px 0' }}>
+        <div style={{ flex: 1, overflowY: 'auto', padding: '6px 0' }}>
           {channelGroups.map((group) => {
             const groupChannels = group.ids
               .map((id) => chatChannels.find((c) => c.id === id))
               .filter(Boolean) as ChatChannel[];
 
             if (groupChannels.length === 0) return null;
+            const isCollapsed = collapsedGroups[group.label];
+            const groupUnread = groupChannels.reduce((s, c) => s + c.unread, 0);
 
             return (
-              <div key={group.label} style={{ marginBottom: 8 }}>
-                {/* Group label */}
-                <div
+              <div key={group.label} style={{ marginBottom: 4 }}>
+                {/* Group label — clickable to collapse */}
+                <button
+                  onClick={() => toggleGroup(group.label)}
                   style={{
-                    padding: '6px 16px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 6,
+                    width: '100%',
+                    padding: '6px 18px',
+                    border: 'none',
+                    background: 'none',
+                    cursor: 'pointer',
+                    fontFamily: 'inherit',
                     fontSize: 10,
                     fontWeight: 700,
                     color: '#6b6358',
                     letterSpacing: '0.12em',
                     textTransform: 'uppercase',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 6,
+                    textAlign: 'left',
                   }}
                 >
-                  <ChevronDown size={10} />
+                  <ChevronDown
+                    size={10}
+                    style={{
+                      transition: 'transform 0.2s',
+                      transform: isCollapsed ? 'rotate(-90deg)' : 'rotate(0deg)',
+                    }}
+                  />
                   {group.label}
-                </div>
-
-                {/* Channels */}
-                {groupChannels.map((channel) => {
-                  const isActive = selectedChannel === channel.id;
-                  const Icon = iconMap[channel.icon] || Hash;
-
-                  return (
-                    <button
-                      key={channel.id}
-                      onClick={() => setSelectedChannel(channel.id)}
+                  {groupUnread > 0 && (
+                    <span
                       style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: 8,
-                        width: '100%',
-                        padding: '7px 16px',
-                        border: 'none',
-                        borderRadius: 0,
-                        cursor: 'pointer',
-                        fontSize: 13,
-                        fontWeight: isActive ? 600 : 400,
-                        color: isActive ? '#e8c9a0' : channel.unread > 0 ? '#f0ebe4' : '#a09888',
-                        backgroundColor: isActive ? 'rgba(212, 165, 116, 0.1)' : 'transparent',
-                        borderLeft: isActive ? '3px solid #d4a574' : '3px solid transparent',
-                        transition: 'background 0.15s, color 0.15s',
-                        fontFamily: 'inherit',
-                        textAlign: 'left',
-                      }}
-                      onMouseEnter={(e) => {
-                        if (!isActive) {
-                          e.currentTarget.style.backgroundColor = '#1a1f2e';
-                        }
-                      }}
-                      onMouseLeave={(e) => {
-                        if (!isActive) {
-                          e.currentTarget.style.backgroundColor = 'transparent';
-                        }
+                        marginLeft: 'auto',
+                        fontSize: 9,
+                        fontWeight: 700,
+                        color: '#d4a574',
+                        backgroundColor: 'rgba(212, 165, 116, 0.15)',
+                        borderRadius: 8,
+                        padding: '1px 6px',
                       }}
                     >
-                      <Icon size={15} style={{ flexShrink: 0, opacity: 0.7 }} />
-                      <span
+                      {groupUnread}
+                    </span>
+                  )}
+                </button>
+
+                {/* Channels */}
+                <div
+                  style={{
+                    maxHeight: isCollapsed ? 0 : 500,
+                    overflow: 'hidden',
+                    transition: 'max-height 0.25s ease',
+                  }}
+                >
+                  {groupChannels.map((channel) => {
+                    const isActive = selectedChannel === channel.id;
+                    const Icon = iconMap[channel.icon] || Hash;
+                    const preview = getLastMessagePreview(channel.id);
+
+                    return (
+                      <button
+                        key={channel.id}
+                        onClick={() => switchChannel(channel.id)}
+                        className={isActive ? '' : 'sidebar-channel'}
                         style={{
-                          flex: 1,
-                          overflow: 'hidden',
-                          textOverflow: 'ellipsis',
-                          whiteSpace: 'nowrap',
+                          display: 'flex',
+                          alignItems: 'flex-start',
+                          gap: 10,
+                          width: '100%',
+                          padding: '8px 18px',
+                          border: 'none',
+                          borderRadius: 0,
+                          cursor: 'pointer',
+                          fontSize: 13,
+                          fontWeight: isActive ? 600 : 400,
+                          color: isActive
+                            ? '#e8c9a0'
+                            : channel.unread > 0
+                            ? '#f0ebe4'
+                            : '#a09888',
+                          backgroundColor: isActive
+                            ? 'rgba(212, 165, 116, 0.1)'
+                            : 'transparent',
+                          borderLeft: isActive
+                            ? '3px solid #d4a574'
+                            : '3px solid transparent',
+                          transition: 'background 0.15s, color 0.15s',
+                          fontFamily: 'inherit',
+                          textAlign: 'left',
+                          minHeight: 44,
                         }}
                       >
-                        {channel.name}
-                      </span>
-                      {channel.unread > 0 && (
-                        <span
+                        <Icon
+                          size={15}
                           style={{
-                            backgroundColor: '#d4a574',
-                            color: '#0b0d14',
-                            fontSize: 10,
-                            fontWeight: 700,
-                            borderRadius: 10,
-                            padding: '1px 7px',
-                            minWidth: 18,
-                            textAlign: 'center',
                             flexShrink: 0,
+                            opacity: isActive ? 0.9 : 0.6,
+                            marginTop: 2,
                           }}
-                        >
-                          {channel.unread}
-                        </span>
-                      )}
-                    </button>
-                  );
-                })}
+                        />
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div
+                            style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: 6,
+                            }}
+                          >
+                            <span
+                              style={{
+                                overflow: 'hidden',
+                                textOverflow: 'ellipsis',
+                                whiteSpace: 'nowrap',
+                                flex: 1,
+                              }}
+                            >
+                              {channel.name}
+                            </span>
+                            {channel.unread > 0 && (
+                              <span
+                                style={{
+                                  backgroundColor: '#d4a574',
+                                  color: '#0b0d14',
+                                  fontSize: 10,
+                                  fontWeight: 700,
+                                  borderRadius: 10,
+                                  padding: '1px 7px',
+                                  minWidth: 18,
+                                  textAlign: 'center',
+                                  flexShrink: 0,
+                                  animation:
+                                    channel.unread >= 5
+                                      ? 'unreadPulse 2s ease infinite'
+                                      : undefined,
+                                }}
+                              >
+                                {channel.unread}
+                              </span>
+                            )}
+                          </div>
+                          {/* Last message preview */}
+                          {preview && (
+                            <p
+                              style={{
+                                fontSize: 11,
+                                color: '#6b6358',
+                                margin: '2px 0 0',
+                                overflow: 'hidden',
+                                textOverflow: 'ellipsis',
+                                whiteSpace: 'nowrap',
+                                lineHeight: 1.3,
+                                fontWeight: 400,
+                              }}
+                            >
+                              {preview}
+                            </p>
+                          )}
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
             );
           })}
@@ -278,7 +421,21 @@ export function ChatView() {
             flexShrink: 0,
           }}
         >
-          <ChannelIcon size={20} style={{ color: '#d4a574' }} />
+          <div
+            style={{
+              width: 36,
+              height: 36,
+              borderRadius: 10,
+              backgroundColor: 'rgba(212, 165, 116, 0.1)',
+              border: '1px solid rgba(212, 165, 116, 0.2)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              flexShrink: 0,
+            }}
+          >
+            <ChannelIcon size={18} style={{ color: '#d4a574' }} />
+          </div>
           <div style={{ flex: 1 }}>
             <h3
               style={{
@@ -316,10 +473,14 @@ export function ChatView() {
 
         {/* Messages */}
         <div
+          ref={messagesContainerRef}
+          className={transitioning ? '' : 'channel-content-enter'}
           style={{
             flex: 1,
             overflowY: 'auto',
             padding: '16px 24px',
+            opacity: transitioning ? 0 : 1,
+            transition: 'opacity 0.15s ease',
           }}
         >
           {/* Pinned Message Banner */}
@@ -356,7 +517,14 @@ export function ChatView() {
                 >
                   {pinnedMessages[selectedChannel].text}
                 </p>
-                <span style={{ fontSize: 10, color: '#6b6358', marginTop: 2, display: 'block' }}>
+                <span
+                  style={{
+                    fontSize: 10,
+                    color: '#6b6358',
+                    marginTop: 2,
+                    display: 'block',
+                  }}
+                >
                   Pinned by {pinnedMessages[selectedChannel].author}
                 </span>
               </div>
@@ -364,6 +532,7 @@ export function ChatView() {
           )}
 
           {channelMsgs.length === 0 ? (
+            /* ── Empty State ── */
             <div
               style={{
                 display: 'flex',
@@ -376,50 +545,99 @@ export function ChatView() {
             >
               <div
                 style={{
-                  width: 64,
-                  height: 64,
+                  width: 72,
+                  height: 72,
                   borderRadius: '50%',
-                  backgroundColor: 'rgba(212, 165, 116, 0.08)',
+                  backgroundColor: 'rgba(212, 165, 116, 0.06)',
+                  border: '1px solid rgba(212, 165, 116, 0.12)',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  marginBottom: 16,
+                  marginBottom: 20,
                 }}
               >
-                <ChannelIcon size={28} style={{ opacity: 0.5, color: '#d4a574' }} />
+                <MessageCircle size={30} style={{ opacity: 0.4, color: '#d4a574' }} />
               </div>
-              <p style={{ fontSize: 16, fontWeight: 600, color: '#f0ebe4', margin: 0 }}>
+              <p
+                style={{
+                  fontSize: 18,
+                  fontWeight: 600,
+                  color: '#f0ebe4',
+                  margin: 0,
+                }}
+              >
                 Welcome to #{currentChannel?.name}
               </p>
-              <p style={{ fontSize: 13, margin: '8px 0 0', opacity: 0.7, lineHeight: 1.5 }}>
-                This is the very beginning of the <strong style={{ color: '#d4a574', fontWeight: 600 }}>#{currentChannel?.name}</strong> channel.
+              <p
+                style={{
+                  fontSize: 13,
+                  margin: '8px 0 0',
+                  opacity: 0.7,
+                  lineHeight: 1.5,
+                }}
+              >
+                This is the very beginning of the{' '}
+                <strong style={{ color: '#d4a574', fontWeight: 600 }}>
+                  #{currentChannel?.name}
+                </strong>{' '}
+                channel.
               </p>
-              <p style={{ fontSize: 12, margin: '12px 0 0', opacity: 0.5, maxWidth: 320, textAlign: 'center', lineHeight: 1.5 }}>
-                Start the conversation by sharing an update or asking a question.
+              <p
+                style={{
+                  fontSize: 12,
+                  margin: '14px 0 0',
+                  opacity: 0.45,
+                  maxWidth: 340,
+                  textAlign: 'center',
+                  lineHeight: 1.6,
+                }}
+              >
+                Start the conversation by sharing an update, asking a question, or dropping a link
+                the team should see.
               </p>
+              {/* decorative dots */}
+              <div
+                style={{
+                  display: 'flex',
+                  gap: 6,
+                  marginTop: 24,
+                }}
+              >
+                {['#d4a574', '#8b5cf6', '#6b8f71'].map((c, i) => (
+                  <div
+                    key={i}
+                    style={{
+                      width: 6,
+                      height: 6,
+                      borderRadius: '50%',
+                      backgroundColor: c,
+                      opacity: 0.3,
+                    }}
+                  />
+                ))}
+              </div>
             </div>
           ) : (
+            /* ── Message Bubbles ── */
             channelMsgs.map((msg, idx) => {
               const prevMsg = idx > 0 ? channelMsgs[idx - 1] : null;
               const isSameSender = prevMsg?.sender === msg.sender;
+              const isCurrentUser = msg.sender === CURRENT_USER;
               const avatarColor = avatarColors[msg.senderAvatar] || '#6b6358';
 
               return (
                 <div
                   key={msg.id}
+                  className="chat-msg-enter"
                   style={{
                     display: 'flex',
-                    gap: 12,
-                    marginTop: isSameSender ? 4 : 16,
-                    padding: '4px 8px',
-                    borderRadius: 8,
-                    transition: 'background 0.1s',
-                  }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.02)';
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.backgroundColor = 'transparent';
+                    flexDirection: isCurrentUser ? 'row-reverse' : 'row',
+                    gap: 10,
+                    marginTop: isSameSender ? 4 : 18,
+                    animationDelay: `${idx * 40}ms`,
+                    maxWidth: '85%',
+                    marginLeft: isCurrentUser ? 'auto' : 0,
+                    marginRight: isCurrentUser ? 0 : 'auto',
                   }}
                 >
                   {/* Avatar */}
@@ -453,34 +671,86 @@ export function ChatView() {
                           display: 'flex',
                           alignItems: 'baseline',
                           gap: 8,
-                          marginBottom: 2,
+                          marginBottom: 4,
+                          flexDirection: isCurrentUser ? 'row-reverse' : 'row',
                         }}
                       >
                         <span
                           style={{
                             fontSize: 13,
                             fontWeight: 700,
-                            color: '#f0ebe4',
+                            color: isCurrentUser ? '#d4a574' : '#f0ebe4',
                           }}
                         >
-                          {msg.sender}
+                          {isCurrentUser ? 'You' : msg.sender}
                         </span>
-                        <span style={{ fontSize: 11, color: '#6b6358' }}>{msg.timestamp}</span>
+                        <span
+                          style={{
+                            fontSize: 10,
+                            color: '#6b6358',
+                            fontVariantNumeric: 'tabular-nums',
+                          }}
+                        >
+                          {msg.timestamp}
+                        </span>
                       </div>
                     )}
-                    <p
+
+                    {/* Bubble */}
+                    <div
                       style={{
-                        fontSize: 13,
-                        color: '#c8bfb4',
-                        lineHeight: 1.55,
-                        margin: 0,
-                        wordBreak: 'break-word',
+                        padding: '10px 14px',
+                        borderRadius: isCurrentUser
+                          ? '14px 4px 14px 14px'
+                          : '4px 14px 14px 14px',
+                        backgroundColor: isCurrentUser
+                          ? 'rgba(212, 165, 116, 0.12)'
+                          : '#131720',
+                        border: isCurrentUser
+                          ? '1px solid rgba(212, 165, 116, 0.18)'
+                          : '1px solid #1e2638',
+                        transition: 'background 0.15s',
+                      }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.backgroundColor = isCurrentUser
+                          ? 'rgba(212, 165, 116, 0.16)'
+                          : 'rgba(255,255,255,0.03)';
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.backgroundColor = isCurrentUser
+                          ? 'rgba(212, 165, 116, 0.12)'
+                          : '#131720';
                       }}
                     >
-                      {msg.message}
-                    </p>
+                      <p
+                        style={{
+                          fontSize: 13,
+                          color: isCurrentUser ? '#e8d5c0' : '#c8bfb4',
+                          lineHeight: 1.55,
+                          margin: 0,
+                          wordBreak: 'break-word',
+                        }}
+                      >
+                        {msg.message}
+                      </p>
+                    </div>
 
-                    {/* Reactions */}
+                    {/* Timestamp for same-sender continuation */}
+                    {isSameSender && (
+                      <div
+                        style={{
+                          fontSize: 10,
+                          color: '#6b635850',
+                          marginTop: 2,
+                          textAlign: isCurrentUser ? 'right' : 'left',
+                          fontVariantNumeric: 'tabular-nums',
+                        }}
+                      >
+                        {msg.timestamp}
+                      </div>
+                    )}
+
+                    {/* Reactions as emoji pills */}
                     {msg.reactions && msg.reactions.length > 0 && (
                       <div
                         style={{
@@ -488,36 +758,41 @@ export function ChatView() {
                           gap: 6,
                           marginTop: 6,
                           flexWrap: 'wrap',
+                          justifyContent: isCurrentUser ? 'flex-end' : 'flex-start',
                         }}
                       >
                         {msg.reactions.map((r, ri) => (
                           <span
                             key={ri}
+                            className="reaction-pill"
                             style={{
                               display: 'inline-flex',
                               alignItems: 'center',
-                              gap: 4,
-                              padding: '2px 8px',
-                              borderRadius: 12,
+                              gap: 5,
+                              padding: '3px 10px',
+                              borderRadius: 14,
                               backgroundColor: 'rgba(212, 165, 116, 0.08)',
                               border: '1px solid rgba(212, 165, 116, 0.15)',
-                              fontSize: 12,
+                              fontSize: 13,
                               cursor: 'pointer',
-                              transition: 'background 0.15s, border-color 0.15s',
+                              transition: 'background 0.15s, border-color 0.15s, transform 0.1s',
+                              userSelect: 'none',
                             }}
                             onMouseEnter={(e) => {
-                              e.currentTarget.style.backgroundColor =
-                                'rgba(212, 165, 116, 0.15)';
-                              e.currentTarget.style.borderColor = 'rgba(212, 165, 116, 0.3)';
+                              e.currentTarget.style.transform = 'scale(1.05)';
                             }}
                             onMouseLeave={(e) => {
-                              e.currentTarget.style.backgroundColor =
-                                'rgba(212, 165, 116, 0.08)';
-                              e.currentTarget.style.borderColor = 'rgba(212, 165, 116, 0.15)';
+                              e.currentTarget.style.transform = 'scale(1)';
                             }}
                           >
-                            <span>{r.emoji}</span>
-                            <span style={{ color: '#a09888', fontSize: 11, fontWeight: 600 }}>
+                            <span style={{ lineHeight: 1 }}>{r.emoji}</span>
+                            <span
+                              style={{
+                                color: '#a09888',
+                                fontSize: 11,
+                                fontWeight: 600,
+                              }}
+                            >
                               {r.count}
                             </span>
                           </span>
@@ -565,22 +840,50 @@ export function ChatView() {
         {selectedChannel === 'core-team' && (
           <div
             style={{
-              padding: '4px 24px 8px',
+              padding: '6px 24px 8px',
               flexShrink: 0,
             }}
           >
             <div
               style={{
-                display: 'flex',
+                display: 'inline-flex',
                 alignItems: 'center',
-                gap: 6,
+                gap: 8,
                 fontSize: 12,
                 color: '#6b6358',
+                backgroundColor: 'rgba(255,255,255,0.02)',
+                borderRadius: 16,
+                padding: '5px 14px',
+                border: '1px solid #1e263840',
               }}
             >
+              {/* Mini avatar */}
+              <div
+                style={{
+                  width: 18,
+                  height: 18,
+                  borderRadius: '50%',
+                  backgroundColor: '#f472b6',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontSize: 8,
+                  fontWeight: 700,
+                  color: '#0b0d14',
+                }}
+              >
+                SH
+              </div>
               <span style={{ fontWeight: 600, color: '#a09888' }}>Sian</span>
               <span>is typing</span>
-              <span style={{ display: 'inline-flex', gap: 3, marginLeft: 1, alignItems: 'center' }}>
+              <span
+                style={{
+                  display: 'inline-flex',
+                  gap: 3,
+                  marginLeft: 2,
+                  alignItems: 'center',
+                }}
+              >
                 <span className="typing-dot" />
                 <span className="typing-dot" />
                 <span className="typing-dot" />
@@ -608,6 +911,12 @@ export function ChatView() {
               borderRadius: 12,
               padding: '10px 14px',
               transition: 'border-color 0.2s',
+            }}
+            onFocus={(e) => {
+              e.currentTarget.style.borderColor = 'rgba(212, 165, 116, 0.3)';
+            }}
+            onBlur={(e) => {
+              e.currentTarget.style.borderColor = '#1e2638';
             }}
           >
             <button
@@ -701,7 +1010,8 @@ export function ChatView() {
                 color: messageInput.trim() ? '#0b0d14' : '#6b6358',
                 display: 'flex',
                 alignItems: 'center',
-                transition: 'background 0.2s, color 0.2s',
+                transition: 'background 0.2s, color 0.2s, transform 0.15s',
+                transform: messageInput.trim() ? 'scale(1)' : 'scale(0.95)',
               }}
             >
               <Send size={16} />

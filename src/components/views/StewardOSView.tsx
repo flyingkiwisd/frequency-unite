@@ -29,12 +29,15 @@ import {
   RefreshCw,
   FileText,
   ArrowRight,
+  Check,
+  Circle,
+  CheckCircle2,
 } from 'lucide-react';
 import { teamMembers } from '@/lib/data';
 
-/* ═══════════════════════════════════════════════════════════════════════════
+/* =====================================================================
    Types
-   ═══════════════════════════════════════════════════════════════════════════ */
+   ===================================================================== */
 
 type TabKey = 'overview' | 'os' | 'qualities' | 'risk' | 'journal' | 'agent';
 
@@ -91,9 +94,9 @@ interface JournalData {
   };
 }
 
-/* ═══════════════════════════════════════════════════════════════════════════
+/* =====================================================================
    Constants & Colors
-   ═══════════════════════════════════════════════════════════════════════════ */
+   ===================================================================== */
 
 const AMBER = '#d4a574';
 const VIOLET = '#8b5cf6';
@@ -101,6 +104,8 @@ const SAGE = '#6b8f71';
 const ROSE = '#f43e5e';
 
 const JOURNAL_STORAGE_KEY = 'frequency-steward-os-journal';
+const CHECKLIST_STORAGE_KEY = 'frequency-steward-os-checklist';
+const COMMITMENT_STORAGE_KEY = 'frequency-steward-os-commitments';
 
 const TAB_CONFIG: { key: TabKey; label: string; icon: React.ElementType }[] = [
   { key: 'overview', label: 'Overview', icon: Eye },
@@ -124,9 +129,9 @@ const likelihoodConfig: Record<string, { color: string; bg: string }> = {
   high: { color: ROSE, bg: 'rgba(244, 63, 94, 0.15)' },
 };
 
-/* ═══════════════════════════════════════════════════════════════════════════
-   Avatar gradient helper (matching TeamView pattern)
-   ═══════════════════════════════════════════════════════════════════════════ */
+/* =====================================================================
+   Avatar gradient helper
+   ===================================================================== */
 
 function avatarGradient(color: string): string {
   const gradientMap: Record<string, string> = {
@@ -148,9 +153,101 @@ function avatarGradient(color: string): string {
   return gradientMap[color] || 'linear-gradient(135deg, #a09888, #6b6358)';
 }
 
-/* ═══════════════════════════════════════════════════════════════════════════
-   Mock Steward OS Data (5 core members)
-   ═══════════════════════════════════════════════════════════════════════════ */
+/* =====================================================================
+   Greeting helper
+   ===================================================================== */
+
+function getGreeting(): string {
+  const hour = new Date().getHours();
+  if (hour < 12) return 'Good morning';
+  if (hour < 17) return 'Good afternoon';
+  return 'Good evening';
+}
+
+function getFormattedDate(): string {
+  const now = new Date();
+  return now.toLocaleDateString('en-US', {
+    weekday: 'long',
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+  });
+}
+
+/* =====================================================================
+   SVG Progress Ring Component
+   ===================================================================== */
+
+function ProgressRing({ score, size = 120, strokeWidth = 8 }: { score: number; size?: number; strokeWidth?: number }) {
+  const [animatedScore, setAnimatedScore] = useState(0);
+  const radius = (size - strokeWidth) / 2;
+  const circumference = 2 * Math.PI * radius;
+  const progress = (animatedScore / 100) * circumference;
+  const offset = circumference - progress;
+
+  useEffect(() => {
+    const timer = setTimeout(() => setAnimatedScore(score), 200);
+    return () => clearTimeout(timer);
+  }, [score]);
+
+  const scoreColor = score >= 80 ? SAGE : score >= 60 ? AMBER : ROSE;
+
+  return (
+    <div style={{ position: 'relative', width: size, height: size }}>
+      <svg width={size} height={size} style={{ transform: 'rotate(-90deg)' }}>
+        {/* Background track */}
+        <circle
+          cx={size / 2}
+          cy={size / 2}
+          r={radius}
+          fill="none"
+          stroke="#1c2230"
+          strokeWidth={strokeWidth}
+        />
+        {/* Progress arc */}
+        <circle
+          cx={size / 2}
+          cy={size / 2}
+          r={radius}
+          fill="none"
+          stroke={scoreColor}
+          strokeWidth={strokeWidth}
+          strokeLinecap="round"
+          strokeDasharray={circumference}
+          strokeDashoffset={offset}
+          style={{
+            transition: 'stroke-dashoffset 1.2s cubic-bezier(0.4, 0, 0.2, 1), stroke 0.4s ease',
+            filter: `drop-shadow(0 0 6px ${scoreColor}60)`,
+          }}
+        />
+      </svg>
+      <div
+        style={{
+          position: 'absolute',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+        }}
+      >
+        <span style={{ fontSize: '1.75rem', fontWeight: 800, color: scoreColor, lineHeight: 1 }}>
+          {animatedScore}
+        </span>
+        <span style={{ fontSize: '0.6rem', color: '#6b6358', textTransform: 'uppercase', letterSpacing: '0.05em', marginTop: 2 }}>
+          Score
+        </span>
+      </div>
+    </div>
+  );
+}
+
+/* =====================================================================
+   Mock Steward OS Data
+   ===================================================================== */
 
 const stewardOSData: Record<string, StewardOS> = {
   james: {
@@ -508,9 +605,21 @@ const stewardOSData: Record<string, StewardOS> = {
   },
 };
 
-/* ═══════════════════════════════════════════════════════════════════════════
-   Status Config (matching TeamView)
-   ═══════════════════════════════════════════════════════════════════════════ */
+/* =====================================================================
+   Personal Stats Mock Data
+   ===================================================================== */
+
+const personalStats: Record<string, { tasksCompleted: number; hoursLogged: number; streakDays: number; overallScore: number }> = {
+  james: { tasksCompleted: 47, hoursLogged: 128, streakDays: 12, overallScore: 82 },
+  sian: { tasksCompleted: 89, hoursLogged: 320, streakDays: 18, overallScore: 88 },
+  fairman: { tasksCompleted: 34, hoursLogged: 96, streakDays: 9, overallScore: 85 },
+  greg: { tasksCompleted: 28, hoursLogged: 64, streakDays: 7, overallScore: 78 },
+  dave: { tasksCompleted: 22, hoursLogged: 52, streakDays: 11, overallScore: 75 },
+};
+
+/* =====================================================================
+   Status Config
+   ===================================================================== */
 
 const statusConfig: Record<string, { bg: string; text: string; label: string }> = {
   active: { bg: 'rgba(107, 143, 113, 0.15)', text: SAGE, label: 'Active' },
@@ -519,15 +628,18 @@ const statusConfig: Record<string, { bg: string; text: string; label: string }> 
   hiring: { bg: 'rgba(224, 96, 96, 0.15)', text: '#e06060', label: 'Hiring' },
 };
 
-/* ═══════════════════════════════════════════════════════════════════════════
+/* =====================================================================
    Component
-   ═══════════════════════════════════════════════════════════════════════════ */
+   ===================================================================== */
 
 export function StewardOSView() {
   const [selectedId, setSelectedId] = useState<string>(teamMembers[0].id);
   const [activeTab, setActiveTab] = useState<TabKey>('overview');
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [journal, setJournal] = useState<Record<string, JournalData>>({});
+  const [checklistState, setChecklistState] = useState<Record<string, Record<number, boolean>>>({});
+  const [commitmentState, setCommitmentState] = useState<Record<string, Record<number, boolean>>>({});
+  const [mounted, setMounted] = useState(false);
 
   const member = useMemo(
     () => teamMembers.find((m) => m.id === selectedId) || teamMembers[0],
@@ -537,16 +649,37 @@ export function StewardOSView() {
   const osData = stewardOSData[selectedId] || null;
   const hasFullOS = osData !== null;
   const status = statusConfig[member.status] || statusConfig.active;
+  const stats = personalStats[selectedId] || { tasksCompleted: 0, hoursLogged: 0, streakDays: 0, overallScore: 60 };
 
-  /* ── Journal localStorage ── */
+  /* -- Mount animation trigger -- */
+  useEffect(() => {
+    setMounted(false);
+    const t = requestAnimationFrame(() => setMounted(true));
+    return () => cancelAnimationFrame(t);
+  }, [selectedId]);
 
+  /* -- Journal localStorage -- */
   useEffect(() => {
     try {
       const stored = localStorage.getItem(JOURNAL_STORAGE_KEY);
       if (stored) setJournal(JSON.parse(stored));
-    } catch {
-      // ignore
-    }
+    } catch { /* ignore */ }
+  }, []);
+
+  /* -- Checklist localStorage -- */
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem(CHECKLIST_STORAGE_KEY);
+      if (stored) setChecklistState(JSON.parse(stored));
+    } catch { /* ignore */ }
+  }, []);
+
+  /* -- Commitment localStorage -- */
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem(COMMITMENT_STORAGE_KEY);
+      if (stored) setCommitmentState(JSON.parse(stored));
+    } catch { /* ignore */ }
   }, []);
 
   const updateJournal = useCallback(
@@ -567,16 +700,36 @@ export function StewardOSView() {
             },
           },
         };
-        try {
-          localStorage.setItem(JOURNAL_STORAGE_KEY, JSON.stringify(updated));
-        } catch {
-          // ignore
-        }
+        try { localStorage.setItem(JOURNAL_STORAGE_KEY, JSON.stringify(updated)); } catch { /* ignore */ }
         return updated;
       });
     },
     []
   );
+
+  const toggleChecklist = useCallback((memberId: string, index: number) => {
+    setChecklistState((prev) => {
+      const memberState = prev[memberId] || {};
+      const updated = {
+        ...prev,
+        [memberId]: { ...memberState, [index]: !memberState[index] },
+      };
+      try { localStorage.setItem(CHECKLIST_STORAGE_KEY, JSON.stringify(updated)); } catch { /* ignore */ }
+      return updated;
+    });
+  }, []);
+
+  const toggleCommitment = useCallback((memberId: string, index: number) => {
+    setCommitmentState((prev) => {
+      const memberState = prev[memberId] || {};
+      const updated = {
+        ...prev,
+        [memberId]: { ...memberState, [index]: !memberState[index] },
+      };
+      try { localStorage.setItem(COMMITMENT_STORAGE_KEY, JSON.stringify(updated)); } catch { /* ignore */ }
+      return updated;
+    });
+  }, []);
 
   const currentJournal: JournalData = journal[selectedId] || {
     morning: { regulationCheck: '', topPriorities: '', whatNotToDo: '' },
@@ -584,7 +737,18 @@ export function StewardOSView() {
     weekly: { prioritiesReview: '', blockers: '' },
   };
 
-  /* ── Render Helpers ── */
+  const currentChecklist = checklistState[selectedId] || {};
+  const currentCommitments = commitmentState[selectedId] || {};
+
+  /* -- Compute weekly commitment progress -- */
+  const commitmentProgress = useMemo(() => {
+    if (!hasFullOS) return 0;
+    const total = osData.os.weeklyCommitments.length;
+    const done = Object.values(currentCommitments).filter(Boolean).length;
+    return total > 0 ? Math.round((done / total) * 100) : 0;
+  }, [hasFullOS, osData, currentCommitments]);
+
+  /* -- Render Helpers -- */
 
   function renderScoreBar(score: number, max: number = 5) {
     return (
@@ -607,15 +771,241 @@ export function StewardOSView() {
     );
   }
 
-  /* ═══════════════════════════════════════════════════════════════════════════
+  /* Card animation style */
+  function cardStyle(index: number): React.CSSProperties {
+    return {
+      opacity: mounted ? 1 : 0,
+      transform: mounted ? 'translateY(0)' : 'translateY(12px)',
+      transition: `opacity 0.5s cubic-bezier(0.4, 0, 0.2, 1) ${index * 0.08}s, transform 0.5s cubic-bezier(0.4, 0, 0.2, 1) ${index * 0.08}s`,
+    };
+  }
+
+  /* =====================================================================
      Tab Content Renderers
-     ═══════════════════════════════════════════════════════════════════════════ */
+     ===================================================================== */
 
   function renderOverview() {
     return (
-      <div className="space-y-6 animate-fade-in">
-        {/* Domains */}
-        <div className="glow-card rounded-xl border p-5" style={{ backgroundColor: '#131720', borderColor: '#1e2638' }}>
+      <div className="space-y-6">
+        {/* -- Greeting Section -- */}
+        <div
+          className="glow-card rounded-xl border p-6"
+          style={{
+            ...cardStyle(0),
+            backgroundColor: 'rgba(212, 165, 116, 0.04)',
+            borderColor: 'rgba(212, 165, 116, 0.15)',
+          }}
+        >
+          <div className="flex items-center gap-5">
+            {/* Avatar with glow */}
+            <div style={{ position: 'relative', flexShrink: 0 }}>
+              <div
+                className="w-16 h-16 rounded-full flex items-center justify-center text-lg font-bold"
+                style={{
+                  background: avatarGradient(member.color),
+                  color: '#0b0d14',
+                  boxShadow: `0 0 24px ${AMBER}30`,
+                }}
+              >
+                {member.avatar}
+              </div>
+            </div>
+            <div className="flex-1 min-w-0">
+              <h2
+                className="text-2xl font-bold"
+                style={{ color: '#f0ebe4' }}
+              >
+                {getGreeting()}, {member.name.split(' ')[0]}
+              </h2>
+              <p className="text-sm mt-1" style={{ color: '#a09888' }}>
+                {getFormattedDate()}
+              </p>
+              <p className="text-xs mt-2" style={{ color: '#6b6358' }}>
+                {member.roleOneSentence}
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {/* -- Progress Ring + Personal Stats Row -- */}
+        <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
+          {/* Progress Ring */}
+          <div
+            className="glow-card rounded-xl border p-5 flex flex-col items-center justify-center"
+            style={{
+              ...cardStyle(1),
+              backgroundColor: '#131720',
+              borderColor: '#1e2638',
+            }}
+          >
+            <ProgressRing score={stats.overallScore} size={110} strokeWidth={8} />
+            <span className="text-[10px] font-semibold uppercase tracking-wider mt-3" style={{ color: '#6b6358' }}>
+              Overall Score
+            </span>
+          </div>
+
+          {/* Stats Cards */}
+          {[
+            { label: 'Tasks Done', value: stats.tasksCompleted, icon: CheckCircle2, color: SAGE },
+            { label: 'Hours Logged', value: stats.hoursLogged, icon: Clock, color: VIOLET },
+            { label: 'Day Streak', value: stats.streakDays, icon: Flame, color: '#fb923c' },
+          ].map((stat, i) => {
+            const Icon = stat.icon;
+            return (
+              <div
+                key={stat.label}
+                className="glow-card rounded-xl border p-5 flex flex-col items-center justify-center"
+                style={{
+                  ...cardStyle(i + 2),
+                  backgroundColor: '#131720',
+                  borderColor: '#1e2638',
+                }}
+              >
+                <Icon size={18} style={{ color: stat.color, marginBottom: 8 }} />
+                <span className="text-2xl font-bold tabular-nums" style={{ color: stat.color }}>
+                  {stat.value}
+                </span>
+                <span className="text-[10px] font-semibold uppercase tracking-wider mt-1" style={{ color: '#6b6358' }}>
+                  {stat.label}
+                </span>
+              </div>
+            );
+          })}
+        </div>
+
+        {/* -- Daily Focus Areas with Checklist -- */}
+        {hasFullOS && (
+          <div
+            className="glow-card rounded-xl border p-5"
+            style={{ ...cardStyle(5), backgroundColor: '#131720', borderColor: '#1e2638' }}
+          >
+            <div className="flex items-center gap-2 mb-4">
+              <Sun size={14} style={{ color: '#e8b44c' }} />
+              <span className="text-xs font-semibold uppercase tracking-wider" style={{ color: '#e8b44c' }}>
+                Daily Focus — Morning Checklist
+              </span>
+              <span
+                className="ml-auto text-[10px] font-semibold px-2 py-0.5 rounded-full"
+                style={{
+                  backgroundColor: `${SAGE}18`,
+                  color: SAGE,
+                }}
+              >
+                {Object.values(currentChecklist).filter(Boolean).length}/{osData.os.morningChecklist.length}
+              </span>
+            </div>
+            <div className="space-y-2">
+              {osData.os.morningChecklist.map((item, i) => {
+                const checked = !!currentChecklist[i];
+                return (
+                  <button
+                    key={i}
+                    onClick={() => toggleChecklist(selectedId, i)}
+                    className="w-full flex items-start gap-3 text-sm text-left group transition-all rounded-lg px-2 py-2 -mx-2"
+                    style={{
+                      backgroundColor: checked ? 'rgba(107, 143, 113, 0.06)' : 'transparent',
+                    }}
+                  >
+                    <div
+                      className="w-5 h-5 rounded-md border flex items-center justify-center flex-shrink-0 mt-0.5 transition-all"
+                      style={{
+                        borderColor: checked ? SAGE : '#2e3a4e',
+                        backgroundColor: checked ? `${SAGE}25` : 'transparent',
+                      }}
+                    >
+                      {checked && <Check size={12} style={{ color: SAGE }} />}
+                    </div>
+                    <span
+                      className="transition-all"
+                      style={{
+                        color: checked ? '#6b6358' : '#a09888',
+                        textDecoration: checked ? 'line-through' : 'none',
+                      }}
+                    >
+                      {item}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* -- Weekly Commitment Tracker -- */}
+        {hasFullOS && (
+          <div
+            className="glow-card rounded-xl border p-5"
+            style={{ ...cardStyle(6), backgroundColor: '#131720', borderColor: '#1e2638' }}
+          >
+            <div className="flex items-center gap-2 mb-4">
+              <Calendar size={14} style={{ color: VIOLET }} />
+              <span className="text-xs font-semibold uppercase tracking-wider" style={{ color: VIOLET }}>
+                Weekly Commitments
+              </span>
+              <span
+                className="ml-auto text-[10px] font-semibold px-2 py-0.5 rounded-full"
+                style={{
+                  backgroundColor: `${VIOLET}18`,
+                  color: VIOLET,
+                }}
+              >
+                {commitmentProgress}%
+              </span>
+            </div>
+            {/* Progress bar */}
+            <div className="w-full h-2 rounded-full mb-4" style={{ backgroundColor: '#1c2230' }}>
+              <div
+                className="h-full rounded-full transition-all"
+                style={{
+                  width: `${commitmentProgress}%`,
+                  backgroundColor: VIOLET,
+                  boxShadow: `0 0 8px ${VIOLET}40`,
+                  transition: 'width 0.8s cubic-bezier(0.4, 0, 0.2, 1)',
+                }}
+              />
+            </div>
+            <div className="space-y-2">
+              {osData.os.weeklyCommitments.map((item, i) => {
+                const checked = !!currentCommitments[i];
+                return (
+                  <button
+                    key={i}
+                    onClick={() => toggleCommitment(selectedId, i)}
+                    className="w-full flex items-start gap-3 text-sm text-left rounded-lg px-2 py-2 -mx-2 transition-all"
+                    style={{
+                      backgroundColor: checked ? 'rgba(139, 92, 246, 0.06)' : 'transparent',
+                    }}
+                  >
+                    <div
+                      className="w-5 h-5 rounded-full border flex items-center justify-center flex-shrink-0 mt-0.5 transition-all"
+                      style={{
+                        borderColor: checked ? VIOLET : '#2e3a4e',
+                        backgroundColor: checked ? `${VIOLET}25` : 'transparent',
+                      }}
+                    >
+                      {checked && <Check size={12} style={{ color: VIOLET }} />}
+                    </div>
+                    <span
+                      className="transition-all"
+                      style={{
+                        color: checked ? '#6b6358' : '#a09888',
+                        textDecoration: checked ? 'line-through' : 'none',
+                      }}
+                    >
+                      {item}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* -- Domains -- */}
+        <div
+          className="glow-card rounded-xl border p-5"
+          style={{ ...cardStyle(7), backgroundColor: '#131720', borderColor: '#1e2638' }}
+        >
           <div className="flex items-center gap-2 mb-3">
             <Briefcase size={14} style={{ color: AMBER }} />
             <span className="text-xs font-semibold uppercase tracking-wider" style={{ color: AMBER }}>
@@ -632,8 +1022,11 @@ export function StewardOSView() {
           </div>
         </div>
 
-        {/* KPIs */}
-        <div className="glow-card rounded-xl border p-5" style={{ backgroundColor: '#131720', borderColor: '#1e2638' }}>
+        {/* -- KPIs -- */}
+        <div
+          className="glow-card rounded-xl border p-5"
+          style={{ ...cardStyle(8), backgroundColor: '#131720', borderColor: '#1e2638' }}
+        >
           <div className="flex items-center gap-2 mb-3">
             <Target size={14} style={{ color: VIOLET }} />
             <span className="text-xs font-semibold uppercase tracking-wider" style={{ color: VIOLET }}>
@@ -650,8 +1043,11 @@ export function StewardOSView() {
           </div>
         </div>
 
-        {/* Non-Negotiables */}
-        <div className="glow-card rounded-xl border p-5" style={{ backgroundColor: '#131720', borderColor: '#1e2638' }}>
+        {/* -- Non-Negotiables -- */}
+        <div
+          className="glow-card rounded-xl border p-5"
+          style={{ ...cardStyle(9), backgroundColor: '#131720', borderColor: '#1e2638' }}
+        >
           <div className="flex items-center gap-2 mb-3">
             <AlertCircle size={14} style={{ color: ROSE }} />
             <span className="text-xs font-semibold uppercase tracking-wider" style={{ color: ROSE }}>
@@ -668,32 +1064,39 @@ export function StewardOSView() {
           </div>
         </div>
 
-        {/* Current Focus Areas */}
-        {hasFullOS && (
-          <div className="glow-card rounded-xl border p-5" style={{ backgroundColor: '#131720', borderColor: '#1e2638' }}>
-            <div className="flex items-center gap-2 mb-3">
-              <Flame size={14} style={{ color: SAGE }} />
-              <span className="text-xs font-semibold uppercase tracking-wider" style={{ color: SAGE }}>
-                Current Focus Areas
-              </span>
-            </div>
-            <div className="space-y-2">
-              {osData.focusAreas.map((fa, i) => (
-                <div key={i} className="flex items-start gap-2 text-sm">
-                  <span className="text-text-muted font-mono text-xs mt-0.5 flex-shrink-0" style={{ color: SAGE }}>
-                    {String(i + 1).padStart(2, '0')}
-                  </span>
-                  <span className="text-text-secondary">{fa}</span>
-                </div>
-              ))}
-            </div>
+        {/* -- Journal Reflection (Quick Entry) -- */}
+        <div
+          className="glow-card rounded-xl border p-5"
+          style={{ ...cardStyle(10), backgroundColor: '#131720', borderColor: '#1e2638' }}
+        >
+          <div className="flex items-center gap-2 mb-3">
+            <BookOpen size={14} style={{ color: '#818cf8' }} />
+            <span className="text-xs font-semibold uppercase tracking-wider" style={{ color: '#818cf8' }}>
+              Quick Reflection
+            </span>
           </div>
-        )}
+          <textarea
+            className="w-full rounded-lg border px-3 py-2.5 text-sm text-text-primary placeholder:text-text-muted resize-none focus:outline-none focus:ring-1"
+            style={{
+              backgroundColor: '#0b0d14',
+              borderColor: '#1e2638',
+              minHeight: 80,
+            }}
+            rows={3}
+            placeholder="What is on your mind right now? A quick thought, intention, or reflection..."
+            value={currentJournal.morning.regulationCheck}
+            onChange={(e) => updateJournal(selectedId, 'morning', 'regulationCheck', e.target.value)}
+          />
+          <div className="flex items-center gap-2 mt-2 text-xs" style={{ color: '#6b6358' }}>
+            <Sparkles size={11} />
+            <span>Auto-saves to browser. Full journal in Journal tab.</span>
+          </div>
+        </div>
 
         {!hasFullOS && (
           <div
             className="rounded-xl border p-6 text-center"
-            style={{ backgroundColor: '#131720', borderColor: '#1e2638' }}
+            style={{ ...cardStyle(5), backgroundColor: '#131720', borderColor: '#1e2638' }}
           >
             <FileText size={24} className="mx-auto mb-2 text-text-muted" />
             <p className="text-sm text-text-muted">
@@ -722,9 +1125,9 @@ export function StewardOSView() {
     const { os } = osData;
 
     return (
-      <div className="space-y-6 animate-fade-in">
+      <div className="space-y-6">
         {/* Morning Checklist */}
-        <div className="glow-card rounded-xl border p-5" style={{ backgroundColor: '#131720', borderColor: '#1e2638' }}>
+        <div className="glow-card rounded-xl border p-5" style={{ ...cardStyle(0), backgroundColor: '#131720', borderColor: '#1e2638' }}>
           <div className="flex items-center gap-2 mb-3">
             <Sun size={14} style={{ color: '#e8b44c' }} />
             <span className="text-xs font-semibold uppercase tracking-wider" style={{ color: '#e8b44c' }}>
@@ -742,7 +1145,7 @@ export function StewardOSView() {
         </div>
 
         {/* Weekly Commitments */}
-        <div className="glow-card rounded-xl border p-5" style={{ backgroundColor: '#131720', borderColor: '#1e2638' }}>
+        <div className="glow-card rounded-xl border p-5" style={{ ...cardStyle(1), backgroundColor: '#131720', borderColor: '#1e2638' }}>
           <div className="flex items-center gap-2 mb-3">
             <Calendar size={14} style={{ color: VIOLET }} />
             <span className="text-xs font-semibold uppercase tracking-wider" style={{ color: VIOLET }}>
@@ -760,7 +1163,7 @@ export function StewardOSView() {
         </div>
 
         {/* Decision Filters */}
-        <div className="glow-card rounded-xl border p-5" style={{ backgroundColor: '#131720', borderColor: '#1e2638' }}>
+        <div className="glow-card rounded-xl border p-5" style={{ ...cardStyle(2), backgroundColor: '#131720', borderColor: '#1e2638' }}>
           <div className="flex items-center gap-2 mb-3">
             <Lightbulb size={14} style={{ color: AMBER }} />
             <span className="text-xs font-semibold uppercase tracking-wider" style={{ color: AMBER }}>
@@ -778,7 +1181,7 @@ export function StewardOSView() {
         </div>
 
         {/* What's NOT in Their Seat */}
-        <div className="glow-card rounded-xl border p-5" style={{ backgroundColor: '#131720', borderColor: '#1e2638' }}>
+        <div className="glow-card rounded-xl border p-5" style={{ ...cardStyle(3), backgroundColor: '#131720', borderColor: '#1e2638' }}>
           <div className="flex items-center gap-2 mb-3">
             <XCircle size={14} style={{ color: ROSE }} />
             <span className="text-xs font-semibold uppercase tracking-wider" style={{ color: ROSE }}>
@@ -796,7 +1199,7 @@ export function StewardOSView() {
         </div>
 
         {/* Evening Reflection */}
-        <div className="glow-card rounded-xl border p-5" style={{ backgroundColor: '#131720', borderColor: '#1e2638' }}>
+        <div className="glow-card rounded-xl border p-5" style={{ ...cardStyle(4), backgroundColor: '#131720', borderColor: '#1e2638' }}>
           <div className="flex items-center gap-2 mb-3">
             <Moon size={14} style={{ color: '#818cf8' }} />
             <span className="text-xs font-semibold uppercase tracking-wider" style={{ color: '#818cf8' }}>
@@ -829,8 +1232,8 @@ export function StewardOSView() {
     }
 
     return (
-      <div className="space-y-4 animate-fade-in">
-        <div className="glow-card rounded-xl border p-5" style={{ backgroundColor: '#131720', borderColor: '#1e2638' }}>
+      <div className="space-y-4">
+        <div className="glow-card rounded-xl border p-5" style={{ ...cardStyle(0), backgroundColor: '#131720', borderColor: '#1e2638' }}>
           <div className="flex items-center gap-2 mb-4">
             <Star size={14} style={{ color: AMBER }} />
             <span className="text-xs font-semibold uppercase tracking-wider" style={{ color: AMBER }}>
@@ -839,7 +1242,7 @@ export function StewardOSView() {
           </div>
           <div className="space-y-5">
             {osData.qualities.map((q, i) => (
-              <div key={i}>
+              <div key={i} style={cardStyle(i + 1)}>
                 <div className="flex items-center justify-between mb-1.5">
                   <span className="text-sm font-medium text-text-primary">{q.name}</span>
                 </div>
@@ -855,24 +1258,34 @@ export function StewardOSView() {
 
         {/* Summary Stats */}
         <div className="grid grid-cols-3 gap-3">
-          <div className="rounded-xl border p-4 text-center" style={{ backgroundColor: '#131720', borderColor: '#1e2638' }}>
-            <div className="text-2xl font-bold" style={{ color: AMBER }}>
-              {(osData.qualities.reduce((sum, q) => sum + q.score, 0) / osData.qualities.length).toFixed(1)}
+          {[
+            {
+              value: (osData.qualities.reduce((sum, q) => sum + q.score, 0) / osData.qualities.length).toFixed(1),
+              label: 'Avg Score',
+              color: AMBER,
+            },
+            {
+              value: osData.qualities.filter((q) => q.score >= 4).length,
+              label: 'Strengths',
+              color: SAGE,
+            },
+            {
+              value: osData.qualities.filter((q) => q.score <= 3).length,
+              label: 'Growth Areas',
+              color: ROSE,
+            },
+          ].map((item, i) => (
+            <div
+              key={item.label}
+              className="rounded-xl border p-4 text-center"
+              style={{ ...cardStyle(i + 7), backgroundColor: '#131720', borderColor: '#1e2638' }}
+            >
+              <div className="text-2xl font-bold" style={{ color: item.color }}>
+                {item.value}
+              </div>
+              <div className="text-[10px] text-text-muted uppercase tracking-wider mt-1">{item.label}</div>
             </div>
-            <div className="text-[10px] text-text-muted uppercase tracking-wider mt-1">Avg Score</div>
-          </div>
-          <div className="rounded-xl border p-4 text-center" style={{ backgroundColor: '#131720', borderColor: '#1e2638' }}>
-            <div className="text-2xl font-bold" style={{ color: SAGE }}>
-              {osData.qualities.filter((q) => q.score >= 4).length}
-            </div>
-            <div className="text-[10px] text-text-muted uppercase tracking-wider mt-1">Strengths</div>
-          </div>
-          <div className="rounded-xl border p-4 text-center" style={{ backgroundColor: '#131720', borderColor: '#1e2638' }}>
-            <div className="text-2xl font-bold" style={{ color: ROSE }}>
-              {osData.qualities.filter((q) => q.score <= 3).length}
-            </div>
-            <div className="text-[10px] text-text-muted uppercase tracking-wider mt-1">Growth Areas</div>
-          </div>
+          ))}
         </div>
       </div>
     );
@@ -889,7 +1302,7 @@ export function StewardOSView() {
     }
 
     return (
-      <div className="space-y-6 animate-fade-in">
+      <div className="space-y-6">
         {/* Risks */}
         <div className="space-y-3">
           {osData.risks.map((risk, i) => {
@@ -899,7 +1312,7 @@ export function StewardOSView() {
               <div
                 key={i}
                 className="glow-card rounded-xl border p-5"
-                style={{ backgroundColor: '#131720', borderColor: '#1e2638' }}
+                style={{ ...cardStyle(i), backgroundColor: '#131720', borderColor: '#1e2638' }}
               >
                 <div className="flex items-start justify-between gap-3 mb-3">
                   <div className="flex items-center gap-2">
@@ -931,7 +1344,10 @@ export function StewardOSView() {
         </div>
 
         {/* Red Lines */}
-        <div className="glow-card rounded-xl border p-5" style={{ backgroundColor: '#131720', borderColor: `${ROSE}30` }}>
+        <div
+          className="glow-card rounded-xl border p-5"
+          style={{ ...cardStyle(osData.risks.length), backgroundColor: '#131720', borderColor: `${ROSE}30` }}
+        >
           <div className="flex items-center gap-2 mb-3">
             <AlertCircle size={14} style={{ color: ROSE }} />
             <span className="text-xs font-semibold uppercase tracking-wider" style={{ color: ROSE }}>
@@ -950,24 +1366,34 @@ export function StewardOSView() {
 
         {/* Risk Summary */}
         <div className="grid grid-cols-3 gap-3">
-          <div className="rounded-xl border p-4 text-center" style={{ backgroundColor: '#131720', borderColor: '#1e2638' }}>
-            <div className="text-2xl font-bold" style={{ color: ROSE }}>
-              {osData.risks.filter((r) => r.likelihood === 'high' && r.impact === 'high').length}
+          {[
+            {
+              value: osData.risks.filter((r) => r.likelihood === 'high' && r.impact === 'high').length,
+              label: 'Critical',
+              color: ROSE,
+            },
+            {
+              value: osData.risks.filter((r) => r.likelihood === 'medium' || r.impact === 'medium').length,
+              label: 'Monitor',
+              color: AMBER,
+            },
+            {
+              value: osData.risks.length,
+              label: 'Total Risks',
+              color: SAGE,
+            },
+          ].map((item, i) => (
+            <div
+              key={item.label}
+              className="rounded-xl border p-4 text-center"
+              style={{ ...cardStyle(osData.risks.length + 1 + i), backgroundColor: '#131720', borderColor: '#1e2638' }}
+            >
+              <div className="text-2xl font-bold" style={{ color: item.color }}>
+                {item.value}
+              </div>
+              <div className="text-[10px] text-text-muted uppercase tracking-wider mt-1">{item.label}</div>
             </div>
-            <div className="text-[10px] text-text-muted uppercase tracking-wider mt-1">Critical</div>
-          </div>
-          <div className="rounded-xl border p-4 text-center" style={{ backgroundColor: '#131720', borderColor: '#1e2638' }}>
-            <div className="text-2xl font-bold" style={{ color: AMBER }}>
-              {osData.risks.filter((r) => r.likelihood === 'medium' || r.impact === 'medium').length}
-            </div>
-            <div className="text-[10px] text-text-muted uppercase tracking-wider mt-1">Monitor</div>
-          </div>
-          <div className="rounded-xl border p-4 text-center" style={{ backgroundColor: '#131720', borderColor: '#1e2638' }}>
-            <div className="text-2xl font-bold" style={{ color: SAGE }}>
-              {osData.risks.length}
-            </div>
-            <div className="text-[10px] text-text-muted uppercase tracking-wider mt-1">Total Risks</div>
-          </div>
+          ))}
         </div>
       </div>
     );
@@ -975,9 +1401,9 @@ export function StewardOSView() {
 
   function renderJournal() {
     return (
-      <div className="space-y-6 animate-fade-in">
+      <div className="space-y-6">
         {/* Morning Journal */}
-        <div className="glow-card rounded-xl border p-5" style={{ backgroundColor: '#131720', borderColor: '#1e2638' }}>
+        <div className="glow-card rounded-xl border p-5" style={{ ...cardStyle(0), backgroundColor: '#131720', borderColor: '#1e2638' }}>
           <div className="flex items-center gap-2 mb-4">
             <Sun size={14} style={{ color: '#e8b44c' }} />
             <span className="text-xs font-semibold uppercase tracking-wider" style={{ color: '#e8b44c' }}>
@@ -991,10 +1417,7 @@ export function StewardOSView() {
               </label>
               <textarea
                 className="w-full rounded-lg border px-3 py-2 text-sm text-text-primary placeholder:text-text-muted resize-none focus:outline-none focus:ring-1"
-                style={{
-                  backgroundColor: '#0b0d14',
-                  borderColor: '#1e2638',
-                }}
+                style={{ backgroundColor: '#0b0d14', borderColor: '#1e2638' }}
                 rows={2}
                 placeholder="How is my energy, body, mind today..."
                 value={currentJournal.morning.regulationCheck}
@@ -1009,7 +1432,7 @@ export function StewardOSView() {
                 className="w-full rounded-lg border px-3 py-2 text-sm text-text-primary placeholder:text-text-muted resize-none focus:outline-none focus:ring-1"
                 style={{ backgroundColor: '#0b0d14', borderColor: '#1e2638' }}
                 rows={3}
-                placeholder="1. &#10;2. &#10;3. "
+                placeholder={'1. \n2. \n3. '}
                 value={currentJournal.morning.topPriorities}
                 onChange={(e) => updateJournal(selectedId, 'morning', 'topPriorities', e.target.value)}
               />
@@ -1031,7 +1454,7 @@ export function StewardOSView() {
         </div>
 
         {/* End of Day */}
-        <div className="glow-card rounded-xl border p-5" style={{ backgroundColor: '#131720', borderColor: '#1e2638' }}>
+        <div className="glow-card rounded-xl border p-5" style={{ ...cardStyle(1), backgroundColor: '#131720', borderColor: '#1e2638' }}>
           <div className="flex items-center gap-2 mb-4">
             <Moon size={14} style={{ color: '#818cf8' }} />
             <span className="text-xs font-semibold uppercase tracking-wider" style={{ color: '#818cf8' }}>
@@ -1082,7 +1505,7 @@ export function StewardOSView() {
         </div>
 
         {/* Weekly */}
-        <div className="glow-card rounded-xl border p-5" style={{ backgroundColor: '#131720', borderColor: '#1e2638' }}>
+        <div className="glow-card rounded-xl border p-5" style={{ ...cardStyle(2), backgroundColor: '#131720', borderColor: '#1e2638' }}>
           <div className="flex items-center gap-2 mb-4">
             <Calendar size={14} style={{ color: VIOLET }} />
             <span className="text-xs font-semibold uppercase tracking-wider" style={{ color: VIOLET }}>
@@ -1120,7 +1543,7 @@ export function StewardOSView() {
         </div>
 
         {/* Persistence notice */}
-        <div className="flex items-center gap-2 text-xs text-text-muted">
+        <div className="flex items-center gap-2 text-xs text-text-muted" style={cardStyle(3)}>
           <Sparkles size={12} />
           <span>Journal entries auto-save to your browser. They persist between sessions.</span>
         </div>
@@ -1139,8 +1562,11 @@ export function StewardOSView() {
     }
 
     return (
-      <div className="space-y-4 animate-fade-in">
-        <div className="glow-card rounded-xl border p-4" style={{ backgroundColor: '#131720', borderColor: '#1e2638' }}>
+      <div className="space-y-4">
+        <div
+          className="glow-card rounded-xl border p-4"
+          style={{ ...cardStyle(0), backgroundColor: '#131720', borderColor: '#1e2638' }}
+        >
           <div className="flex items-center gap-2 mb-1">
             <Brain size={14} style={{ color: VIOLET }} />
             <span className="text-xs font-semibold uppercase tracking-wider" style={{ color: VIOLET }}>
@@ -1159,6 +1585,7 @@ export function StewardOSView() {
               key={i}
               className="glow-card rounded-xl border p-5 transition-all"
               style={{
+                ...cardStyle(i + 1),
                 backgroundColor: '#131720',
                 borderColor: `${cfg.color}30`,
                 borderLeftWidth: '3px',
@@ -1180,7 +1607,10 @@ export function StewardOSView() {
         })}
 
         {/* Insight type legend */}
-        <div className="rounded-xl border p-4" style={{ backgroundColor: '#131720', borderColor: '#1e2638' }}>
+        <div
+          className="rounded-xl border p-4"
+          style={{ ...cardStyle(osData.agentInsights.length + 1), backgroundColor: '#131720', borderColor: '#1e2638' }}
+        >
           <div className="text-[10px] text-text-muted uppercase tracking-wider mb-2">Insight Types</div>
           <div className="flex flex-wrap gap-3">
             {(Object.entries(insightTypeConfig) as [AgentInsight['type'], typeof insightTypeConfig.strategic][]).map(([key, cfg]) => (
@@ -1195,13 +1625,13 @@ export function StewardOSView() {
     );
   }
 
-  /* ═══════════════════════════════════════════════════════════════════════════
+  /* =====================================================================
      Main Render
-     ═══════════════════════════════════════════════════════════════════════════ */
+     ===================================================================== */
 
   return (
     <div className="space-y-6">
-      {/* ── Page Header ── */}
+      {/* -- Page Header -- */}
       <div className="animate-fade-in">
         <div className="flex items-center gap-3 mb-1">
           <h1 className="text-3xl font-bold tracking-tight">
@@ -1211,15 +1641,15 @@ export function StewardOSView() {
             className="text-sm font-semibold px-2.5 py-0.5 rounded-full"
             style={{ backgroundColor: 'rgba(212, 165, 116, 0.12)', color: AMBER }}
           >
-            Per-Person Operating System
+            Personal Dashboard
           </span>
         </div>
         <p className="text-text-secondary text-sm">
-          The personal operating dashboard for each Frequency steward — clarity, rhythm, and self-awareness.
+          Your personal operating system — clarity, rhythm, and self-awareness in one place.
         </p>
       </div>
 
-      {/* ── Member Selector ── */}
+      {/* -- Member Selector -- */}
       <div
         className="animate-fade-in relative"
         style={{ animationDelay: '0.03s', opacity: 0 }}
@@ -1232,7 +1662,6 @@ export function StewardOSView() {
             borderColor: dropdownOpen ? `${AMBER}40` : '#1e2638',
           }}
         >
-          {/* Avatar */}
           <div
             className="w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold flex-shrink-0"
             style={{ background: avatarGradient(member.color), color: '#0b0d14' }}
@@ -1243,6 +1672,18 @@ export function StewardOSView() {
             <div className="text-sm font-semibold text-text-primary">{member.name}</div>
             <div className="text-xs text-text-secondary truncate">{member.role}</div>
           </div>
+          {member.hoursPerWeek && (
+            <div className="flex items-center gap-1 flex-shrink-0">
+              <Clock size={11} className="text-text-muted" />
+              <span className="text-[11px] text-text-muted">{member.hoursPerWeek}h/w</span>
+            </div>
+          )}
+          <span
+            className="text-[10px] font-semibold px-2 py-0.5 rounded-full flex-shrink-0"
+            style={{ backgroundColor: status.bg, color: status.text }}
+          >
+            {status.label}
+          </span>
           <ChevronDown
             size={16}
             className="text-text-muted transition-transform flex-shrink-0"
@@ -1304,58 +1745,14 @@ export function StewardOSView() {
         )}
       </div>
 
-      {/* ── Profile Header ── */}
-      <div
-        className="glow-card rounded-xl border p-5 animate-fade-in"
-        style={{ backgroundColor: '#131720', borderColor: '#1e2638', animationDelay: '0.05s', opacity: 0 }}
-      >
-        <div className="flex items-start gap-4">
-          {/* Large avatar */}
-          <div
-            className="w-16 h-16 rounded-full flex items-center justify-center text-lg font-bold flex-shrink-0"
-            style={{ background: avatarGradient(member.color), color: '#0b0d14' }}
-          >
-            {member.avatar}
-          </div>
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2 flex-wrap mb-1">
-              <h2 className="text-xl font-bold text-text-primary">{member.name}</h2>
-              <span
-                className="text-[10px] font-semibold px-2 py-0.5 rounded-full"
-                style={{ backgroundColor: status.bg, color: status.text }}
-              >
-                {status.label}
-              </span>
-              {hasFullOS && (
-                <span
-                  className="text-[10px] font-semibold px-2 py-0.5 rounded-full"
-                  style={{ backgroundColor: 'rgba(139, 92, 246, 0.12)', color: VIOLET }}
-                >
-                  Full OS
-                </span>
-              )}
-            </div>
-            <p className="text-sm text-text-secondary mb-2">{member.role}</p>
-            <p className="text-xs text-text-muted leading-relaxed">{member.roleOneSentence}</p>
-            {member.hoursPerWeek && (
-              <div className="flex items-center gap-1.5 mt-2">
-                <Clock size={12} className="text-text-muted" />
-                <span className="text-xs text-text-muted">{member.hoursPerWeek} hours/week</span>
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
-
-      {/* ── Tab Navigation ── */}
+      {/* -- Tab Navigation -- */}
       <div
         className="flex gap-1 overflow-x-auto pb-1 animate-fade-in"
-        style={{ animationDelay: '0.07s', opacity: 0 }}
+        style={{ animationDelay: '0.05s', opacity: 0 }}
       >
         {TAB_CONFIG.map((tab) => {
           const isActive = activeTab === tab.key;
           const Icon = tab.icon;
-          // Disable OS-dependent tabs for members without full data
           const isDisabled = !hasFullOS && tab.key !== 'overview' && tab.key !== 'journal';
           return (
             <button
@@ -1377,8 +1774,8 @@ export function StewardOSView() {
         })}
       </div>
 
-      {/* ── Tab Content ── */}
-      <div style={{ animationDelay: '0.09s', opacity: 0 }} className="animate-fade-in">
+      {/* -- Tab Content -- */}
+      <div style={{ animationDelay: '0.07s', opacity: 0 }} className="animate-fade-in">
         {activeTab === 'overview' && renderOverview()}
         {activeTab === 'os' && renderOS()}
         {activeTab === 'qualities' && renderQualities()}
