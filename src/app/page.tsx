@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useAuth } from '@/lib/supabase/AuthProvider';
 import { Sidebar } from '@/components/Sidebar';
 import { MobileNav } from '@/components/MobileNav';
@@ -100,6 +100,8 @@ export default function Home() {
   const [currentView, setCurrentView] = useState<ViewType>('dashboard');
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
+  const [viewTransition, setViewTransition] = useState(false);
+  const mainRef = useRef<HTMLElement>(null);
 
   const handleKeyDown = useCallback((e: KeyboardEvent) => {
     if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
@@ -122,8 +124,21 @@ export default function Home() {
   }
 
   const handleNavigate = (view: string) => {
-    setCurrentView(view as ViewType);
-    setCommandPaletteOpen(false);
+    if (view === currentView) return;
+    // Trigger transition
+    setViewTransition(true);
+    setTimeout(() => {
+      setCurrentView(view as ViewType);
+      setCommandPaletteOpen(false);
+      // Scroll to top
+      if (mainRef.current) mainRef.current.scrollTop = 0;
+      // End transition
+      setTimeout(() => setViewTransition(false), 20);
+    }, 150);
+  };
+
+  const handleViewChange = (view: ViewType) => {
+    handleNavigate(view);
   };
 
   const renderView = () => {
@@ -160,30 +175,40 @@ export default function Home() {
 
   return (
     <div className="flex h-screen overflow-hidden bg-background">
+      <style>{`
+        @media (min-width: 768px) { main { margin-left: ${sidebarCollapsed ? 72 : 260}px !important; } }
+        .view-transition { transition: opacity 0.15s ease, transform 0.15s ease; }
+        .view-fade-out { opacity: 0; transform: translateY(4px); }
+        .view-fade-in { opacity: 1; transform: translateY(0); }
+      `}</style>
+
       <div className="hidden md:block">
         <Sidebar
           currentView={currentView}
-          onViewChange={setCurrentView}
+          onViewChange={handleViewChange}
           collapsed={sidebarCollapsed}
           onToggleCollapse={() => setSidebarCollapsed(!sidebarCollapsed)}
           currentUser={teamMemberId}
           onOpenSearch={() => setCommandPaletteOpen(true)}
+          onSignOut={signOut}
         />
       </div>
 
       <main
+        ref={mainRef}
         className="flex-1 overflow-y-auto transition-all duration-300"
         style={{ marginLeft: 0 }}
       >
-        <style>{`@media (min-width: 768px) { main { margin-left: ${sidebarCollapsed ? 72 : 260}px !important; } }`}</style>
-        <div className="p-4 md:p-6 lg:p-8 pb-24 md:pb-8 max-w-[1600px] mx-auto">
+        <div
+          className={`p-4 md:p-6 lg:p-8 pb-24 md:pb-8 max-w-[1600px] mx-auto view-transition ${viewTransition ? 'view-fade-out' : 'view-fade-in'}`}
+        >
           {renderView()}
         </div>
       </main>
 
       <MobileNav
         currentView={currentView}
-        onViewChange={setCurrentView}
+        onViewChange={handleViewChange}
         onOpenSearch={() => setCommandPaletteOpen(true)}
       />
 

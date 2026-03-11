@@ -32,6 +32,7 @@ import {
   UserCog,
   HandshakeIcon,
   BarChart3,
+  LogOut,
 } from 'lucide-react';
 import { teamMembers } from '@/lib/data';
 
@@ -44,6 +45,7 @@ interface SidebarProps {
   onToggleCollapse: () => void;
   currentUser: string | null;
   onOpenSearch?: () => void;
+  onSignOut?: () => void;
 }
 
 const navItems: { label: string; icon: React.ElementType; view: ViewType; group: number }[] = [
@@ -88,6 +90,7 @@ export function Sidebar({
   onToggleCollapse,
   currentUser,
   onOpenSearch,
+  onSignOut,
 }: SidebarProps) {
   const user = teamMembers.find((m) => m.id === currentUser);
   const initials = user?.avatar ?? '??';
@@ -251,13 +254,38 @@ export function Sidebar({
           <div style={{ position: 'absolute', bottom: 0, right: 0, width: 10, height: 10, borderRadius: '50%', backgroundColor: '#6b8f71', border: '2px solid #131720' }} />
         </div>
         {!collapsed && (
-          <div style={{ overflow: 'hidden', flex: 1, minWidth: 0 }}>
-            <div style={{ fontSize: 13, fontWeight: 600, color: '#f0ebe4', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{userName}</div>
-            <div style={{ fontSize: 11, color: '#6b8f71', display: 'flex', alignItems: 'center', gap: 4, marginTop: 1 }}>
-              <span style={{ width: 6, height: 6, borderRadius: '50%', backgroundColor: '#6b8f71', display: 'inline-block' }} />
-              Online
+          <>
+            <div style={{ overflow: 'hidden', flex: 1, minWidth: 0 }}>
+              <div style={{ fontSize: 13, fontWeight: 600, color: '#f0ebe4', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{userName}</div>
+              <div style={{ fontSize: 11, color: '#6b8f71', display: 'flex', alignItems: 'center', gap: 4, marginTop: 1 }}>
+                <span style={{ width: 6, height: 6, borderRadius: '50%', backgroundColor: '#6b8f71', display: 'inline-block' }} />
+                Online
+              </div>
             </div>
-          </div>
+            {onSignOut && (
+              <button
+                onClick={onSignOut}
+                title="Sign out"
+                style={{
+                  background: 'transparent',
+                  border: 'none',
+                  cursor: 'pointer',
+                  padding: 6,
+                  borderRadius: 6,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: '#6b6358',
+                  transition: 'background 0.15s, color 0.15s',
+                  flexShrink: 0,
+                }}
+                onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(224, 96, 96, 0.1)'; e.currentTarget.style.color = '#e06060'; }}
+                onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = '#6b6358'; }}
+              >
+                <LogOut size={16} />
+              </button>
+            )}
+          </>
         )}
       </div>
     </aside>

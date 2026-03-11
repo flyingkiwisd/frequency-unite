@@ -1,9 +1,9 @@
 'use client';
 
 import { useState } from 'react';
-import { Lock, Zap, Shield, Fingerprint, Heart, Mail, ArrowLeft, Check } from 'lucide-react';
+import { Lock, Zap, Shield, Fingerprint, Heart, Mail, ArrowLeft, Check, Sparkles } from 'lucide-react';
 import { teamMembers } from '@/lib/data';
-import { useAuth } from '@/lib/supabase/AuthProvider';
+import { useAuth, isSupabaseConfigured } from '@/lib/supabase/AuthProvider';
 
 interface LoginScreenProps {
   onLogin: () => void;
@@ -26,12 +26,13 @@ const tailwindColorMap: Record<string, string> = {
   'bg-slate-400': '#94a3b8',
 };
 
-type Mode = 'login' | 'register-pick' | 'register-credentials';
+type Mode = 'login' | 'register-pick' | 'register-credentials' | 'demo';
 
 export function LoginScreen({ onLogin }: LoginScreenProps) {
-  const { signIn, signUp } = useAuth();
+  const { signIn, signUp, demoLogin } = useAuth();
 
-  const [mode, setMode] = useState<Mode>('login');
+  // Start in demo mode if Supabase isn't configured
+  const [mode, setMode] = useState<Mode>(isSupabaseConfigured ? 'login' : 'demo');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -50,6 +51,11 @@ export function LoginScreen({ onLogin }: LoginScreenProps) {
   });
 
   const getHexColor = (twClass: string) => tailwindColorMap[twClass] || '#d4a574';
+
+  const handleDemoLogin = (memberId: string) => {
+    demoLogin(memberId);
+    onLogin();
+  };
 
   const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -347,6 +353,22 @@ export function LoginScreen({ onLogin }: LoginScreenProps) {
           height: 1px;
           background: linear-gradient(90deg, transparent, rgba(212, 165, 116, 0.15), transparent);
           margin-bottom: 20px;
+        }
+
+        .demo-badge {
+          display: inline-flex;
+          align-items: center;
+          gap: 6px;
+          padding: 5px 14px;
+          border-radius: 20px;
+          font-size: 11px;
+          font-weight: 600;
+          letter-spacing: 1px;
+          text-transform: uppercase;
+          background: linear-gradient(135deg, rgba(139, 92, 246, 0.15), rgba(212, 165, 116, 0.15));
+          border: 1px solid rgba(139, 92, 246, 0.2);
+          color: #c4b5fd;
+          margin-bottom: 16px;
         }
 
         .tier-tabs {
@@ -657,6 +679,59 @@ export function LoginScreen({ onLogin }: LoginScreenProps) {
             }}
           >
             {success}
+          </div>
+        )}
+
+        {/* ─── DEMO MODE — Avatar Grid Login ─── */}
+        {mode === 'demo' && (
+          <div className="mode-transition">
+            <div style={{ textAlign: 'center', marginBottom: '16px' }}>
+              <span className="demo-badge">
+                <Sparkles size={12} />
+                Select Your Profile
+              </span>
+            </div>
+
+            {/* Tier tabs */}
+            <div className="tier-tabs">
+              <button className={`tier-tab ${selectedTier === 'all' ? 'active' : ''}`} onClick={() => setSelectedTier('all')}>All</button>
+              <button className={`tier-tab ${selectedTier === 'core-team' ? 'active' : ''}`} onClick={() => setSelectedTier('core-team')}>Core Team</button>
+              <button className={`tier-tab ${selectedTier === 'board' ? 'active' : ''}`} onClick={() => setSelectedTier('board')}>Board</button>
+            </div>
+
+            <div className="section-label">
+              <Fingerprint size={12} />
+              <span>Choose your steward identity</span>
+            </div>
+
+            <div className="avatar-grid">
+              {filteredMembers.map((member) => {
+                const hex = getHexColor(member.color);
+                return (
+                  <button
+                    key={member.id}
+                    className="avatar-button"
+                    onClick={() => handleDemoLogin(member.id)}
+                    onMouseEnter={() => setHoveredUser(member.id)}
+                    onMouseLeave={() => setHoveredUser(null)}
+                  >
+                    <div className="avatar-role">{member.shortRole}</div>
+                    <div
+                      className="avatar-circle"
+                      style={{
+                        background: `linear-gradient(135deg, ${hex}, ${hex}cc)`,
+                        color: hex,
+                      }}
+                    >
+                      <span style={{ color: 'white' }}>{member.avatar}</span>
+                    </div>
+                    <span className="avatar-name">
+                      {member.name.split(' ')[0]}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
           </div>
         )}
 

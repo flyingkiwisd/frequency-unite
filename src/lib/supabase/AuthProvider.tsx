@@ -9,16 +9,20 @@ interface AuthContextType {
   session: Session | null;
   teamMemberId: string | null;
   loading: boolean;
+  isDemo: boolean;
   signIn: (email: string, password: string) => Promise<{ error: string | null }>;
   signUp: (email: string, password: string, teamMemberId: string) => Promise<{ error: string | null }>;
   signOut: () => Promise<void>;
+  demoLogin: (teamMemberId: string) => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL ?? '';
 const SUPABASE_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? '';
-const isSupabaseConfigured = SUPABASE_URL.length > 0 && SUPABASE_KEY.length > 0 && !SUPABASE_URL.includes('placeholder');
+export const isSupabaseConfigured = SUPABASE_URL.length > 0 && SUPABASE_KEY.length > 0 && !SUPABASE_URL.includes('placeholder');
+
+const DEMO_STORAGE_KEY = 'frequency-demo-session';
 
 function createSupabaseClient(): SupabaseClient | null {
   if (!isSupabaseConfigured) return null;
@@ -27,6 +31,18 @@ function createSupabaseClient(): SupabaseClient | null {
   } catch {
     return null;
   }
+}
+
+// Create a minimal mock User for demo mode
+function createDemoUser(memberId: string): User {
+  return {
+    id: `demo-${memberId}`,
+    email: `${memberId}@frequency.demo`,
+    app_metadata: {},
+    user_metadata: { demo: true },
+    aud: 'authenticated',
+    created_at: new Date().toISOString(),
+  } as unknown as User;
 }
 
 async function resolveTeamMemberId(
@@ -49,9 +65,27 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [teamMemberId, setTeamMemberId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [isDemo, setIsDemo] = useState(false);
 
-  // Initialize session on mount
+  // Initialize session on mount — check demo first, then Supabase
   useEffect(() => {
+    // Check for demo session in localStorage
+    try {
+      const demoSession = localStorage.getItem(DEMO_STORAGE_KEY);
+      if (demoSession) {
+        const { memberId } = JSON.parse(demoSession);
+        if (memberId) {
+          setUser(createDemoUser(memberId));
+          setTeamMemberId(memberId);
+          setIsDemo(true);
+          setLoading(false);
+          return;
+        }
+      }
+    } catch {
+      // Invalid demo session, continue to Supabase auth
+    }
+
     if (!supabase) {
       setLoading(false);
       return;
@@ -78,7 +112,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     initSession();
   }, [supabase]);
 
-  // Listen for auth state changes
+  // Listen for auth state changes (Supabase only)
   useEffect(() => {
     if (!supabase) return;
 
@@ -104,6 +138,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       subscription.unsubscribe();
     };
   }, [supabase]);
+
+  // Demo login — stores to localStorage, sets mock user
+  const demoLogin = useCallback((memberId: string) => {
+    try {
+      localStorage.setItem(DEMO_STORAGE_KEY, JSON.stringify({ memberId }));
+    } catch {
+      // localStorage unavailable
+    }
+    setUser(createDemoUser(memberId));
+    setTeamMemberId(memberId);
+    setIsDemo(true);
+  }, []);
 
   const signIn = useCallback(
     async (email: string, password: string): Promise<{ error: string | null }> => {
@@ -154,6 +200,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   );
 
   const signOutHandler = useCallback(async () => {
+    // Clear demo session
+    try {
+      localStorage.removeItem(DEMO_STORAGE_KEY);
+    } catch {
+      // localStorage unavailable
+    }
+    setIsDemo(false);
+
     if (supabase) await supabase.auth.signOut();
     setUser(null);
     setSession(null);
@@ -165,9 +219,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     session,
     teamMemberId,
     loading,
+    isDemo,
     signIn,
     signUp,
     signOut: signOutHandler,
+    demoLogin,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
