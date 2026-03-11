@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import {
   Calendar,
   MapPin,
@@ -18,7 +18,8 @@ import {
   Filter,
   Timer,
 } from 'lucide-react';
-import { events, type FrequencyEvent } from '@/lib/data';
+import { type FrequencyEvent } from '@/lib/data';
+import { useFrequencyData } from '@/lib/supabase/DataProvider';
 
 // ─── Types ───
 
@@ -63,6 +64,9 @@ const headerGradients: Record<FrequencyEvent['status'], string> = {
   completed: 'linear-gradient(135deg, rgba(107, 143, 113, 0.12), rgba(96, 165, 250, 0.08), rgba(107, 143, 113, 0.04))',
   planning: 'linear-gradient(135deg, rgba(139, 92, 246, 0.12), rgba(244, 114, 182, 0.08), rgba(139, 92, 246, 0.04))',
 };
+
+// Status cycle order for inline editing
+const statusCycle: FrequencyEvent['status'][] = ['upcoming', 'planning', 'completed'];
 
 // ─── Helpers ───
 
@@ -133,6 +137,8 @@ function parseCapacity(capacityStr: string): { sold?: number; total: number; dis
 // ─── Component ───
 
 export function EventsView() {
+  const { events, updateEvent } = useFrequencyData();
+
   const [activeTab, setActiveTab] = useState<FilterTab>('all');
   const [mounted, setMounted] = useState(false);
   const [visibleCards, setVisibleCards] = useState<Record<number, boolean>>({});
@@ -145,7 +151,7 @@ export function EventsView() {
     return [...events].sort(
       (a, b) => statusOrder[a.status] - statusOrder[b.status],
     );
-  }, []);
+  }, [events]);
 
   const filtered = useMemo(() => {
     if (activeTab === 'all') return sorted;
@@ -168,7 +174,15 @@ export function EventsView() {
     all: events.length,
     upcoming: events.filter((e) => e.status === 'upcoming' || e.status === 'planning').length,
     past: events.filter((e) => e.status === 'completed').length,
-  }), []);
+  }), [events]);
+
+  // Cycle status: upcoming -> planning -> completed -> upcoming
+  const handleStatusCycle = useCallback((event: FrequencyEvent) => {
+    const currentIdx = statusCycle.indexOf(event.status);
+    const nextIdx = (currentIdx + 1) % statusCycle.length;
+    const newStatus = statusCycle[nextIdx];
+    updateEvent(event.id, { status: newStatus });
+  }, [updateEvent]);
 
   return (
     <div style={{ padding: '32px 40px', maxWidth: 960, margin: '0 auto' }}>
@@ -991,9 +1005,14 @@ export function EventsView() {
                     </div>
                   </div>
 
-                  {/* Status badge + countdown */}
+                  {/* Status badge (clickable) + countdown */}
                   <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6, flexShrink: 0, position: 'relative', zIndex: 1 }}>
-                    <span
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleStatusCycle(event);
+                      }}
+                      title={`Click to change status (current: ${config.label})`}
                       style={{
                         display: 'inline-flex',
                         alignItems: 'center',
@@ -1008,6 +1027,17 @@ export function EventsView() {
                         borderRadius: 20,
                         padding: '4px 12px',
                         boxShadow: config.glow ?? 'none',
+                        cursor: 'pointer',
+                        fontFamily: 'inherit',
+                        transition: 'transform 0.15s, box-shadow 0.15s',
+                      }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.transform = 'scale(1.05)';
+                        e.currentTarget.style.boxShadow = `${config.glow ?? 'none'}, 0 0 0 2px ${config.text}30`;
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.transform = 'scale(1)';
+                        e.currentTarget.style.boxShadow = config.glow ?? 'none';
                       }}
                     >
                       {isCompleted && <CheckCircle2 size={12} />}
@@ -1026,7 +1056,7 @@ export function EventsView() {
                       )}
                       {isPlanning && <Clock size={12} />}
                       {config.label}
-                    </span>
+                    </button>
 
                     {/* Countdown display */}
                     {(isUpcoming || isPlanning) && daysUntil !== null && daysUntil > 0 && (

@@ -14,6 +14,9 @@ import {
   TrendingUp,
   ArrowRight,
   Command,
+  Scale,
+  Wallet,
+  Sparkles,
 } from 'lucide-react';
 import { teamMembers, nodes, okrs, kpis } from '@/lib/data';
 
@@ -33,26 +36,18 @@ interface SearchResult {
 }
 
 const navigationItems: SearchResult[] = [
+  { id: 'nav-profile', icon: <Users className="w-4 h-4" />, title: 'My Profile', subtitle: 'Your personal steward dashboard', category: 'Navigation', action: 'profile' },
   { id: 'nav-dashboard', icon: <LayoutDashboard className="w-4 h-4" />, title: 'Dashboard', subtitle: 'Overview and key metrics', category: 'Navigation', action: 'dashboard' },
-  { id: 'nav-nodes', icon: <Network className="w-4 h-4" />, title: 'Nodes', subtitle: 'Node ecosystem and progress', category: 'Navigation', action: 'nodes' },
   { id: 'nav-team', icon: <Users className="w-4 h-4" />, title: 'Team', subtitle: 'Core team, board, and node leads', category: 'Navigation', action: 'team' },
   { id: 'nav-chat', icon: <MessageCircle className="w-4 h-4" />, title: 'Chat', subtitle: 'Team communication channels', category: 'Navigation', action: 'chat' },
-  { id: 'nav-steward-os', icon: <Users className="w-4 h-4" />, title: 'Steward OS', subtitle: 'Per-person operating system', category: 'Navigation', action: 'steward-os' },
   { id: 'nav-okrs', icon: <Target className="w-4 h-4" />, title: 'OKRs & KPIs', subtitle: 'Objectives, key results, and metrics', category: 'Navigation', action: 'okrs' },
   { id: 'nav-tasks', icon: <CheckSquare className="w-4 h-4" />, title: 'Tasks', subtitle: '90-day action plan and tracking', category: 'Navigation', action: 'tasks' },
-  { id: 'nav-events', icon: <Calendar className="w-4 h-4" />, title: 'Events', subtitle: 'Gatherings and retreats', category: 'Navigation', action: 'events' },
-  { id: 'nav-accountability', icon: <Target className="w-4 h-4" />, title: 'Accountability', subtitle: 'Daily commitment tracking', category: 'Navigation', action: 'accountability' },
-  { id: 'nav-meeting-intel', icon: <Users className="w-4 h-4" />, title: 'Meeting Intel', subtitle: 'AI meeting prep and capture', category: 'Navigation', action: 'meeting-intel' },
-  { id: 'nav-what-changed', icon: <Target className="w-4 h-4" />, title: 'What Changed', subtitle: 'Activity digest and sentiment', category: 'Navigation', action: 'what-changed' },
-  { id: 'nav-knowledge-graph', icon: <Network className="w-4 h-4" />, title: 'Knowledge Graph', subtitle: 'Decision and OKR relationships', category: 'Navigation', action: 'knowledge-graph' },
-  { id: 'nav-cash-runway', icon: <Target className="w-4 h-4" />, title: 'Cash Runway', subtitle: 'Financial health and scenarios', category: 'Navigation', action: 'cash-runway' },
-  { id: 'nav-leaderboard', icon: <Target className="w-4 h-4" />, title: 'Leaderboard', subtitle: 'Team scoring and rankings', category: 'Navigation', action: 'leaderboard' },
-  { id: 'nav-member-health', icon: <Users className="w-4 h-4" />, title: 'Member Health', subtitle: 'Well-steward engagement tracking', category: 'Navigation', action: 'member-health' },
-  { id: 'nav-peer-feedback', icon: <MessageCircle className="w-4 h-4" />, title: 'Peer Feedback', subtitle: 'Weekly peer scoring', category: 'Navigation', action: 'peer-feedback' },
-  { id: 'nav-alignment', icon: <Users className="w-4 h-4" />, title: 'Steward Alignment', subtitle: 'Core steward alignment scoring', category: 'Navigation', action: 'steward-alignment' },
-  { id: 'nav-role-drift', icon: <Target className="w-4 h-4" />, title: 'Role Drift', subtitle: 'Role adherence tracking', category: 'Navigation', action: 'role-drift' },
-  { id: 'nav-ecosystem-intel', icon: <Network className="w-4 h-4" />, title: 'Ecosystem Intel', subtitle: 'Aligned org intelligence', category: 'Navigation', action: 'ecosystem-intel' },
+  { id: 'nav-governance', icon: <Scale className="w-4 h-4" />, title: 'Governance', subtitle: 'Decisions, policies, and council records', category: 'Navigation', action: 'governance' },
   { id: 'nav-roadmap', icon: <Map className="w-4 h-4" />, title: 'Roadmap', subtitle: 'Strategic phases and milestones', category: 'Navigation', action: 'roadmap' },
+  { id: 'nav-events', icon: <Calendar className="w-4 h-4" />, title: 'Events', subtitle: 'Gatherings and retreats', category: 'Navigation', action: 'events' },
+  { id: 'nav-nodes', icon: <Network className="w-4 h-4" />, title: 'Nodes', subtitle: 'Node ecosystem and progress', category: 'Navigation', action: 'nodes' },
+  { id: 'nav-budget', icon: <Wallet className="w-4 h-4" />, title: 'Budget', subtitle: 'Financial overview and tracking', category: 'Navigation', action: 'budget' },
+  { id: 'nav-advisor', icon: <Sparkles className="w-4 h-4" />, title: 'AI Advisor', subtitle: 'Frequency Advisory Board — 8 AI agents', category: 'Navigation', action: 'advisor' },
 ];
 
 const categoryOrder: SearchResult['category'][] = ['Navigation', 'Team', 'Nodes', 'OKRs', 'KPIs'];

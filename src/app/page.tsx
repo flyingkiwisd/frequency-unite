@@ -13,28 +13,15 @@ import { RoadmapView } from '@/components/views/RoadmapView';
 import { GovernanceView } from '@/components/views/GovernanceView';
 import { EventsView } from '@/components/views/EventsView';
 import { ChatView } from '@/components/views/ChatView';
-import { NotesView } from '@/components/views/NotesView';
-import { ActivityView } from '@/components/views/ActivityView';
-import { EnrollmentView } from '@/components/views/EnrollmentView';
 import { BudgetView } from '@/components/views/BudgetView';
-import { PodsView } from '@/components/views/PodsView';
-import { AccountabilityView } from '@/components/views/AccountabilityView';
-import { MeetingIntelView } from '@/components/views/MeetingIntelView';
-import { WhatChangedView } from '@/components/views/WhatChangedView';
-import { KnowledgeGraphView } from '@/components/views/KnowledgeGraphView';
-import { StewardAlignmentView } from '@/components/views/StewardAlignmentView';
-import { MemberHealthView } from '@/components/views/MemberHealthView';
-import { CashRunwayView } from '@/components/views/CashRunwayView';
-import { RoleDriftView } from '@/components/views/RoleDriftView';
-import { LeaderboardView } from '@/components/views/LeaderboardView';
-import { PeerFeedbackView } from '@/components/views/PeerFeedbackView';
-import { EcosystemIntelView } from '@/components/views/EcosystemIntelView';
-import { StewardOSView } from '@/components/views/StewardOSView';
+import { AdvisorView } from '@/components/views/AdvisorView';
+import { StewardProfileView } from '@/components/views/StewardProfileView';
 import { LoginScreen } from '@/components/LoginScreen';
 import { CommandPalette } from '@/components/CommandPalette';
+import { DataProvider } from '@/lib/supabase/DataProvider';
 import { teamMembers } from '@/lib/data';
 
-export type ViewType = 'dashboard' | 'nodes' | 'team' | 'okrs' | 'tasks' | 'roadmap' | 'governance' | 'events' | 'chat' | 'notes' | 'activity' | 'enrollment' | 'budget' | 'pods' | 'accountability' | 'meeting-intel' | 'what-changed' | 'knowledge-graph' | 'steward-alignment' | 'member-health' | 'cash-runway' | 'role-drift' | 'leaderboard' | 'peer-feedback' | 'ecosystem-intel' | 'steward-os';
+export type ViewType = 'profile' | 'dashboard' | 'team' | 'chat' | 'okrs' | 'tasks' | 'governance' | 'roadmap' | 'events' | 'nodes' | 'budget' | 'advisor';
 
 function LoadingScreen() {
   return (
@@ -297,7 +284,7 @@ function ProfileSetupScreen({
 
 export default function Home() {
   const { user, teamMemberId, loading, signOut, needsProfileSetup, claimTeamMember, isDemo } = useAuth();
-  const [currentView, setCurrentView] = useState<ViewType>('dashboard');
+  const [currentView, setCurrentView] = useState<ViewType>('profile');
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
   const [viewTransition, setViewTransition] = useState(false);
@@ -349,37 +336,24 @@ export default function Home() {
 
   const renderView = () => {
     switch (currentView) {
+      case 'profile': return <StewardProfileView memberId={teamMemberId || 'james'} onNavigate={handleNavigate} />;
       case 'dashboard': return <DashboardView onNavigate={handleNavigate} />;
-      case 'nodes': return <NodesView />;
       case 'team': return <TeamView />;
+      case 'chat': return <ChatView />;
       case 'okrs': return <OKRView />;
       case 'tasks': return <TasksView />;
-      case 'roadmap': return <RoadmapView />;
       case 'governance': return <GovernanceView />;
+      case 'roadmap': return <RoadmapView />;
       case 'events': return <EventsView />;
-      case 'chat': return <ChatView />;
-      case 'notes': return <NotesView />;
-      case 'activity': return <ActivityView />;
-      case 'enrollment': return <EnrollmentView />;
+      case 'nodes': return <NodesView />;
       case 'budget': return <BudgetView />;
-      case 'pods': return <PodsView />;
-      case 'accountability': return <AccountabilityView />;
-      case 'meeting-intel': return <MeetingIntelView />;
-      case 'what-changed': return <WhatChangedView />;
-      case 'knowledge-graph': return <KnowledgeGraphView />;
-      case 'steward-alignment': return <StewardAlignmentView />;
-      case 'member-health': return <MemberHealthView />;
-      case 'cash-runway': return <CashRunwayView />;
-      case 'role-drift': return <RoleDriftView />;
-      case 'leaderboard': return <LeaderboardView />;
-      case 'peer-feedback': return <PeerFeedbackView />;
-      case 'ecosystem-intel': return <EcosystemIntelView />;
-      case 'steward-os': return <StewardOSView />;
-      default: return <DashboardView onNavigate={handleNavigate} />;
+      case 'advisor': return <AdvisorView />;
+      default: return <StewardProfileView memberId={teamMemberId || 'james'} onNavigate={handleNavigate} />;
     }
   };
 
   return (
+    <DataProvider>
     <div className="flex h-screen overflow-hidden bg-background">
       <style>{`
         @media (min-width: 768px) { main { margin-left: ${sidebarCollapsed ? 72 : 260}px !important; } }
@@ -424,5 +398,6 @@ export default function Home() {
         onNavigate={handleNavigate}
       />
     </div>
+    </DataProvider>
   );
 }

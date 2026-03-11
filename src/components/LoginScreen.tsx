@@ -1,10 +1,11 @@
 'use client';
 
 import { useState } from 'react';
-import { Zap, Shield, Fingerprint, Heart, Sparkles } from 'lucide-react';
+import { Zap, Shield, Fingerprint, Heart, Sparkles, Mail } from 'lucide-react';
 import { teamMembers } from '@/lib/data';
 import { useAuth } from '@/lib/supabase/AuthProvider';
 import { isClerkConfigured } from '@/lib/config';
+import { SignIn } from '@clerk/nextjs';
 
 interface LoginScreenProps {
   onLogin: () => void;
@@ -32,9 +33,7 @@ type Mode = 'demo' | 'clerk';
 export function LoginScreen({ onLogin }: LoginScreenProps) {
   const { demoLogin } = useAuth();
 
-  // In Clerk mode, the middleware handles redirecting to Clerk's sign-in page.
-  // This component should only render in demo mode.
-  const [mode] = useState<Mode>(isClerkConfigured ? 'clerk' : 'demo');
+  const [mode, setMode] = useState<Mode>('demo');
   const [hoveredUser, setHoveredUser] = useState<string | null>(null);
   const [selectedTier, setSelectedTier] = useState<'core-team' | 'board' | 'all'>('all');
 
@@ -51,22 +50,64 @@ export function LoginScreen({ onLogin }: LoginScreenProps) {
     onLogin();
   };
 
-  // In Clerk mode, this screen shouldn't appear at all (middleware redirects to Clerk)
-  // But if it does, show a loading state
-  if (mode === 'clerk') {
+  // Clerk sign-in view (inline, no redirect)
+  if (mode === 'clerk' && isClerkConfigured) {
     return (
       <div
         style={{
           minHeight: '100vh',
           display: 'flex',
+          flexDirection: 'column',
           alignItems: 'center',
           justifyContent: 'center',
           background: '#0b0d14',
-          color: '#a09888',
-          fontSize: 14,
+          gap: 24,
         }}
       >
-        Redirecting to sign in...
+        <SignIn
+          appearance={{
+            elements: {
+              rootBox: { width: '100%', maxWidth: 420 },
+              card: {
+                background: 'rgba(15, 18, 28, 0.9)',
+                border: '1px solid rgba(212, 165, 116, 0.12)',
+                borderRadius: '20px',
+                boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)',
+              },
+              headerTitle: { color: '#f0ebe4' },
+              headerSubtitle: { color: '#a09888' },
+              formFieldLabel: { color: '#a09888' },
+              formFieldInput: {
+                background: 'rgba(28, 34, 48, 0.6)',
+                border: '1px solid rgba(212, 165, 116, 0.15)',
+                color: '#f0ebe4',
+              },
+              formButtonPrimary: {
+                background: 'linear-gradient(135deg, #d4a574, #c4925a)',
+                color: '#0b0d14',
+              },
+              footerActionLink: { color: '#d4a574' },
+            },
+          }}
+          routing="hash"
+          fallbackRedirectUrl="/"
+        />
+        <button
+          onClick={() => setMode('demo')}
+          style={{
+            background: 'transparent',
+            border: '1px solid rgba(160, 152, 136, 0.2)',
+            borderRadius: 12,
+            padding: '10px 24px',
+            fontSize: 13,
+            color: '#a09888',
+            cursor: 'pointer',
+            fontFamily: 'inherit',
+            transition: 'all 0.2s',
+          }}
+        >
+          ← Use demo mode instead
+        </button>
       </div>
     );
   }
@@ -543,6 +584,33 @@ export function LoginScreen({ onLogin }: LoginScreenProps) {
             })}
           </div>
         </div>
+
+        {isClerkConfigured && (
+          <div style={{ textAlign: 'center', marginBottom: 12 }}>
+            <div style={{ height: 1, background: 'linear-gradient(90deg, transparent, rgba(212, 165, 116, 0.12), transparent)', marginBottom: 16 }} />
+            <button
+              onClick={() => setMode('clerk')}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 8,
+                padding: '10px 24px',
+                borderRadius: 12,
+                fontSize: 13,
+                fontWeight: 600,
+                color: '#d4a574',
+                background: 'rgba(212, 165, 116, 0.08)',
+                border: '1px solid rgba(212, 165, 116, 0.15)',
+                cursor: 'pointer',
+                fontFamily: 'inherit',
+                transition: 'all 0.2s',
+              }}
+            >
+              <Mail size={14} />
+              Sign in with email
+            </button>
+          </div>
+        )}
 
         <div style={{ marginTop: '24px' }}>
           <div className="footer-badges">

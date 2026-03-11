@@ -37,7 +37,13 @@ export default function RootLayout({
 
   if (isClerkConfigured) {
     return (
-      <ClerkProvider>
+      <ClerkProvider
+        signInUrl="/"
+        signUpUrl="/"
+        signInFallbackRedirectUrl="/"
+        signUpFallbackRedirectUrl="/"
+        afterSignOutUrl="/"
+      >
         <html lang="en" className="dark">
           {body}
         </html>

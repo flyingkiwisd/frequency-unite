@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import {
   CheckSquare,
   Circle,
@@ -19,8 +19,12 @@ import {
   CalendarDays,
   Network,
   ChevronRight,
+  Plus,
+  X,
+  Trash2,
 } from 'lucide-react';
-import { tasks, teamMembers, type Task } from '@/lib/data';
+import { useFrequencyData } from '@/lib/supabase/DataProvider';
+import type { Task, TeamMember } from '@/lib/data';
 
 // ─── CSS Keyframes (injected once) ───
 
@@ -44,6 +48,14 @@ function injectTaskStyles() {
       from { opacity: 0; transform: translateX(-12px); }
       to { opacity: 1; transform: translateX(0); }
     }
+    @keyframes task-modal-enter {
+      from { opacity: 0; transform: scale(0.95) translateY(10px); }
+      to { opacity: 1; transform: scale(1) translateY(0); }
+    }
+    @keyframes task-overlay-enter {
+      from { opacity: 0; }
+      to { opacity: 1; }
+    }
     .task-card-animated {
       animation: task-card-enter 0.4s cubic-bezier(0.22, 1, 0.36, 1) both;
     }
@@ -52,6 +64,12 @@ function injectTaskStyles() {
     }
     .task-summary-bar {
       animation: task-summary-enter 0.4s cubic-bezier(0.22, 1, 0.36, 1) both;
+    }
+    .task-modal-animated {
+      animation: task-modal-enter 0.25s cubic-bezier(0.22, 1, 0.36, 1) both;
+    }
+    .task-overlay-animated {
+      animation: task-overlay-enter 0.2s ease both;
     }
     .task-detail-reveal {
       max-height: 0;
@@ -64,6 +82,16 @@ function injectTaskStyles() {
       max-height: 120px;
       opacity: 1;
       padding: 8px 12px;
+    }
+    .task-card-hover:hover .task-delete-btn {
+      opacity: 1;
+    }
+    .task-delete-btn {
+      opacity: 0;
+      transition: opacity 0.15s ease;
+    }
+    .task-row-hover:hover .task-delete-btn {
+      opacity: 1;
     }
     .task-filter-tab {
       padding: 6px 14px;
@@ -83,6 +111,18 @@ function injectTaskStyles() {
       background: rgba(212, 165, 116, 0.12) !important;
       color: #d4a574 !important;
       box-shadow: inset 0 -2px 0 0 #d4a574;
+    }
+    .task-clickable-badge {
+      cursor: pointer;
+      transition: transform 0.12s ease, box-shadow 0.12s ease;
+      user-select: none;
+    }
+    .task-clickable-badge:hover {
+      transform: scale(1.08);
+      box-shadow: 0 0 8px rgba(212, 165, 116, 0.2);
+    }
+    .task-clickable-badge:active {
+      transform: scale(0.95);
     }
   `;
   document.head.appendChild(style);
@@ -105,21 +145,10 @@ const priorityConfig: Record<Task['priority'], { label: string; color: string; b
 };
 
 const statusOrder: Task['status'][] = ['todo', 'in-progress', 'done', 'blocked'];
+const statusCycle: Task['status'][] = ['todo', 'in-progress', 'done', 'blocked'];
+const priorityCycle: Task['priority'][] = ['critical', 'high', 'medium', 'low'];
 
 type FilterTab = 'all' | 'by-priority' | 'by-node' | 'by-status';
-
-function getOwnerName(ownerId: string): string {
-  const member = teamMembers.find((m) => m.id === ownerId);
-  return member?.name ?? ownerId;
-}
-
-function getOwnerAvatar(ownerId: string): { initials: string; color: string } {
-  const member = teamMembers.find((m) => m.id === ownerId);
-  return {
-    initials: member?.avatar ?? ownerId.slice(0, 2).toUpperCase(),
-    color: member?.color ?? 'bg-slate-500',
-  };
-}
 
 const tailwindToHex: Record<string, string> = {
   'bg-amber-500': '#f59e0b',
@@ -145,6 +174,16 @@ function isOverdue(deadline: string): boolean {
 function daysUntil(deadline: string): number {
   const diff = new Date(deadline).getTime() - new Date().getTime();
   return Math.ceil(diff / (1000 * 60 * 60 * 24));
+}
+
+function getNextStatus(current: Task['status']): Task['status'] {
+  const idx = statusCycle.indexOf(current);
+  return statusCycle[(idx + 1) % statusCycle.length];
+}
+
+function getNextPriority(current: Task['priority']): Task['priority'] {
+  const idx = priorityCycle.indexOf(current);
+  return priorityCycle[(idx + 1) % priorityCycle.length];
 }
 
 // ─── Compact Summary Bar ───
@@ -260,15 +299,321 @@ function FilterTabs({ active, onChange }: { active: FilterTab; onChange: (t: Fil
   );
 }
 
+// ─── Create Task Modal ───
+
+interface CreateTaskModalProps {
+  teamMembers: TeamMember[];
+  onClose: () => void;
+  onCreate: (task: Omit<Task, 'id'>) => Promise<void>;
+}
+
+function CreateTaskModal({ teamMembers, onClose, onCreate }: CreateTaskModalProps) {
+  const [title, setTitle] = useState('');
+  const [owner, setOwner] = useState(teamMembers[0]?.id ?? '');
+  const [priority, setPriority] = useState<Task['priority']>('medium');
+  const [deadline, setDeadline] = useState('');
+  const [category, setCategory] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!title.trim() || !deadline) return;
+    setSubmitting(true);
+    try {
+      await onCreate({
+        title: title.trim(),
+        owner,
+        status: 'todo',
+        priority,
+        deadline,
+        category: category.trim() || 'General',
+      });
+      onClose();
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const inputStyle: React.CSSProperties = {
+    width: '100%',
+    padding: '10px 12px',
+    backgroundColor: '#0b0d14',
+    border: '1px solid rgba(212, 165, 116, 0.12)',
+    borderRadius: 8,
+    color: '#f0ebe4',
+    fontSize: 13,
+    fontFamily: 'inherit',
+    outline: 'none',
+    transition: 'border-color 0.15s',
+  };
+
+  const labelStyle: React.CSSProperties = {
+    fontSize: 11,
+    fontWeight: 600,
+    color: '#a09888',
+    textTransform: 'uppercase',
+    letterSpacing: '0.06em',
+    marginBottom: 6,
+    display: 'block',
+  };
+
+  return (
+    <div
+      className="task-overlay-animated"
+      style={{
+        position: 'fixed',
+        inset: 0,
+        zIndex: 9999,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: 'rgba(0, 0, 0, 0.6)',
+        backdropFilter: 'blur(4px)',
+      }}
+      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+    >
+      <div
+        className="task-modal-animated"
+        style={{
+          width: 420,
+          maxWidth: '90vw',
+          backgroundColor: '#131720',
+          border: '1px solid rgba(212, 165, 116, 0.12)',
+          borderRadius: 16,
+          padding: 0,
+          overflow: 'hidden',
+          boxShadow: '0 24px 48px rgba(0, 0, 0, 0.5)',
+        }}
+      >
+        {/* Modal Header */}
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          padding: '16px 20px',
+          borderBottom: '1px solid rgba(212, 165, 116, 0.08)',
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <Plus size={16} style={{ color: '#d4a574' }} />
+            <span style={{ fontSize: 15, fontWeight: 700, color: '#f0ebe4' }}>
+              Create Task
+            </span>
+          </div>
+          <button
+            onClick={onClose}
+            style={{
+              background: 'none',
+              border: 'none',
+              cursor: 'pointer',
+              padding: 4,
+              borderRadius: 6,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              color: '#6b6358',
+              transition: 'color 0.15s',
+            }}
+            onMouseEnter={(e) => { e.currentTarget.style.color = '#f0ebe4'; }}
+            onMouseLeave={(e) => { e.currentTarget.style.color = '#6b6358'; }}
+          >
+            <X size={18} />
+          </button>
+        </div>
+
+        {/* Modal Body */}
+        <form onSubmit={handleSubmit} style={{ padding: '20px' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+            {/* Title */}
+            <div>
+              <label style={labelStyle}>Title</label>
+              <input
+                type="text"
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                placeholder="What needs to be done?"
+                required
+                style={inputStyle}
+                onFocus={(e) => { e.currentTarget.style.borderColor = 'rgba(212, 165, 116, 0.4)'; }}
+                onBlur={(e) => { e.currentTarget.style.borderColor = 'rgba(212, 165, 116, 0.12)'; }}
+                autoFocus
+              />
+            </div>
+
+            {/* Owner + Priority row */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+              <div>
+                <label style={labelStyle}>Owner</label>
+                <select
+                  value={owner}
+                  onChange={(e) => setOwner(e.target.value)}
+                  style={{
+                    ...inputStyle,
+                    appearance: 'none' as const,
+                    backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%236b6358' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E")`,
+                    backgroundRepeat: 'no-repeat',
+                    backgroundPosition: 'right 10px center',
+                    paddingRight: 30,
+                    cursor: 'pointer',
+                  }}
+                >
+                  {teamMembers.map((m) => (
+                    <option key={m.id} value={m.id}>{m.name}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label style={labelStyle}>Priority</label>
+                <select
+                  value={priority}
+                  onChange={(e) => setPriority(e.target.value as Task['priority'])}
+                  style={{
+                    ...inputStyle,
+                    appearance: 'none' as const,
+                    backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%236b6358' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E")`,
+                    backgroundRepeat: 'no-repeat',
+                    backgroundPosition: 'right 10px center',
+                    paddingRight: 30,
+                    cursor: 'pointer',
+                  }}
+                >
+                  <option value="critical">Critical</option>
+                  <option value="high">High</option>
+                  <option value="medium">Medium</option>
+                  <option value="low">Low</option>
+                </select>
+              </div>
+            </div>
+
+            {/* Deadline + Category row */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+              <div>
+                <label style={labelStyle}>Deadline</label>
+                <input
+                  type="date"
+                  value={deadline}
+                  onChange={(e) => setDeadline(e.target.value)}
+                  required
+                  style={{
+                    ...inputStyle,
+                    cursor: 'pointer',
+                    colorScheme: 'dark',
+                  }}
+                  onFocus={(e) => { e.currentTarget.style.borderColor = 'rgba(212, 165, 116, 0.4)'; }}
+                  onBlur={(e) => { e.currentTarget.style.borderColor = 'rgba(212, 165, 116, 0.12)'; }}
+                />
+              </div>
+              <div>
+                <label style={labelStyle}>Category</label>
+                <input
+                  type="text"
+                  value={category}
+                  onChange={(e) => setCategory(e.target.value)}
+                  placeholder="e.g. Engineering"
+                  style={inputStyle}
+                  onFocus={(e) => { e.currentTarget.style.borderColor = 'rgba(212, 165, 116, 0.4)'; }}
+                  onBlur={(e) => { e.currentTarget.style.borderColor = 'rgba(212, 165, 116, 0.12)'; }}
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Submit */}
+          <div style={{ marginTop: 24, display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
+            <button
+              type="button"
+              onClick={onClose}
+              style={{
+                padding: '8px 16px',
+                borderRadius: 8,
+                border: '1px solid #1e2638',
+                backgroundColor: 'transparent',
+                color: '#a09888',
+                fontSize: 12,
+                fontWeight: 600,
+                fontFamily: 'inherit',
+                cursor: 'pointer',
+                transition: 'color 0.15s, border-color 0.15s',
+              }}
+              onMouseEnter={(e) => { e.currentTarget.style.color = '#f0ebe4'; e.currentTarget.style.borderColor = '#3a3f4e'; }}
+              onMouseLeave={(e) => { e.currentTarget.style.color = '#a09888'; e.currentTarget.style.borderColor = '#1e2638'; }}
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={submitting || !title.trim() || !deadline}
+              style={{
+                padding: '8px 20px',
+                borderRadius: 8,
+                border: 'none',
+                backgroundColor: submitting || !title.trim() || !deadline ? 'rgba(212, 165, 116, 0.15)' : 'rgba(212, 165, 116, 0.2)',
+                color: submitting || !title.trim() || !deadline ? '#6b6358' : '#d4a574',
+                fontSize: 12,
+                fontWeight: 700,
+                fontFamily: 'inherit',
+                cursor: submitting || !title.trim() || !deadline ? 'not-allowed' : 'pointer',
+                transition: 'background 0.15s, color 0.15s',
+              }}
+              onMouseEnter={(e) => { if (!submitting && title.trim() && deadline) e.currentTarget.style.backgroundColor = 'rgba(212, 165, 116, 0.3)'; }}
+              onMouseLeave={(e) => { if (!submitting && title.trim() && deadline) e.currentTarget.style.backgroundColor = 'rgba(212, 165, 116, 0.2)'; }}
+            >
+              {submitting ? 'Creating...' : 'Create Task'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
 // ─── Task Card (used in kanban and grouped views) ───
 
-function TaskCard({ task, index }: { task: Task; index: number }) {
+function TaskCard({
+  task,
+  index,
+  teamMembers,
+  onUpdateTask,
+  onDeleteTask,
+}: {
+  task: Task;
+  index: number;
+  teamMembers: TeamMember[];
+  onUpdateTask: (id: string, updates: Partial<Task>) => Promise<void>;
+  onDeleteTask: (id: string) => Promise<void>;
+}) {
   const pConfig = priorityConfig[task.priority];
   const PriorityIcon = pConfig.icon;
-  const owner = getOwnerAvatar(task.owner);
-  const ownerHex = tailwindToHex[owner.color] || '#6b6358';
+
+  const member = teamMembers.find((m) => m.id === task.owner);
+  const ownerName = member?.name ?? task.owner;
+  const ownerInitials = member?.avatar ?? task.owner.slice(0, 2).toUpperCase();
+  const ownerColor = member?.color ?? 'bg-slate-500';
+  const ownerHex = tailwindToHex[ownerColor] || '#6b6358';
+
   const overdue = isOverdue(task.deadline) && task.status !== 'done';
   const days = daysUntil(task.deadline);
+
+  const handleStatusClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    const newStatus = getNextStatus(task.status);
+    onUpdateTask(task.id, { status: newStatus });
+  };
+
+  const handlePriorityClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    const newPriority = getNextPriority(task.priority);
+    onUpdateTask(task.id, { priority: newPriority });
+  };
+
+  const handleDelete = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (window.confirm(`Delete task "${task.title}"?`)) {
+      onDeleteTask(task.id);
+    }
+  };
+
+  const sConfig = statusConfig[task.status];
+  const StatusIcon = sConfig.icon;
 
   return (
     <div
@@ -282,6 +627,7 @@ function TaskCard({ task, index }: { task: Task; index: number }) {
         cursor: 'pointer',
         transition: 'border-color 0.15s, box-shadow 0.2s, transform 0.2s',
         animationDelay: `${index * 50}ms`,
+        position: 'relative',
       }}
       onMouseEnter={(e) => {
         e.currentTarget.style.borderColor = '#2e3a4e';
@@ -296,20 +642,67 @@ function TaskCard({ task, index }: { task: Task; index: number }) {
         e.currentTarget.style.transform = 'translateY(0)';
       }}
     >
+      {/* Delete button — visible on hover */}
+      <button
+        className="task-delete-btn"
+        onClick={handleDelete}
+        title="Delete task"
+        style={{
+          position: 'absolute',
+          top: 8,
+          right: 8,
+          background: 'rgba(201, 84, 74, 0.1)',
+          border: 'none',
+          borderRadius: 6,
+          padding: 4,
+          cursor: 'pointer',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          color: '#c9544a',
+          transition: 'background 0.15s, color 0.15s',
+          zIndex: 2,
+        }}
+        onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(201, 84, 74, 0.25)'; }}
+        onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(201, 84, 74, 0.1)'; }}
+      >
+        <Trash2 size={12} />
+      </button>
+
       {/* Title */}
-      <p style={{ fontSize: 12, fontWeight: 600, color: '#f0ebe4', margin: 0, lineHeight: 1.4, marginBottom: 8 }}>
+      <p style={{ fontSize: 12, fontWeight: 600, color: '#f0ebe4', margin: 0, lineHeight: 1.4, marginBottom: 8, paddingRight: 24 }}>
         {task.title}
       </p>
 
       {/* Badges Row */}
       <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 8 }}>
-        {/* Priority */}
-        <span style={{
-          display: 'inline-flex', alignItems: 'center', gap: 3,
-          padding: '2px 7px', borderRadius: 6,
-          backgroundColor: pConfig.bg, color: pConfig.color,
-          fontSize: 10, fontWeight: 600,
-        }}>
+        {/* Status badge — clickable to cycle */}
+        <span
+          className="task-clickable-badge"
+          onClick={handleStatusClick}
+          title={`Click to change status (current: ${sConfig.label})`}
+          style={{
+            display: 'inline-flex', alignItems: 'center', gap: 3,
+            padding: '2px 7px', borderRadius: 6,
+            backgroundColor: sConfig.bg, color: sConfig.color,
+            fontSize: 10, fontWeight: 600,
+          }}
+        >
+          <StatusIcon size={10} />
+          {sConfig.label}
+        </span>
+        {/* Priority badge — clickable to cycle */}
+        <span
+          className="task-clickable-badge"
+          onClick={handlePriorityClick}
+          title={`Click to change priority (current: ${pConfig.label})`}
+          style={{
+            display: 'inline-flex', alignItems: 'center', gap: 3,
+            padding: '2px 7px', borderRadius: 6,
+            backgroundColor: pConfig.bg, color: pConfig.color,
+            fontSize: 10, fontWeight: 600,
+          }}
+        >
           <PriorityIcon size={10} />
           {pConfig.label}
         </span>
@@ -348,10 +741,10 @@ function TaskCard({ task, index }: { task: Task; index: number }) {
             display: 'flex', alignItems: 'center', justifyContent: 'center',
             fontSize: 8, fontWeight: 700, color: '#0b0d14',
           }}>
-            {owner.initials}
+            {ownerInitials}
           </div>
           <span style={{ fontSize: 11, color: '#a09888' }}>
-            {getOwnerName(task.owner).split(' ')[0]}
+            {ownerName.split(' ')[0]}
           </span>
         </div>
         {/* Deadline */}
@@ -377,7 +770,7 @@ function TaskCard({ task, index }: { task: Task; index: number }) {
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
             <User size={10} style={{ color: '#6b6358' }} />
             <span style={{ fontSize: 10, color: '#a09888' }}>
-              Owner: {getOwnerName(task.owner)}
+              Owner: {ownerName}
             </span>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -404,7 +797,17 @@ function TaskCard({ task, index }: { task: Task; index: number }) {
 
 // ─── Grouped View Components ───
 
-function GroupedByPriority({ tasks: filteredTasks }: { tasks: Task[] }) {
+function GroupedByPriority({
+  tasks: filteredTasks,
+  teamMembers,
+  onUpdateTask,
+  onDeleteTask,
+}: {
+  tasks: Task[];
+  teamMembers: TeamMember[];
+  onUpdateTask: (id: string, updates: Partial<Task>) => Promise<void>;
+  onDeleteTask: (id: string) => Promise<void>;
+}) {
   const priorities: Task['priority'][] = ['critical', 'high', 'medium', 'low'];
 
   return (
@@ -429,7 +832,16 @@ function GroupedByPriority({ tasks: filteredTasks }: { tasks: Task[] }) {
               }}>{grouped.length}</span>
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 12 }}>
-              {grouped.map((task, idx) => <TaskCard key={task.id} task={task} index={idx} />)}
+              {grouped.map((task, idx) => (
+                <TaskCard
+                  key={task.id}
+                  task={task}
+                  index={idx}
+                  teamMembers={teamMembers}
+                  onUpdateTask={onUpdateTask}
+                  onDeleteTask={onDeleteTask}
+                />
+              ))}
             </div>
           </div>
         );
@@ -438,7 +850,17 @@ function GroupedByPriority({ tasks: filteredTasks }: { tasks: Task[] }) {
   );
 }
 
-function GroupedByNode({ tasks: filteredTasks }: { tasks: Task[] }) {
+function GroupedByNode({
+  tasks: filteredTasks,
+  teamMembers,
+  onUpdateTask,
+  onDeleteTask,
+}: {
+  tasks: Task[];
+  teamMembers: TeamMember[];
+  onUpdateTask: (id: string, updates: Partial<Task>) => Promise<void>;
+  onDeleteTask: (id: string) => Promise<void>;
+}) {
   const nodeGroups = useMemo(() => {
     const map: Record<string, Task[]> = { 'No Node': [] };
     filteredTasks.forEach((t) => {
@@ -471,7 +893,16 @@ function GroupedByNode({ tasks: filteredTasks }: { tasks: Task[] }) {
             }}>{grouped.length}</span>
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 12 }}>
-            {grouped.map((task, idx) => <TaskCard key={task.id} task={task} index={idx} />)}
+            {grouped.map((task, idx) => (
+              <TaskCard
+                key={task.id}
+                task={task}
+                index={idx}
+                teamMembers={teamMembers}
+                onUpdateTask={onUpdateTask}
+                onDeleteTask={onDeleteTask}
+              />
+            ))}
           </div>
         </div>
       ))}
@@ -479,7 +910,17 @@ function GroupedByNode({ tasks: filteredTasks }: { tasks: Task[] }) {
   );
 }
 
-function GroupedByStatus({ tasks: filteredTasks }: { tasks: Task[] }) {
+function GroupedByStatus({
+  tasks: filteredTasks,
+  teamMembers,
+  onUpdateTask,
+  onDeleteTask,
+}: {
+  tasks: Task[];
+  teamMembers: TeamMember[];
+  onUpdateTask: (id: string, updates: Partial<Task>) => Promise<void>;
+  onDeleteTask: (id: string) => Promise<void>;
+}) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
       {statusOrder.map((status) => {
@@ -502,7 +943,16 @@ function GroupedByStatus({ tasks: filteredTasks }: { tasks: Task[] }) {
               }}>{grouped.length}</span>
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 12 }}>
-              {grouped.map((task, idx) => <TaskCard key={task.id} task={task} index={idx} />)}
+              {grouped.map((task, idx) => (
+                <TaskCard
+                  key={task.id}
+                  task={task}
+                  index={idx}
+                  teamMembers={teamMembers}
+                  onUpdateTask={onUpdateTask}
+                  onDeleteTask={onDeleteTask}
+                />
+              ))}
             </div>
           </div>
         );
@@ -514,18 +964,21 @@ function GroupedByStatus({ tasks: filteredTasks }: { tasks: Task[] }) {
 // ─── Main Component ───
 
 export function TasksView() {
+  const { tasks, teamMembers, updateTask, createTask, deleteTask } = useFrequencyData();
+
   const [filterStatus, setFilterStatus] = useState<Task['status'] | 'all'>('all');
   const [filterPriority, setFilterPriority] = useState<Task['priority'] | 'all'>('all');
   const [filterCategory, setFilterCategory] = useState<string>('all');
   const [viewMode, setViewMode] = useState<'kanban' | 'list'>('kanban');
   const [filterTab, setFilterTab] = useState<FilterTab>('all');
+  const [showCreateModal, setShowCreateModal] = useState(false);
 
   useEffect(() => { injectTaskStyles(); }, []);
 
   const categories = useMemo(() => {
     const cats = new Set(tasks.map((t) => t.category));
     return ['all', ...Array.from(cats).sort()];
-  }, []);
+  }, [tasks]);
 
   const filteredTasks = useMemo(() => {
     return tasks.filter((t) => {
@@ -534,7 +987,7 @@ export function TasksView() {
       if (filterCategory !== 'all' && t.category !== filterCategory) return false;
       return true;
     });
-  }, [filterStatus, filterPriority, filterCategory]);
+  }, [tasks, filterStatus, filterPriority, filterCategory]);
 
   const stats = useMemo(() => {
     const total = tasks.length;
@@ -551,7 +1004,12 @@ export function TasksView() {
       critical: tasks.filter((t) => t.priority === 'critical').length,
       completionPct: total > 0 ? Math.round((completed / total) * 100) : 0,
     };
-  }, []);
+  }, [tasks]);
+
+  const getOwnerName = useCallback((ownerId: string): string => {
+    const member = teamMembers.find((m) => m.id === ownerId);
+    return member?.name ?? ownerId;
+  }, [teamMembers]);
 
   const selectStyle: React.CSSProperties = {
     backgroundColor: '#131720',
@@ -583,7 +1041,40 @@ export function TasksView() {
               90-day action plan &middot; {stats.total} tasks across all workstreams
             </p>
           </div>
-          <div style={{ display: 'flex', gap: 4 }}>
+          <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
+            {/* Create Task Button */}
+            <button
+              onClick={() => setShowCreateModal(true)}
+              title="Create new task"
+              style={{
+                padding: '6px 12px',
+                borderRadius: 8,
+                border: '1px solid rgba(212, 165, 116, 0.2)',
+                cursor: 'pointer',
+                backgroundColor: 'rgba(212, 165, 116, 0.08)',
+                color: '#d4a574',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 5,
+                fontSize: 12,
+                fontWeight: 600,
+                fontFamily: 'inherit',
+                transition: 'background 0.15s, border-color 0.15s',
+                marginRight: 8,
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.backgroundColor = 'rgba(212, 165, 116, 0.16)';
+                e.currentTarget.style.borderColor = 'rgba(212, 165, 116, 0.35)';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.backgroundColor = 'rgba(212, 165, 116, 0.08)';
+                e.currentTarget.style.borderColor = 'rgba(212, 165, 116, 0.2)';
+              }}
+            >
+              <Plus size={14} />
+              New Task
+            </button>
+
             <button
               onClick={() => setViewMode('kanban')}
               style={{
@@ -678,9 +1169,30 @@ export function TasksView() {
       </div>
 
       {/* ── Grouped Views (by-priority, by-node, by-status) ── */}
-      {filterTab === 'by-priority' && <GroupedByPriority tasks={filteredTasks} />}
-      {filterTab === 'by-node' && <GroupedByNode tasks={filteredTasks} />}
-      {filterTab === 'by-status' && <GroupedByStatus tasks={filteredTasks} />}
+      {filterTab === 'by-priority' && (
+        <GroupedByPriority
+          tasks={filteredTasks}
+          teamMembers={teamMembers}
+          onUpdateTask={updateTask}
+          onDeleteTask={deleteTask}
+        />
+      )}
+      {filterTab === 'by-node' && (
+        <GroupedByNode
+          tasks={filteredTasks}
+          teamMembers={teamMembers}
+          onUpdateTask={updateTask}
+          onDeleteTask={deleteTask}
+        />
+      )}
+      {filterTab === 'by-status' && (
+        <GroupedByStatus
+          tasks={filteredTasks}
+          teamMembers={teamMembers}
+          onUpdateTask={updateTask}
+          onDeleteTask={deleteTask}
+        />
+      )}
 
       {/* ── Kanban Board (only in "all" tab with kanban mode) ── */}
       {filterTab === 'all' && viewMode === 'kanban' && (
@@ -736,7 +1248,14 @@ export function TasksView() {
                 {/* Cards */}
                 <div style={{ flex: 1, overflowY: 'auto', padding: 8, display: 'flex', flexDirection: 'column', gap: 8 }}>
                   {columnTasks.map((task, idx) => (
-                    <TaskCard key={task.id} task={task} index={idx} />
+                    <TaskCard
+                      key={task.id}
+                      task={task}
+                      index={idx}
+                      teamMembers={teamMembers}
+                      onUpdateTask={updateTask}
+                      onDeleteTask={deleteTask}
+                    />
                   ))}
                   {columnTasks.length === 0 && (
                     <div style={{ textAlign: 'center', padding: 20, color: '#3a3530', fontSize: 12 }}>
@@ -757,14 +1276,14 @@ export function TasksView() {
           <div
             style={{
               display: 'grid',
-              gridTemplateColumns: '1fr 120px 90px 100px 90px 100px',
+              gridTemplateColumns: '1fr 120px 100px 100px 90px 100px 40px',
               padding: '10px 16px',
               borderBottom: '1px solid #1e2638',
               backgroundColor: '#0d1018',
             }}
           >
-            {['Task', 'Owner', 'Status', 'Priority', 'Deadline', 'Category'].map((h) => (
-              <span key={h} style={{ fontSize: 10, fontWeight: 700, color: '#6b6358', letterSpacing: '0.08em', textTransform: 'uppercase' }}>
+            {['Task', 'Owner', 'Status', 'Priority', 'Deadline', 'Category', ''].map((h, i) => (
+              <span key={i} style={{ fontSize: 10, fontWeight: 700, color: '#6b6358', letterSpacing: '0.08em', textTransform: 'uppercase' }}>
                 {h}
               </span>
             ))}
@@ -777,13 +1296,32 @@ export function TasksView() {
             const StatusIcon = sConfig.icon;
             const overdue = isOverdue(task.deadline) && task.status !== 'done';
 
+            const handleRowStatusClick = (e: React.MouseEvent) => {
+              e.stopPropagation();
+              const newStatus = getNextStatus(task.status);
+              updateTask(task.id, { status: newStatus });
+            };
+
+            const handleRowPriorityClick = (e: React.MouseEvent) => {
+              e.stopPropagation();
+              const newPriority = getNextPriority(task.priority);
+              updateTask(task.id, { priority: newPriority });
+            };
+
+            const handleRowDelete = (e: React.MouseEvent) => {
+              e.stopPropagation();
+              if (window.confirm(`Delete task "${task.title}"?`)) {
+                deleteTask(task.id);
+              }
+            };
+
             return (
               <div
                 key={task.id}
-                className="task-row-animated"
+                className="task-row-animated task-row-hover"
                 style={{
                   display: 'grid',
-                  gridTemplateColumns: '1fr 120px 90px 100px 90px 100px',
+                  gridTemplateColumns: '1fr 120px 100px 100px 90px 100px 40px',
                   padding: '10px 16px',
                   borderBottom: '1px solid #1e2638',
                   borderLeft: `3px solid ${pConfig.borderColor}`,
@@ -791,26 +1329,73 @@ export function TasksView() {
                   transition: 'background 0.1s',
                   cursor: 'pointer',
                   animationDelay: `${rowIndex * 30}ms`,
+                  position: 'relative',
                 }}
                 onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.02)'; }}
                 onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent'; }}
               >
                 <span style={{ fontSize: 12, color: '#f0ebe4', fontWeight: 500 }}>{task.title}</span>
                 <span style={{ fontSize: 11, color: '#a09888' }}>{getOwnerName(task.owner).split(' ')[0]}</span>
-                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 10, color: sConfig.color }}>
+                <span
+                  className="task-clickable-badge"
+                  onClick={handleRowStatusClick}
+                  title={`Click to change status (current: ${sConfig.label})`}
+                  style={{
+                    display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 10, color: sConfig.color,
+                    padding: '2px 6px', borderRadius: 6, backgroundColor: sConfig.bg, width: 'fit-content',
+                  }}
+                >
                   <StatusIcon size={11} /> {sConfig.label}
                 </span>
-                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3, fontSize: 10, color: pConfig.color }}>
+                <span
+                  className="task-clickable-badge"
+                  onClick={handleRowPriorityClick}
+                  title={`Click to change priority (current: ${pConfig.label})`}
+                  style={{
+                    display: 'inline-flex', alignItems: 'center', gap: 3, fontSize: 10, color: pConfig.color,
+                    padding: '2px 6px', borderRadius: 6, backgroundColor: pConfig.bg, width: 'fit-content',
+                  }}
+                >
                   <PriorityIcon size={10} /> {pConfig.label}
                 </span>
                 <span style={{ fontSize: 10, color: overdue ? '#ef4444' : '#6b6358', fontWeight: overdue ? 600 : 400 }}>
                   {new Date(task.deadline).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
                 </span>
                 <span style={{ fontSize: 10, color: '#a78bfa' }}>{task.category}</span>
+                <button
+                  className="task-delete-btn"
+                  onClick={handleRowDelete}
+                  title="Delete task"
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    borderRadius: 6,
+                    padding: 4,
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    color: '#c9544a',
+                    transition: 'background 0.15s, opacity 0.15s',
+                  }}
+                  onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(201, 84, 74, 0.15)'; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.background = 'none'; }}
+                >
+                  <Trash2 size={13} />
+                </button>
               </div>
             );
           })}
         </div>
+      )}
+
+      {/* ── Create Task Modal ── */}
+      {showCreateModal && (
+        <CreateTaskModal
+          teamMembers={teamMembers}
+          onClose={() => setShowCreateModal(false)}
+          onCreate={createTask}
+        />
       )}
     </div>
   );

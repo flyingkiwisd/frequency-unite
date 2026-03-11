@@ -11,30 +11,16 @@ import {
   Users,
   Map,
   Scale,
-  StickyNote,
-  Activity,
   Calendar,
-  UserPlus,
   Wallet,
-  CircleDot,
-  Flame,
-  Brain,
-  Sparkles,
-  GitBranch,
-  Heart,
-  DollarSign,
-  Compass,
-  Trophy,
-  MessageSquare,
-  Globe,
-  UserCog,
-  HandshakeIcon,
   X,
   ChevronDown,
+  User,
+  Sparkles,
 } from 'lucide-react';
 import { useState, useEffect, useRef, useCallback } from 'react';
 
-type ViewType = 'dashboard' | 'nodes' | 'team' | 'okrs' | 'tasks' | 'roadmap' | 'governance' | 'events' | 'chat' | 'notes' | 'activity' | 'enrollment' | 'budget' | 'pods' | 'accountability' | 'meeting-intel' | 'what-changed' | 'knowledge-graph' | 'steward-alignment' | 'member-health' | 'cash-runway' | 'role-drift' | 'leaderboard' | 'peer-feedback' | 'ecosystem-intel' | 'steward-os';
+type ViewType = 'profile' | 'dashboard' | 'team' | 'chat' | 'okrs' | 'tasks' | 'governance' | 'roadmap' | 'events' | 'nodes' | 'budget' | 'advisor';
 
 interface MobileNavProps {
   currentView: string;
@@ -43,35 +29,21 @@ interface MobileNavProps {
 }
 
 const primaryTabs: { label: string; icon: React.ElementType; view: ViewType }[] = [
+  { label: 'Me', icon: User, view: 'profile' },
   { label: 'Home', icon: LayoutDashboard, view: 'dashboard' },
-  { label: 'Chat', icon: MessageCircle, view: 'chat' },
-  { label: 'Nodes', icon: Network, view: 'nodes' },
+  { label: 'Tasks', icon: CheckSquare, view: 'tasks' },
   { label: 'OKRs', icon: Target, view: 'okrs' },
 ];
 
 const moreTabs: { label: string; icon: React.ElementType; view: ViewType }[] = [
+  { label: 'Chat', icon: MessageCircle, view: 'chat' },
   { label: 'Team', icon: Users, view: 'team' },
-  { label: 'Steward OS', icon: UserCog, view: 'steward-os' },
-  { label: 'Enrollment', icon: UserPlus, view: 'enrollment' },
-  { label: 'Member Health', icon: Heart, view: 'member-health' },
-  { label: 'Mothership', icon: Wallet, view: 'budget' },
-  { label: 'Pods', icon: CircleDot, view: 'pods' },
-  { label: 'Tasks', icon: CheckSquare, view: 'tasks' },
   { label: 'Governance', icon: Scale, view: 'governance' },
-  { label: 'Events', icon: Calendar, view: 'events' },
-  { label: 'Accountability', icon: Flame, view: 'accountability' },
-  { label: 'Meeting Intel', icon: Brain, view: 'meeting-intel' },
-  { label: 'What Changed', icon: Sparkles, view: 'what-changed' },
-  { label: 'Knowledge', icon: GitBranch, view: 'knowledge-graph' },
-  { label: 'Cash Runway', icon: DollarSign, view: 'cash-runway' },
-  { label: 'Ecosystem', icon: Globe, view: 'ecosystem-intel' },
-  { label: 'Leaderboard', icon: Trophy, view: 'leaderboard' },
-  { label: 'Feedback', icon: MessageSquare, view: 'peer-feedback' },
-  { label: 'Alignment', icon: HandshakeIcon, view: 'steward-alignment' },
-  { label: 'Role Drift', icon: Compass, view: 'role-drift' },
   { label: 'Roadmap', icon: Map, view: 'roadmap' },
-  { label: 'Notes', icon: StickyNote, view: 'notes' },
-  { label: 'Activity', icon: Activity, view: 'activity' },
+  { label: 'Events', icon: Calendar, view: 'events' },
+  { label: 'Nodes', icon: Network, view: 'nodes' },
+  { label: 'Budget', icon: Wallet, view: 'budget' },
+  { label: 'AI Advisor', icon: Sparkles, view: 'advisor' },
 ];
 
 /* ─── Resolve current view label ─── */
@@ -95,7 +67,6 @@ export function MobileNav({ currentView, onViewChange, onOpenSearch }: MobileNav
   // Animate sheet open/close
   useEffect(() => {
     if (showMore) {
-      // Small delay to trigger CSS transition after mount
       requestAnimationFrame(() => {
         requestAnimationFrame(() => {
           setSheetVisible(true);
@@ -108,7 +79,6 @@ export function MobileNav({ currentView, onViewChange, onOpenSearch }: MobileNav
 
   const handleCloseSheet = useCallback(() => {
     setSheetVisible(false);
-    // Wait for animation to finish before unmounting
     setTimeout(() => setShowMore(false), 280);
   }, []);
 
@@ -131,16 +101,7 @@ export function MobileNav({ currentView, onViewChange, onOpenSearch }: MobileNav
 
   return (
     <>
-      {/* ── Scoped styles ── */}
       <style>{`
-        @keyframes mobileNavSlideUp {
-          from { transform: translateY(100%); }
-          to { transform: translateY(0); }
-        }
-        @keyframes mobileNavFadeIn {
-          from { opacity: 0; }
-          to { opacity: 1; }
-        }
         @keyframes mobileNavGlowPulse {
           0%, 100% { opacity: 0.6; transform: scale(1); }
           50% { opacity: 1; transform: scale(1.5); }
@@ -161,7 +122,6 @@ export function MobileNav({ currentView, onViewChange, onOpenSearch }: MobileNav
           className="fixed inset-0 z-40 md:hidden"
           onClick={handleCloseSheet}
         >
-          {/* Backdrop with blur */}
           <div
             className="absolute inset-0"
             style={{
@@ -173,7 +133,6 @@ export function MobileNav({ currentView, onViewChange, onOpenSearch }: MobileNav
             }}
           />
 
-          {/* Sheet */}
           <div
             ref={sheetRef}
             className="absolute left-0 right-0 z-50"
@@ -194,59 +153,34 @@ export function MobileNav({ currentView, onViewChange, onOpenSearch }: MobileNav
             }}
             onClick={(e) => e.stopPropagation()}
           >
-            {/* Drag handle */}
             <div className="flex justify-center pt-3 pb-1">
-              <div
-                className="w-9 h-1 rounded-full"
-                style={{ backgroundColor: 'rgba(160, 152, 136, 0.3)' }}
-              />
+              <div className="w-9 h-1 rounded-full" style={{ backgroundColor: 'rgba(160, 152, 136, 0.3)' }} />
             </div>
 
-            {/* Header */}
             <div className="flex items-center justify-between px-5 pb-3">
-              <span
-                className="text-xs font-semibold uppercase tracking-wider"
-                style={{ color: '#6b6358' }}
-              >
+              <span className="text-xs font-semibold uppercase tracking-wider" style={{ color: '#6b6358' }}>
                 All Views
               </span>
               <div className="flex items-center gap-3">
                 <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onOpenSearch();
-                    handleCloseSheet();
-                  }}
+                  onClick={(e) => { e.stopPropagation(); onOpenSearch(); handleCloseSheet(); }}
                   className="flex items-center gap-1.5 text-xs font-medium px-2.5 py-1.5 rounded-lg transition-all"
-                  style={{
-                    color: '#d4a574',
-                    backgroundColor: 'rgba(212, 165, 116, 0.08)',
-                  }}
+                  style={{ color: '#d4a574', backgroundColor: 'rgba(212, 165, 116, 0.08)' }}
                 >
                   <Search className="w-3.5 h-3.5" />
                   Search
                 </button>
                 <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    handleCloseSheet();
-                  }}
+                  onClick={(e) => { e.stopPropagation(); handleCloseSheet(); }}
                   className="w-7 h-7 rounded-full flex items-center justify-center transition-all"
-                  style={{
-                    backgroundColor: 'rgba(160, 152, 136, 0.1)',
-                    color: '#6b6358',
-                  }}
+                  style={{ backgroundColor: 'rgba(160, 152, 136, 0.1)', color: '#6b6358' }}
                 >
                   <X className="w-3.5 h-3.5" />
                 </button>
               </div>
             </div>
 
-            {/* Grid of nav items */}
-            <div
-              className="grid grid-cols-3 gap-1.5 px-4 pb-5"
-              onClick={(e) => e.stopPropagation()}
-            >
+            <div className="grid grid-cols-3 gap-1.5 px-4 pb-5" onClick={(e) => e.stopPropagation()}>
               {moreTabs.map((tab, index) => {
                 const Icon = tab.icon;
                 const isActive = currentView === tab.view;
@@ -258,9 +192,7 @@ export function MobileNav({ currentView, onViewChange, onOpenSearch }: MobileNav
                     onClick={() => handleMoreNav(tab.view)}
                     className={`flex flex-col items-center gap-1.5 p-3 rounded-xl transition-all ${isPressed ? 'mobile-nav-press' : ''}`}
                     style={{
-                      backgroundColor: isActive
-                        ? 'rgba(212, 165, 116, 0.12)'
-                        : 'rgba(28, 34, 48, 0.4)',
+                      backgroundColor: isActive ? 'rgba(212, 165, 116, 0.12)' : 'rgba(28, 34, 48, 0.4)',
                       color: isActive ? '#d4a574' : '#a09888',
                       border: `1px solid ${isActive ? 'rgba(212, 165, 116, 0.2)' : 'transparent'}`,
                       opacity: sheetVisible ? 1 : 0,
@@ -289,20 +221,12 @@ export function MobileNav({ currentView, onViewChange, onOpenSearch }: MobileNav
           boxShadow: '0 -4px 24px rgba(0, 0, 0, 0.25)',
         }}
       >
-        {/* Current view label (subtle) */}
-        <div
-          className="flex items-center justify-center pt-1.5"
-          style={{ height: 16 }}
-        >
-          <span
-            className="text-[9px] font-medium tracking-wider uppercase"
-            style={{ color: 'rgba(160, 152, 136, 0.4)' }}
-          >
+        <div className="flex items-center justify-center pt-1.5" style={{ height: 16 }}>
+          <span className="text-[9px] font-medium tracking-wider uppercase" style={{ color: 'rgba(160, 152, 136, 0.4)' }}>
             {currentLabel}
           </span>
         </div>
 
-        {/* Tab buttons */}
         <div className="flex items-center justify-around px-2 max-w-lg mx-auto" style={{ height: 56 }}>
           {primaryTabs.map((tab) => {
             const Icon = tab.icon;
@@ -314,47 +238,16 @@ export function MobileNav({ currentView, onViewChange, onOpenSearch }: MobileNav
                 key={tab.view}
                 onClick={() => handlePrimaryNav(tab.view)}
                 className={`relative flex flex-col items-center gap-0.5 px-3 py-1.5 rounded-xl min-w-[56px] ${isPressed ? 'mobile-nav-press' : ''}`}
-                style={{
-                  color: isActive ? '#d4a574' : '#6b6358',
-                  transition: 'color 0.2s ease-out',
-                }}
+                style={{ color: isActive ? '#d4a574' : '#6b6358', transition: 'color 0.2s ease-out' }}
               >
-                {/* Icon with glow */}
                 <div className="relative">
-                  <Icon
-                    className="w-5 h-5 transition-all"
-                    style={{
-                      filter: isActive ? 'drop-shadow(0 0 6px rgba(212, 165, 116, 0.5))' : 'none',
-                      transition: 'filter 0.25s ease-out',
-                    }}
-                  />
+                  <Icon className="w-5 h-5 transition-all" style={{ filter: isActive ? 'drop-shadow(0 0 6px rgba(212, 165, 116, 0.5))' : 'none', transition: 'filter 0.25s ease-out' }} />
                 </div>
-
-                {/* Label */}
-                <span
-                  className="text-[10px] transition-all"
-                  style={{
-                    fontWeight: isActive ? 600 : 500,
-                    transition: 'font-weight 0.2s ease-out',
-                  }}
-                >
+                <span className="text-[10px] transition-all" style={{ fontWeight: isActive ? 600 : 500, transition: 'font-weight 0.2s ease-out' }}>
                   {tab.label}
                 </span>
-
-                {/* Active glow dot */}
                 {isActive && (
-                  <div
-                    className="absolute -bottom-0.5 left-1/2"
-                    style={{
-                      width: 4,
-                      height: 4,
-                      borderRadius: '50%',
-                      backgroundColor: '#d4a574',
-                      transform: 'translateX(-50%)',
-                      boxShadow: '0 0 8px rgba(212, 165, 116, 0.6), 0 0 16px rgba(212, 165, 116, 0.3)',
-                      animation: 'mobileNavGlowPulse 2.5s ease-in-out infinite',
-                    }}
-                  />
+                  <div className="absolute -bottom-0.5 left-1/2" style={{ width: 4, height: 4, borderRadius: '50%', backgroundColor: '#d4a574', transform: 'translateX(-50%)', boxShadow: '0 0 8px rgba(212, 165, 116, 0.6), 0 0 16px rgba(212, 165, 116, 0.3)', animation: 'mobileNavGlowPulse 2.5s ease-in-out infinite' }} />
                 )}
               </button>
             );
@@ -362,69 +255,26 @@ export function MobileNav({ currentView, onViewChange, onOpenSearch }: MobileNav
 
           {/* More button */}
           <button
-            onClick={() => {
-              handleTabPress('more');
-              if (showMore) {
-                handleCloseSheet();
-              } else {
-                setShowMore(true);
-              }
-            }}
+            onClick={() => { handleTabPress('more'); if (showMore) { handleCloseSheet(); } else { setShowMore(true); } }}
             className={`relative flex flex-col items-center gap-0.5 px-3 py-1.5 rounded-xl min-w-[56px] ${pressedTab === 'more' ? 'mobile-nav-press' : ''}`}
-            style={{
-              color: isMoreActive || showMore ? '#d4a574' : '#6b6358',
-              transition: 'color 0.2s ease-out',
-            }}
+            style={{ color: isMoreActive || showMore ? '#d4a574' : '#6b6358', transition: 'color 0.2s ease-out' }}
           >
             <div className="relative">
               {showMore ? (
-                <ChevronDown
-                  className="w-5 h-5 transition-all"
-                  style={{
-                    filter: isMoreActive ? 'drop-shadow(0 0 6px rgba(212, 165, 116, 0.5))' : 'none',
-                    transform: 'rotate(180deg)',
-                    transition: 'filter 0.25s ease-out, transform 0.3s ease-out',
-                  }}
-                />
+                <ChevronDown className="w-5 h-5 transition-all" style={{ filter: isMoreActive ? 'drop-shadow(0 0 6px rgba(212, 165, 116, 0.5))' : 'none', transform: 'rotate(180deg)', transition: 'filter 0.25s ease-out, transform 0.3s ease-out' }} />
               ) : (
-                <MoreHorizontal
-                  className="w-5 h-5 transition-all"
-                  style={{
-                    filter: isMoreActive ? 'drop-shadow(0 0 6px rgba(212, 165, 116, 0.5))' : 'none',
-                    transition: 'filter 0.25s ease-out',
-                  }}
-                />
+                <MoreHorizontal className="w-5 h-5 transition-all" style={{ filter: isMoreActive ? 'drop-shadow(0 0 6px rgba(212, 165, 116, 0.5))' : 'none', transition: 'filter 0.25s ease-out' }} />
               )}
             </div>
-            <span
-              className="text-[10px] transition-all"
-              style={{
-                fontWeight: isMoreActive || showMore ? 600 : 500,
-                transition: 'font-weight 0.2s ease-out',
-              }}
-            >
+            <span className="text-[10px] transition-all" style={{ fontWeight: isMoreActive || showMore ? 600 : 500, transition: 'font-weight 0.2s ease-out' }}>
               More
             </span>
-
-            {/* Active glow dot for more */}
             {isMoreActive && !showMore && (
-              <div
-                className="absolute -bottom-0.5 left-1/2"
-                style={{
-                  width: 4,
-                  height: 4,
-                  borderRadius: '50%',
-                  backgroundColor: '#d4a574',
-                  transform: 'translateX(-50%)',
-                  boxShadow: '0 0 8px rgba(212, 165, 116, 0.6), 0 0 16px rgba(212, 165, 116, 0.3)',
-                  animation: 'mobileNavGlowPulse 2.5s ease-in-out infinite',
-                }}
-              />
+              <div className="absolute -bottom-0.5 left-1/2" style={{ width: 4, height: 4, borderRadius: '50%', backgroundColor: '#d4a574', transform: 'translateX(-50%)', boxShadow: '0 0 8px rgba(212, 165, 116, 0.6), 0 0 16px rgba(212, 165, 116, 0.3)', animation: 'mobileNavGlowPulse 2.5s ease-in-out infinite' }} />
             )}
           </button>
         </div>
 
-        {/* Safe area padding for notched phones */}
         <div style={{ height: 'env(safe-area-inset-bottom, 0px)' }} />
       </nav>
     </>

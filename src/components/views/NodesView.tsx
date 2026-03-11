@@ -27,8 +27,9 @@ import {
   CalendarClock,
   ArrowRight,
 } from 'lucide-react';
-import { nodes, teamMembers, exportPdf } from '@/lib/data';
+import { exportPdf } from '@/lib/data';
 import type { Node } from '@/lib/data';
+import { useFrequencyData } from '@/lib/supabase/DataProvider';
 
 // ─── CSS Keyframes injection ───
 
@@ -107,7 +108,7 @@ function getNodeGradient(node: Node): string {
   return `linear-gradient(135deg, ${c1}, ${c2})`;
 }
 
-function getMemberColor(memberId: string): string {
+function getMemberColor(memberId: string, teamMembers: { id: string; color: string }[]): string {
   const member = teamMembers.find((m) => m.id === memberId);
   if (!member) return '#a09888';
   const colorMap: Record<string, string> = {
@@ -265,6 +266,7 @@ function timeAgo(ts: number): string {
 // ─── Node Connection Diagram SVG ───
 
 function NodeConnectionDiagram() {
+  const { nodes } = useFrequencyData();
   const svgWidth = 800;
   const svgHeight = 200;
   const cx = svgWidth / 2;
@@ -433,12 +435,16 @@ function NodeConnectionDiagram() {
 // ─── Component ───
 
 export function NodesView() {
+  const { nodes, teamMembers, updateNodeProgress } = useFrequencyData();
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [updateNodeId, setUpdateNodeId] = useState<string | null>(null);
   const [updateText, setUpdateText] = useState('');
   const [nodeUpdates, setNodeUpdates] = useState<NodeUpdate[]>([]);
   const [mounted, setMounted] = useState(false);
+  const [editingProgressNodeId, setEditingProgressNodeId] = useState<string | null>(null);
+  const [editingProgressValue, setEditingProgressValue] = useState<number>(0);
+  const progressInputRef = useRef<HTMLInputElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -485,6 +491,25 @@ export function NodesView() {
     setUpdateText('');
     setUpdateNodeId(null);
   };
+
+  const startEditingProgress = useCallback((nodeId: string, currentProgress: number) => {
+    setEditingProgressNodeId(nodeId);
+    setEditingProgressValue(currentProgress);
+    // Focus input after render
+    setTimeout(() => progressInputRef.current?.focus(), 0);
+  }, []);
+
+  const commitProgress = useCallback(() => {
+    if (editingProgressNodeId !== null) {
+      const clamped = Math.min(100, Math.max(0, Math.round(editingProgressValue)));
+      updateNodeProgress(editingProgressNodeId, clamped);
+      setEditingProgressNodeId(null);
+    }
+  }, [editingProgressNodeId, editingProgressValue, updateNodeProgress]);
+
+  const cancelEditingProgress = useCallback(() => {
+    setEditingProgressNodeId(null);
+  }, []);
 
   return (
     <div ref={containerRef} style={{ padding: '32px 24px', maxWidth: 1200, margin: '0 auto' }}>
@@ -943,19 +968,55 @@ export function NodesView() {
                   }} />
                   <span style={{ fontSize: 13, fontWeight: 700, color: healthColor(score) }}>{score}</span>
                 </div>
-                {/* Progress */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <div style={{ flex: 1, height: 5, backgroundColor: '#1e2638', borderRadius: 3, overflow: 'hidden' }}>
-                    <div style={{
-                      height: '100%',
-                      width: `${node.progress}%`,
-                      background: `linear-gradient(90deg, ${color}, ${color}88)`,
-                      borderRadius: 3,
-                      transition: 'width 0.5s ease',
-                    }} />
+                {/* Progress — click to edit */}
+                {editingProgressNodeId === node.id ? (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <input
+                      ref={progressInputRef}
+                      type="number"
+                      min={0}
+                      max={100}
+                      value={editingProgressValue}
+                      onChange={(e) => setEditingProgressValue(Number(e.target.value))}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') commitProgress();
+                        if (e.key === 'Escape') cancelEditingProgress();
+                      }}
+                      onBlur={commitProgress}
+                      style={{
+                        width: 52,
+                        padding: '3px 6px',
+                        borderRadius: 6,
+                        border: `1px solid ${color}60`,
+                        backgroundColor: '#0b0d14',
+                        color: '#f0ebe4',
+                        fontSize: 12,
+                        fontWeight: 600,
+                        fontFamily: 'inherit',
+                        outline: 'none',
+                        textAlign: 'center',
+                      }}
+                    />
+                    <span style={{ fontSize: 11, color: '#6b6358' }}>%</span>
                   </div>
-                  <span style={{ fontSize: 12, fontWeight: 600, color: '#a09888', minWidth: 30 }}>{node.progress}%</span>
-                </div>
+                ) : (
+                  <div
+                    style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}
+                    onClick={() => startEditingProgress(node.id, node.progress)}
+                    title="Click to edit progress"
+                  >
+                    <div style={{ flex: 1, height: 5, backgroundColor: '#1e2638', borderRadius: 3, overflow: 'hidden' }}>
+                      <div style={{
+                        height: '100%',
+                        width: `${node.progress}%`,
+                        background: `linear-gradient(90deg, ${color}, ${color}88)`,
+                        borderRadius: 3,
+                        transition: 'width 0.5s ease',
+                      }} />
+                    </div>
+                    <span style={{ fontSize: 12, fontWeight: 600, color: '#a09888', minWidth: 30 }}>{node.progress}%</span>
+                  </div>
+                )}
                 {/* Lead */}
                 <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
                   {leadMembers.slice(0, 2).map((m, i) => (
@@ -965,7 +1026,7 @@ export function NodesView() {
                         width: 22,
                         height: 22,
                         borderRadius: '50%',
-                        background: `linear-gradient(135deg, ${getMemberColor(m!.id)}, ${getMemberColor(m!.id)}88)`,
+                        background: `linear-gradient(135deg, ${getMemberColor(m!.id, teamMembers)}, ${getMemberColor(m!.id, teamMembers)}88)`,
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
@@ -1151,11 +1212,49 @@ export function NodesView() {
                     {node.purpose}
                   </p>
 
-                  {/* Animated Progress bar with gradient fill */}
+                  {/* Animated Progress bar with gradient fill — click to edit */}
                   <div style={{ marginBottom: 16 }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
                       <span style={{ fontSize: 12, fontWeight: 600, color: '#a09888' }}>Progress</span>
-                      <span style={{ fontSize: 13, fontWeight: 700, color }}>{node.progress}%</span>
+                      {editingProgressNodeId === node.id ? (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                          <input
+                            ref={progressInputRef}
+                            type="number"
+                            min={0}
+                            max={100}
+                            value={editingProgressValue}
+                            onChange={(e) => setEditingProgressValue(Number(e.target.value))}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') commitProgress();
+                              if (e.key === 'Escape') cancelEditingProgress();
+                            }}
+                            onBlur={commitProgress}
+                            style={{
+                              width: 52,
+                              padding: '2px 6px',
+                              borderRadius: 6,
+                              border: `1px solid ${color}60`,
+                              backgroundColor: '#0b0d14',
+                              color: '#f0ebe4',
+                              fontSize: 13,
+                              fontWeight: 700,
+                              fontFamily: 'inherit',
+                              outline: 'none',
+                              textAlign: 'center',
+                            }}
+                          />
+                          <span style={{ fontSize: 12, color: '#6b6358' }}>%</span>
+                        </div>
+                      ) : (
+                        <span
+                          style={{ fontSize: 13, fontWeight: 700, color, cursor: 'pointer' }}
+                          onClick={() => startEditingProgress(node.id, node.progress)}
+                          title="Click to edit progress"
+                        >
+                          {node.progress}%
+                        </span>
+                      )}
                     </div>
                     <div
                       style={{
@@ -1164,7 +1263,14 @@ export function NodesView() {
                         borderRadius: 4,
                         overflow: 'hidden',
                         position: 'relative',
+                        cursor: editingProgressNodeId === node.id ? 'default' : 'pointer',
                       }}
+                      onClick={() => {
+                        if (editingProgressNodeId !== node.id) {
+                          startEditingProgress(node.id, node.progress);
+                        }
+                      }}
+                      title={editingProgressNodeId === node.id ? undefined : 'Click to edit progress'}
                     >
                       <div
                         style={{
@@ -1191,6 +1297,25 @@ export function NodesView() {
                         />
                       </div>
                     </div>
+                    {/* Slider when editing */}
+                    {editingProgressNodeId === node.id && (
+                      <input
+                        type="range"
+                        min={0}
+                        max={100}
+                        value={editingProgressValue}
+                        onChange={(e) => setEditingProgressValue(Number(e.target.value))}
+                        onMouseUp={commitProgress}
+                        onTouchEnd={commitProgress}
+                        style={{
+                          width: '100%',
+                          marginTop: 6,
+                          accentColor: color,
+                          cursor: 'pointer',
+                          height: 4,
+                        }}
+                      />
+                    )}
                   </div>
 
                   {/* Maturity Indicator */}
@@ -1236,7 +1361,7 @@ export function NodesView() {
                               width: 30,
                               height: 30,
                               borderRadius: '50%',
-                              background: `linear-gradient(135deg, ${getMemberColor(member!.id)}, ${getMemberColor(member!.id)}88)`,
+                              background: `linear-gradient(135deg, ${getMemberColor(member!.id, teamMembers)}, ${getMemberColor(member!.id, teamMembers)}88)`,
                               display: 'flex',
                               alignItems: 'center',
                               justifyContent: 'center',
@@ -1247,7 +1372,7 @@ export function NodesView() {
                               marginLeft: i > 0 ? -6 : 0,
                               zIndex: leadMembers.length - i,
                               position: 'relative',
-                              boxShadow: `0 0 8px ${getMemberColor(member!.id)}20`,
+                              boxShadow: `0 0 8px ${getMemberColor(member!.id, teamMembers)}20`,
                             }}
                           >
                             {member!.avatar}

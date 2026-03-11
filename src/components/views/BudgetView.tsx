@@ -21,6 +21,8 @@ import {
   Activity,
 } from 'lucide-react';
 import { exportPdf } from '@/lib/data';
+import { useFrequencyData } from '@/lib/supabase/DataProvider';
+import { Database } from 'lucide-react';
 
 /* ================================================================
    Constants & Data
@@ -631,6 +633,7 @@ function RevenueExpenseBars() {
    ================================================================ */
 
 export function BudgetView() {
+  const { kpis } = useFrequencyData();
   const totalBudget = budgetLines.reduce((s, l) => s + l.budget, 0);
   const totalActual = budgetLines.reduce((s, l) => s + l.actual, 0);
   const totalVariance = totalBudget - totalActual;
@@ -676,9 +679,30 @@ export function BudgetView() {
               >
                 Mothership OS
               </h1>
-              <p style={{ fontSize: 13, color: '#a09888', margin: 0, marginTop: 2 }}>
-                Financial clarity above all. No surprises.
-              </p>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 2 }}>
+                <p style={{ fontSize: 13, color: '#a09888', margin: 0 }}>
+                  Financial clarity above all. No surprises.
+                </p>
+                <span
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 5,
+                    fontSize: 10,
+                    fontWeight: 600,
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.06em',
+                    color: '#e8b44c',
+                    backgroundColor: 'rgba(232, 180, 76, 0.12)',
+                    border: '1px solid rgba(232, 180, 76, 0.2)',
+                    borderRadius: 999,
+                    padding: '2px 10px 2px 7px',
+                  }}
+                >
+                  <Database size={10} style={{ color: '#e8b44c' }} />
+                  Static Data
+                </span>
+              </div>
             </div>
           </div>
           <button

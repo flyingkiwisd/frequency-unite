@@ -19,8 +19,11 @@ import {
   ChevronDown,
   ChevronUp,
   Filter,
+  Plus,
+  X,
 } from 'lucide-react';
-import { governanceDecisions, exportPdf, type GovernanceDecision } from '@/lib/data';
+import { exportPdf, type GovernanceDecision } from '@/lib/data';
+import { useFrequencyData } from '@/lib/supabase/DataProvider';
 
 /* ── colour configs ── */
 
@@ -225,15 +228,368 @@ function AnimatedCard({
   );
 }
 
+/* ── Log Decision Modal ── */
+function LogDecisionModal({
+  open,
+  onClose,
+  onSubmit,
+}: {
+  open: boolean;
+  onClose: () => void;
+  onSubmit: (decision: Omit<GovernanceDecision, 'id'>) => void;
+}) {
+  const [title, setTitle] = useState('');
+  const [description, setDescription] = useState('');
+  const [decidedBy, setDecidedBy] = useState('');
+  const [impact, setImpact] = useState<GovernanceDecision['impact']>('medium');
+  const [category, setCategory] = useState<GovernanceDecision['category']>('governance');
+  const [submitting, setSubmitting] = useState(false);
+
+  const today = new Date().toISOString().split('T')[0];
+
+  const resetForm = () => {
+    setTitle('');
+    setDescription('');
+    setDecidedBy('');
+    setImpact('medium');
+    setCategory('governance');
+    setSubmitting(false);
+  };
+
+  const handleClose = () => {
+    resetForm();
+    onClose();
+  };
+
+  const handleSubmit = async () => {
+    if (!title.trim() || !description.trim() || !decidedBy.trim()) return;
+    setSubmitting(true);
+    try {
+      onSubmit({
+        date: today,
+        title: title.trim(),
+        description: description.trim(),
+        decidedBy: decidedBy.trim(),
+        impact,
+        category,
+      });
+      handleClose();
+    } catch {
+      setSubmitting(false);
+    }
+  };
+
+  if (!open) return null;
+
+  const inputStyle: React.CSSProperties = {
+    width: '100%',
+    padding: '10px 14px',
+    borderRadius: 10,
+    border: '1px solid rgba(212, 165, 116, 0.12)',
+    backgroundColor: 'rgba(255,255,255,0.03)',
+    color: '#f0ebe4',
+    fontSize: 13,
+    fontFamily: 'inherit',
+    outline: 'none',
+    transition: 'border-color 0.2s',
+    boxSizing: 'border-box' as const,
+  };
+
+  const labelStyle: React.CSSProperties = {
+    fontSize: 11,
+    fontWeight: 600,
+    textTransform: 'uppercase',
+    letterSpacing: '0.06em',
+    color: '#6b6358',
+    marginBottom: 6,
+    display: 'block',
+  };
+
+  const selectStyle: React.CSSProperties = {
+    ...inputStyle,
+    appearance: 'none' as const,
+    backgroundImage: `url("data:image/svg+xml,%3Csvg width='10' height='6' viewBox='0 0 10 6' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1L5 5L9 1' stroke='%236b6358' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E")`,
+    backgroundRepeat: 'no-repeat',
+    backgroundPosition: 'right 12px center',
+    paddingRight: 32,
+    cursor: 'pointer',
+  };
+
+  return (
+    <>
+      {/* Backdrop */}
+      <div
+        onClick={handleClose}
+        style={{
+          position: 'fixed',
+          inset: 0,
+          backgroundColor: 'rgba(0, 0, 0, 0.6)',
+          backdropFilter: 'blur(4px)',
+          zIndex: 9998,
+          animation: 'modalFadeIn 0.2s ease',
+        }}
+      />
+      {/* Modal */}
+      <div
+        style={{
+          position: 'fixed',
+          top: '50%',
+          left: '50%',
+          transform: 'translate(-50%, -50%)',
+          width: 520,
+          maxWidth: 'calc(100vw - 48px)',
+          maxHeight: 'calc(100vh - 48px)',
+          overflowY: 'auto',
+          backgroundColor: '#131720',
+          border: '1px solid rgba(212, 165, 116, 0.12)',
+          borderRadius: 18,
+          padding: 0,
+          zIndex: 9999,
+          boxShadow: '0 24px 80px rgba(0, 0, 0, 0.5), 0 0 40px rgba(212, 165, 116, 0.05)',
+          animation: 'modalSlideIn 0.25s ease',
+        }}
+      >
+        {/* Header */}
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            padding: '20px 24px',
+            borderBottom: '1px solid rgba(212, 165, 116, 0.12)',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <div
+              style={{
+                width: 34,
+                height: 34,
+                borderRadius: 10,
+                backgroundColor: 'rgba(212, 165, 116, 0.12)',
+                border: '1px solid rgba(212, 165, 116, 0.2)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+            >
+              <ScrollText size={16} style={{ color: '#d4a574' }} />
+            </div>
+            <div>
+              <h2 style={{ fontSize: 16, fontWeight: 600, color: '#f0ebe4', margin: 0 }}>
+                Log Decision
+              </h2>
+              <p style={{ fontSize: 11, color: '#6b6358', margin: 0 }}>{today}</p>
+            </div>
+          </div>
+          <button
+            onClick={handleClose}
+            style={{
+              width: 32,
+              height: 32,
+              borderRadius: 8,
+              border: '1px solid rgba(255,255,255,0.06)',
+              backgroundColor: 'transparent',
+              color: '#6b6358',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              cursor: 'pointer',
+              transition: 'color 0.15s, border-color 0.15s',
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.color = '#f0ebe4';
+              e.currentTarget.style.borderColor = 'rgba(255,255,255,0.12)';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.color = '#6b6358';
+              e.currentTarget.style.borderColor = 'rgba(255,255,255,0.06)';
+            }}
+          >
+            <X size={16} />
+          </button>
+        </div>
+
+        {/* Form Body */}
+        <div style={{ padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: 18 }}>
+          {/* Title */}
+          <div>
+            <label style={labelStyle}>Title</label>
+            <input
+              type="text"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              placeholder="Decision title..."
+              style={inputStyle}
+              onFocus={(e) => { e.currentTarget.style.borderColor = 'rgba(212, 165, 116, 0.35)'; }}
+              onBlur={(e) => { e.currentTarget.style.borderColor = 'rgba(212, 165, 116, 0.12)'; }}
+            />
+          </div>
+
+          {/* Description */}
+          <div>
+            <label style={labelStyle}>Description</label>
+            <textarea
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              placeholder="Describe the decision and its rationale..."
+              rows={4}
+              style={{
+                ...inputStyle,
+                resize: 'vertical',
+                minHeight: 80,
+              }}
+              onFocus={(e) => { e.currentTarget.style.borderColor = 'rgba(212, 165, 116, 0.35)'; }}
+              onBlur={(e) => { e.currentTarget.style.borderColor = 'rgba(212, 165, 116, 0.12)'; }}
+            />
+          </div>
+
+          {/* Decided By */}
+          <div>
+            <label style={labelStyle}>Decided By</label>
+            <input
+              type="text"
+              value={decidedBy}
+              onChange={(e) => setDecidedBy(e.target.value)}
+              placeholder="Who made this decision..."
+              style={inputStyle}
+              onFocus={(e) => { e.currentTarget.style.borderColor = 'rgba(212, 165, 116, 0.35)'; }}
+              onBlur={(e) => { e.currentTarget.style.borderColor = 'rgba(212, 165, 116, 0.12)'; }}
+            />
+          </div>
+
+          {/* Impact + Category row */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+            {/* Impact */}
+            <div>
+              <label style={labelStyle}>Impact</label>
+              <select
+                value={impact}
+                onChange={(e) => setImpact(e.target.value as GovernanceDecision['impact'])}
+                style={selectStyle}
+              >
+                <option value="high">High</option>
+                <option value="medium">Medium</option>
+                <option value="low">Low</option>
+              </select>
+            </div>
+
+            {/* Category */}
+            <div>
+              <label style={labelStyle}>Category</label>
+              <select
+                value={category}
+                onChange={(e) => setCategory(e.target.value as GovernanceDecision['category'])}
+                style={selectStyle}
+              >
+                <option value="governance">Governance</option>
+                <option value="financial">Financial</option>
+                <option value="membership">Membership</option>
+                <option value="strategy">Strategy</option>
+                <option value="node">Node</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'flex-end',
+            gap: 10,
+            padding: '16px 24px',
+            borderTop: '1px solid rgba(212, 165, 116, 0.08)',
+          }}
+        >
+          <button
+            onClick={handleClose}
+            style={{
+              padding: '9px 18px',
+              borderRadius: 10,
+              border: '1px solid #1e2638',
+              backgroundColor: 'transparent',
+              color: '#a09888',
+              fontSize: 13,
+              fontWeight: 500,
+              cursor: 'pointer',
+              fontFamily: 'inherit',
+              transition: 'border-color 0.15s, color 0.15s',
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.borderColor = '#2e3a4e';
+              e.currentTarget.style.color = '#f0ebe4';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.borderColor = '#1e2638';
+              e.currentTarget.style.color = '#a09888';
+            }}
+          >
+            Cancel
+          </button>
+          <button
+            onClick={handleSubmit}
+            disabled={!title.trim() || !description.trim() || !decidedBy.trim() || submitting}
+            style={{
+              padding: '9px 22px',
+              borderRadius: 10,
+              border: '1px solid rgba(212, 165, 116, 0.3)',
+              backgroundColor: 'rgba(212, 165, 116, 0.15)',
+              color: !title.trim() || !description.trim() || !decidedBy.trim() ? '#6b6358' : '#d4a574',
+              fontSize: 13,
+              fontWeight: 600,
+              cursor: !title.trim() || !description.trim() || !decidedBy.trim() ? 'not-allowed' : 'pointer',
+              fontFamily: 'inherit',
+              transition: 'all 0.15s',
+              opacity: !title.trim() || !description.trim() || !decidedBy.trim() ? 0.5 : 1,
+              display: 'flex',
+              alignItems: 'center',
+              gap: 6,
+            }}
+            onMouseEnter={(e) => {
+              if (title.trim() && description.trim() && decidedBy.trim()) {
+                e.currentTarget.style.backgroundColor = 'rgba(212, 165, 116, 0.25)';
+                e.currentTarget.style.borderColor = 'rgba(212, 165, 116, 0.45)';
+              }
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.backgroundColor = 'rgba(212, 165, 116, 0.15)';
+              e.currentTarget.style.borderColor = 'rgba(212, 165, 116, 0.3)';
+            }}
+          >
+            <Plus size={14} />
+            {submitting ? 'Logging...' : 'Log Decision'}
+          </button>
+        </div>
+      </div>
+
+      {/* Modal animations */}
+      <style>{`
+        @keyframes modalFadeIn {
+          from { opacity: 0; }
+          to { opacity: 1; }
+        }
+        @keyframes modalSlideIn {
+          from { opacity: 0; transform: translate(-50%, -48%); }
+          to { opacity: 1; transform: translate(-50%, -50%); }
+        }
+      `}</style>
+    </>
+  );
+}
+
 /* ── Main component ── */
 
 export function GovernanceView() {
+  const { governanceDecisions, createGovernanceDecision } = useFrequencyData();
+
   const sorted = [...governanceDecisions].sort(
     (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
   );
   const containerRef = useRef<HTMLDivElement>(null);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [activeCategory, setActiveCategory] = useState<string>('all');
+  const [showLogModal, setShowLogModal] = useState(false);
 
   const allCategories = ['all', ...Object.keys(categoryConfig)] as const;
 
@@ -291,29 +647,60 @@ export function GovernanceView() {
               Governance & Decisions
             </h1>
           </div>
-          <button
-            onClick={() => {
-              if (containerRef.current) exportPdf(containerRef.current, 'Governance');
-            }}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 6,
-              padding: '8px 14px',
-              borderRadius: 8,
-              border: '1px solid #1e2638',
-              backgroundColor: '#131720',
-              color: '#a09888',
-              fontSize: 12,
-              fontWeight: 500,
-              cursor: 'pointer',
-              transition: 'border-color 0.15s, color 0.15s',
-              fontFamily: 'inherit',
-            }}
-          >
-            <Download size={14} />
-            Export PDF
-          </button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <button
+              onClick={() => setShowLogModal(true)}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6,
+                padding: '8px 14px',
+                borderRadius: 8,
+                border: '1px solid rgba(212, 165, 116, 0.3)',
+                backgroundColor: 'rgba(212, 165, 116, 0.1)',
+                color: '#d4a574',
+                fontSize: 12,
+                fontWeight: 600,
+                cursor: 'pointer',
+                transition: 'background-color 0.15s, border-color 0.15s',
+                fontFamily: 'inherit',
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.backgroundColor = 'rgba(212, 165, 116, 0.2)';
+                e.currentTarget.style.borderColor = 'rgba(212, 165, 116, 0.45)';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.backgroundColor = 'rgba(212, 165, 116, 0.1)';
+                e.currentTarget.style.borderColor = 'rgba(212, 165, 116, 0.3)';
+              }}
+            >
+              <Plus size={14} />
+              Log Decision
+            </button>
+            <button
+              onClick={() => {
+                if (containerRef.current) exportPdf(containerRef.current, 'Governance');
+              }}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6,
+                padding: '8px 14px',
+                borderRadius: 8,
+                border: '1px solid #1e2638',
+                backgroundColor: '#131720',
+                color: '#a09888',
+                fontSize: 12,
+                fontWeight: 500,
+                cursor: 'pointer',
+                transition: 'border-color 0.15s, color 0.15s',
+                fontFamily: 'inherit',
+              }}
+            >
+              <Download size={14} />
+              Export PDF
+            </button>
+          </div>
         </div>
         <p
           style={{
@@ -1199,6 +1586,15 @@ export function GovernanceView() {
           </div>
         )}
       </section>
+
+      {/* Log Decision Modal */}
+      <LogDecisionModal
+        open={showLogModal}
+        onClose={() => setShowLogModal(false)}
+        onSubmit={(decision) => {
+          createGovernanceDecision(decision);
+        }}
+      />
     </div>
   );
 }

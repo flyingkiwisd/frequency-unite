@@ -21,7 +21,8 @@ import {
   Users,
   MessageCircle,
 } from 'lucide-react';
-import { chatChannels, chatMessages, type ChatChannel } from '@/lib/data';
+import { useFrequencyData } from '@/lib/supabase/DataProvider';
+import type { ChatChannel } from '@/lib/data';
 
 const iconMap: Record<string, React.ElementType> = {
   Hash,
@@ -85,8 +86,11 @@ const channelMembers: Record<string, number> = {
 };
 
 /* ── Last message preview per channel ── */
-function getLastMessagePreview(channelId: string): string | null {
-  const msgs = chatMessages.filter((m) => m.channel === channelId);
+function getLastMessagePreview(
+  channelId: string,
+  messages: { channel: string; sender: string; message: string }[]
+): string | null {
+  const msgs = messages.filter((m) => m.channel === channelId);
   if (msgs.length === 0) return null;
   const last = msgs[msgs.length - 1];
   const name = last.sender.split(' ')[0];
@@ -108,6 +112,8 @@ function getInitials(name: string): string {
 }
 
 export function ChatView() {
+  const { chatChannels, chatMessages, sendChatMessage } = useFrequencyData();
+
   const [selectedChannel, setSelectedChannel] = useState('core-team');
   const [prevChannel, setPrevChannel] = useState('core-team');
   const [messageInput, setMessageInput] = useState('');
@@ -144,6 +150,26 @@ export function ChatView() {
   const toggleGroup = (label: string) => {
     setCollapsedGroups((prev) => ({ ...prev, [label]: !prev[label] }));
   };
+
+  /* ── Send message handler ── */
+  const handleSendMessage = useCallback(async () => {
+    const text = messageInput.trim();
+    if (!text) return;
+    setMessageInput('');
+    await sendChatMessage({
+      channel: selectedChannel,
+      sender: CURRENT_USER,
+      senderAvatar: 'JH',
+      message: text,
+      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+    });
+    // Auto-scroll happens via the effect below
+  }, [messageInput, selectedChannel, sendChatMessage]);
+
+  /* ── Auto-scroll when messages change ── */
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [chatMessages.length]);
 
   return (
     <div style={{ display: 'flex', height: '100%', overflow: 'hidden' }}>
@@ -296,7 +322,7 @@ export function ChatView() {
                   {groupChannels.map((channel) => {
                     const isActive = selectedChannel === channel.id;
                     const Icon = iconMap[channel.icon] || Hash;
-                    const preview = getLastMessagePreview(channel.id);
+                    const preview = getLastMessagePreview(channel.id, chatMessages);
 
                     return (
                       <button
@@ -944,6 +970,12 @@ export function ChatView() {
               type="text"
               value={messageInput}
               onChange={(e) => setMessageInput(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                  e.preventDefault();
+                  handleSendMessage();
+                }
+              }}
               placeholder={`Message #${currentChannel?.name ?? 'channel'}...`}
               style={{
                 flex: 1,
@@ -999,6 +1031,7 @@ export function ChatView() {
               <Smile size={18} />
             </button>
             <button
+              onClick={handleSendMessage}
               style={{
                 background: messageInput.trim()
                   ? 'linear-gradient(135deg, #c4925a, #d4a574)'

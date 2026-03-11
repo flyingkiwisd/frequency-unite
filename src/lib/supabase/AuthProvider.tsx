@@ -7,8 +7,12 @@ import {
   useState,
   useCallback,
   useMemo,
+  Component,
+  type ReactNode,
+  type ErrorInfo,
 } from 'react';
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { useAuth as useClerkAuth, useUser } from '@clerk/nextjs';
 import { isClerkConfigured } from '@/lib/config';
 import { createClerkSupabaseClient } from './client';
 
@@ -58,10 +62,7 @@ async function resolveTeamMemberId(
 // ═══════════════════════════════════════════
 // Clerk Auth Provider (when Clerk IS configured)
 // ═══════════════════════════════════════════
-function ClerkAuthProvider({ children }: { children: React.ReactNode }) {
-  // Dynamic imports resolved at module level when Clerk is configured
-  // eslint-disable-next-line @typescript-eslint/no-var-requires
-  const { useAuth: useClerkAuth, useUser } = require('@clerk/nextjs');
+function ClerkAuthProvider({ children }: { children: ReactNode }) {
   const { getToken, signOut: clerkSignOut } = useClerkAuth();
   const { user: clerkUser, isLoaded } = useUser();
 
@@ -95,9 +96,14 @@ function ClerkAuthProvider({ children }: { children: React.ReactNode }) {
     setProfileChecked(false);
   }, [clerkSignOut]);
 
-  const demoLogin = useCallback((_memberId: string) => {
-    // No-op in Clerk mode
-    console.warn('demoLogin called in Clerk mode — ignored');
+  const demoLogin = useCallback((memberId: string) => {
+    // Store demo session and reload to switch to DemoAuthProvider
+    try {
+      localStorage.setItem(DEMO_STORAGE_KEY, JSON.stringify({ memberId }));
+      window.location.reload();
+    } catch {
+      console.warn('Could not start demo mode');
+    }
   }, []);
 
   const claimTeamMember = useCallback(
@@ -150,7 +156,7 @@ function ClerkAuthProvider({ children }: { children: React.ReactNode }) {
 // ═══════════════════════════════════════════
 // Demo Auth Provider (when Clerk is NOT configured)
 // ═══════════════════════════════════════════
-function DemoAuthProvider({ children }: { children: React.ReactNode }) {
+function DemoAuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<{ id: string; email?: string } | null>(
     null
   );
@@ -235,8 +241,10 @@ const LOADING_VALUE: AuthContextType = {
   supabase: null,
 };
 
-function ClerkAuthProviderSafe({ children }: { children: React.ReactNode }) {
+function ClerkAuthProviderSafe({ children }: { children: ReactNode }) {
   const [mounted, setMounted] = useState(false);
+  const [hasError, setHasError] = useState(false);
+
   useEffect(() => setMounted(true), []);
 
   if (!mounted) {
@@ -248,18 +256,78 @@ function ClerkAuthProviderSafe({ children }: { children: React.ReactNode }) {
     );
   }
 
+  // If Clerk throws at runtime, fall back to demo mode
+  if (hasError) {
+    return <DemoAuthProvider>{children}</DemoAuthProvider>;
+  }
+
   // After hydration, safe to use Clerk hooks
-  return <ClerkAuthProvider>{children}</ClerkAuthProvider>;
+  return (
+    <ClerkErrorBoundary onError={() => setHasError(true)}>
+      <ClerkAuthProvider>{children}</ClerkAuthProvider>
+    </ClerkErrorBoundary>
+  );
+}
+
+// ─── Error boundary for Clerk auth ───
+class ClerkErrorBoundary extends Component<
+  { children: ReactNode; onError: () => void },
+  { hasError: boolean }
+> {
+  constructor(props: { children: ReactNode; onError: () => void }) {
+    super(props);
+    this.state = { hasError: false };
+  }
+
+  static getDerivedStateFromError() {
+    return { hasError: true };
+  }
+
+  componentDidCatch(error: Error, info: ErrorInfo) {
+    console.error('[Clerk Auth Error]', error, info);
+    this.props.onError();
+  }
+
+  render() {
+    if (this.state.hasError) return null;
+    return this.props.children;
+  }
 }
 
 // ═══════════════════════════════════════════
 // Top-level provider — picks Clerk or Demo
+// Supports demo mode even when Clerk is configured:
+// if user has a demo session in localStorage, use DemoAuthProvider.
 // ═══════════════════════════════════════════
-export function AuthProvider({ children }: { children: React.ReactNode }) {
-  if (isClerkConfigured) {
-    return <ClerkAuthProviderSafe>{children}</ClerkAuthProviderSafe>;
+export function AuthProvider({ children }: { children: ReactNode }) {
+  const [useDemoMode, setUseDemoMode] = useState<boolean | null>(null);
+
+  // On mount, check if there's a demo session stored
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem(DEMO_STORAGE_KEY);
+      setUseDemoMode(stored ? true : false);
+    } catch {
+      setUseDemoMode(false);
+    }
+  }, []);
+
+  // Show nothing until we've checked localStorage (prevents flash)
+  if (useDemoMode === null) {
+    return (
+      <AuthContext.Provider value={LOADING_VALUE}>
+        {children}
+      </AuthContext.Provider>
+    );
   }
-  return <DemoAuthProvider>{children}</DemoAuthProvider>;
+
+  // Use Demo mode if: Clerk not configured, or user has active demo session
+  if (!isClerkConfigured || useDemoMode) {
+    return <DemoAuthProvider>{children}</DemoAuthProvider>;
+  }
+
+  // Clerk configured + no demo session → use Clerk
+  return <ClerkAuthProviderSafe>{children}</ClerkAuthProviderSafe>;
 }
 
 export function useAuth(): AuthContextType {

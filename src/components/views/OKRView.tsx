@@ -1,11 +1,11 @@
 'use client';
 
-import React, { useState, useMemo, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import {
   Target, TrendingUp, TrendingDown, Minus, CheckCircle2, AlertTriangle,
-  XCircle, BarChart3, ChevronDown, Flame, MessageSquarePlus, X, RotateCcw, Check,
+  XCircle, BarChart3, ChevronDown, Flame, MessageSquarePlus, X, Check,
 } from 'lucide-react';
-import { okrs, kpis, teamMembers } from '@/lib/data';
+import { useFrequencyData } from '@/lib/supabase/DataProvider';
 import type { OKR, KPI } from '@/lib/data';
 
 // ─── CSS Keyframes (injected once) ───
@@ -76,36 +76,15 @@ function injectStyles() {
   document.head.appendChild(style);
 }
 
-// ─── Types & Persistence ───
+// ─── Local-only edits (confidence & notes — not in DataProvider) ───
 
-interface OKREdits {
-  progressOverrides: Record<string, Record<number, number>>;
-  statusOverrides: Record<string, OKR['status']>;
+interface LocalEdits {
   notes: Record<string, Record<number, string>>;
   confidence: Record<string, number>;
 }
 
-const STORAGE_KEY = 'frequency-okr-edits';
-
-function emptyEdits(): OKREdits {
-  return { progressOverrides: {}, statusOverrides: {}, notes: {}, confidence: {} };
-}
-
-function loadEdits(): OKREdits {
-  if (typeof window === 'undefined') return emptyEdits();
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    return raw ? (JSON.parse(raw) as OKREdits) : emptyEdits();
-  } catch { return emptyEdits(); }
-}
-
-function saveEdits(edits: OKREdits) {
-  if (typeof window !== 'undefined') localStorage.setItem(STORAGE_KEY, JSON.stringify(edits));
-}
-
-function hasAnyEdits(e: OKREdits): boolean {
-  return Object.keys(e.progressOverrides).length > 0 || Object.keys(e.statusOverrides).length > 0
-    || Object.keys(e.notes).length > 0 || Object.keys(e.confidence).length > 0;
+function emptyLocalEdits(): LocalEdits {
+  return { notes: {}, confidence: {} };
 }
 
 // ─── Helpers ───
@@ -128,11 +107,6 @@ function statusBadge(status: OKR['status']): { bg: string; text: string; label: 
     'behind': { bg: 'rgba(239,68,68,0.12)', text: '#ef4444', label: 'Behind', Icon: XCircle },
   };
   return map[status];
-}
-
-function resolveOwner(ownerId: string) {
-  const m = teamMembers.find((t) => t.id === ownerId);
-  return m ? { name: m.name.split(' ')[0], avatar: m.avatar } : { name: ownerId, avatar: ownerId.slice(0, 2).toUpperCase() };
 }
 
 const categoryColors: Record<string, string> = {
@@ -323,21 +297,19 @@ function NoteEditor({ initial, onSave, onClose }: { initial: string; onSave: (te
   );
 }
 
-function QuarterComparisonChart({ edits }: { edits: OKREdits }) {
+function QuarterComparisonChart({ okrData }: { okrData: OKR[] }) {
   const quarterData = useMemo(() => {
     const map: Record<string, { total: number; count: number }> = {};
-    okrs.forEach((okr) => {
+    okrData.forEach((okr) => {
       if (!map[okr.quarter]) map[okr.quarter] = { total: 0, count: 0 };
-      const avg = okr.keyResults.reduce((sum, kr, idx) => {
-        return sum + (edits.progressOverrides[okr.id]?.[idx] ?? kr.progress);
-      }, 0) / okr.keyResults.length;
+      const avg = okr.keyResults.reduce((sum, kr) => sum + kr.progress, 0) / okr.keyResults.length;
       map[okr.quarter].total += avg;
       map[okr.quarter].count += 1;
     });
     return Object.entries(map)
       .map(([quarter, d]) => ({ quarter, average: Math.round(d.total / d.count) }))
       .sort((a, b) => a.quarter.localeCompare(b.quarter));
-  }, [edits]);
+  }, [okrData]);
 
   const maxVal = Math.max(...quarterData.map((d) => d.average), 1);
   const barMaxH = 100, barW = 48, gap = 24;
@@ -449,62 +421,61 @@ function SummaryBar({ stats }: { stats: { total: number; avgProgress: number; on
 // ─── Main Component ───
 
 export function OKRView() {
-  const [edits, setEdits] = useState<OKREdits>(emptyEdits);
+  const { okrs, kpis, teamMembers, updateOKRStatus, updateKeyResultProgress } = useFrequencyData();
+
+  // Local-only state: notes & confidence (not backed by DataProvider)
+  const [localEdits, setLocalEdits] = useState<LocalEdits>(emptyLocalEdits);
   const [editingProgress, setEditingProgress] = useState<{ okrId: string; krIdx: number } | null>(null);
   const [editingNote, setEditingNote] = useState<{ okrId: string; krIdx: number } | null>(null);
 
-  useEffect(() => { injectStyles(); setEdits(loadEdits()); }, []);
+  useEffect(() => { injectStyles(); }, []);
 
-  const persistEdits = useCallback((next: OKREdits) => { setEdits(next); saveEdits(next); }, []);
+  // Owner resolver using live teamMembers from DataProvider
+  const resolveOwner = useCallback((ownerId: string) => {
+    const m = teamMembers.find((t) => t.id === ownerId);
+    return m ? { name: m.name.split(' ')[0], avatar: m.avatar } : { name: ownerId, avatar: ownerId.slice(0, 2).toUpperCase() };
+  }, [teamMembers]);
 
-  const resetEdits = useCallback(() => {
-    setEdits(emptyEdits());
-    if (typeof window !== 'undefined') localStorage.removeItem(STORAGE_KEY);
-  }, []);
-
-  const getProgress = useCallback(
-    (okrId: string, krIdx: number, base: number) => edits.progressOverrides[okrId]?.[krIdx] ?? base,
-    [edits]
-  );
-
-  const getStatus = useCallback(
-    (okrId: string, base: OKR['status']) => edits.statusOverrides[okrId] ?? base,
-    [edits]
-  );
-
-  const setProgress = useCallback((okrId: string, krIdx: number, value: number) => {
-    const next = { ...edits, progressOverrides: { ...edits.progressOverrides } };
-    if (!next.progressOverrides[okrId]) next.progressOverrides[okrId] = {};
-    next.progressOverrides[okrId] = { ...next.progressOverrides[okrId], [krIdx]: value };
-    persistEdits(next);
-  }, [edits, persistEdits]);
-
+  // ─── Status cycling → DataProvider mutation ───
   const cycleStatus = useCallback((okrId: string, current: OKR['status']) => {
     const idx = statusCycle.indexOf(current);
     const nextStatus = statusCycle[(idx + 1) % statusCycle.length];
-    persistEdits({ ...edits, statusOverrides: { ...edits.statusOverrides, [okrId]: nextStatus } });
-  }, [edits, persistEdits]);
+    updateOKRStatus(okrId, nextStatus);
+  }, [updateOKRStatus]);
 
+  // ─── Progress update → DataProvider mutation ───
+  const setProgress = useCallback((okrId: string, krIdx: number, value: number) => {
+    const okr = okrs.find((o) => o.id === okrId);
+    if (!okr) return;
+    const kr = okr.keyResults[krIdx];
+    if (!kr) return;
+    updateKeyResultProgress(okrId, kr.text, value);
+  }, [okrs, updateKeyResultProgress]);
+
+  // ─── Local note management ───
   const setNote = useCallback((okrId: string, krIdx: number, text: string) => {
-    const next = { ...edits, notes: { ...edits.notes } };
-    if (!next.notes[okrId]) next.notes[okrId] = {};
-    if (text.trim()) {
-      next.notes[okrId] = { ...next.notes[okrId], [krIdx]: text.trim() };
-    } else {
-      const copy = { ...next.notes[okrId] };
-      delete copy[krIdx];
-      if (Object.keys(copy).length === 0) delete next.notes[okrId];
-      else next.notes[okrId] = copy;
-    }
-    persistEdits(next);
-  }, [edits, persistEdits]);
+    setLocalEdits((prev) => {
+      const next = { ...prev, notes: { ...prev.notes } };
+      if (!next.notes[okrId]) next.notes[okrId] = {};
+      if (text.trim()) {
+        next.notes[okrId] = { ...next.notes[okrId], [krIdx]: text.trim() };
+      } else {
+        const copy = { ...next.notes[okrId] };
+        delete copy[krIdx];
+        if (Object.keys(copy).length === 0) delete next.notes[okrId];
+        else next.notes[okrId] = copy;
+      }
+      return next;
+    });
+  }, []);
 
+  // ─── Local confidence management ───
   const setConfidence = useCallback((okrId: string, value: number) => {
-    persistEdits({ ...edits, confidence: { ...edits.confidence, [okrId]: value } });
-  }, [edits, persistEdits]);
+    setLocalEdits((prev) => ({ ...prev, confidence: { ...prev.confidence, [okrId]: value } }));
+  }, []);
 
   // Derived data
-  const quarters = useMemo(() => [...new Set(okrs.map((o) => o.quarter))], []);
+  const quarters = useMemo(() => [...new Set(okrs.map((o) => o.quarter))], [okrs]);
   const [selectedQuarter, setSelectedQuarter] = useState<string>('all');
   const [showQuarterDropdown, setShowQuarterDropdown] = useState(false);
 
@@ -515,59 +486,29 @@ export function OKRView() {
       cats[kpi.category].push(kpi);
     });
     return cats;
-  }, []);
+  }, [kpis]);
 
   const filteredOkrs = useMemo(
     () => selectedQuarter === 'all' ? okrs : okrs.filter((o) => o.quarter === selectedQuarter),
-    [selectedQuarter]
+    [selectedQuarter, okrs]
   );
 
   const summaryStats = useMemo(() => {
     const total = filteredOkrs.length;
     let onTrack = 0, atRisk = 0, behind = 0, totalProgress = 0;
     filteredOkrs.forEach((okr) => {
-      const s = getStatus(okr.id, okr.status);
-      if (s === 'on-track') onTrack++;
-      else if (s === 'at-risk') atRisk++;
+      if (okr.status === 'on-track') onTrack++;
+      else if (okr.status === 'at-risk') atRisk++;
       else behind++;
-      totalProgress += okr.keyResults.reduce((sum, kr, idx) => sum + getProgress(okr.id, idx, kr.progress), 0) / okr.keyResults.length;
+      totalProgress += okr.keyResults.reduce((sum, kr) => sum + kr.progress, 0) / okr.keyResults.length;
     });
     return { total, onTrack, atRisk, behind, avgProgress: total > 0 ? Math.round(totalProgress / total) : 0 };
-  }, [filteredOkrs, edits, getStatus, getProgress]);
-
-  const showEdited = hasAnyEdits(edits);
+  }, [filteredOkrs]);
 
   // ─── Render ───
 
   return (
     <div style={{ padding: '32px 24px', maxWidth: 1200, margin: '0 auto' }}>
-
-      {/* ── Edit Banner ── */}
-      {showEdited && (
-        <div style={{
-          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-          padding: '10px 18px', backgroundColor: 'rgba(212,165,116,0.08)',
-          border: '1px solid rgba(212,165,116,0.2)', borderRadius: 10, marginBottom: 20,
-        }}>
-          <span style={{ fontSize: 13, color: '#d4a574', fontWeight: 500 }}>
-            You have unsaved edits &bull; Changes saved locally
-          </span>
-          <button
-            onClick={resetEdits}
-            style={{
-              display: 'inline-flex', alignItems: 'center', gap: 6, padding: '5px 12px',
-              fontSize: 12, fontWeight: 600, backgroundColor: 'rgba(239,68,68,0.1)',
-              border: '1px solid rgba(239,68,68,0.2)', borderRadius: 6, color: '#ef4444',
-              cursor: 'pointer', fontFamily: 'inherit', transition: 'background 0.15s',
-            }}
-            onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'rgba(239,68,68,0.18)'; }}
-            onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'rgba(239,68,68,0.1)'; }}
-          >
-            <RotateCcw size={13} />
-            Reset
-          </button>
-        </div>
-      )}
 
       {/* ── Header ── */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24, flexWrap: 'wrap', gap: 16 }}>
@@ -703,7 +644,7 @@ export function OKRView() {
       <div style={{ height: 1, backgroundColor: '#1e2638', marginBottom: 32 }} />
 
       {/* ── Quarter Comparison (only when "All Quarters" selected) ── */}
-      {selectedQuarter === 'all' && <QuarterComparisonChart edits={edits} />}
+      {selectedQuarter === 'all' && <QuarterComparisonChart okrData={okrs} />}
 
       {/* ── OKRs Section ── */}
       <div>
@@ -719,17 +660,15 @@ export function OKRView() {
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
           {filteredOkrs.map((okr, cardIndex) => {
-            const effectiveStatus = getStatus(okr.id, okr.status);
-            const badge = statusBadge(effectiveStatus);
-            const statusEdited = edits.statusOverrides[okr.id] !== undefined;
+            const badge = statusBadge(okr.status);
             const overallProgress = Math.round(
-              okr.keyResults.reduce((sum, kr, idx) => sum + getProgress(okr.id, idx, kr.progress), 0) / okr.keyResults.length
+              okr.keyResults.reduce((sum, kr) => sum + kr.progress, 0) / okr.keyResults.length
             );
-            const confidence = edits.confidence[okr.id] ?? 0;
+            const confidence = localEdits.confidence[okr.id] ?? 0;
 
-            const pulseClass = effectiveStatus === 'at-risk'
+            const pulseClass = okr.status === 'at-risk'
               ? 'okr-pulse-at-risk'
-              : effectiveStatus === 'behind'
+              : okr.status === 'behind'
               ? 'okr-pulse-behind'
               : '';
 
@@ -759,13 +698,13 @@ export function OKRView() {
                         {/* Status badge (clickable to cycle) with pulse animation */}
                         <button
                           className={pulseClass}
-                          onClick={() => cycleStatus(okr.id, effectiveStatus)}
+                          onClick={() => cycleStatus(okr.id, okr.status)}
                           title="Click to cycle status"
                           style={{
                             display: 'inline-flex', alignItems: 'center', gap: 5,
                             fontSize: 11, fontWeight: 600, color: badge.text,
                             backgroundColor: badge.bg, padding: '3px 10px', borderRadius: 6,
-                            lineHeight: 1, border: statusEdited ? `1px solid ${badge.text}` : '1px solid transparent',
+                            lineHeight: 1, border: '1px solid transparent',
                             cursor: 'pointer', fontFamily: 'inherit', transition: 'transform 0.1s',
                           }}
                           onMouseEnter={(e) => { e.currentTarget.style.transform = 'scale(1.05)'; }}
@@ -805,13 +744,12 @@ export function OKRView() {
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
                     {okr.keyResults.map((kr, idx) => {
                       const owner = resolveOwner(kr.owner);
-                      const effectiveProgress = getProgress(okr.id, idx, kr.progress);
-                      const progressEdited = edits.progressOverrides[okr.id]?.[idx] !== undefined;
+                      const effectiveProgress = kr.progress;
                       const barColor = progressColor(effectiveProgress);
                       const gradient = progressGradient(effectiveProgress);
                       const isEditingThis = editingProgress?.okrId === okr.id && editingProgress?.krIdx === idx;
                       const isEditingNoteHere = editingNote?.okrId === okr.id && editingNote?.krIdx === idx;
-                      const noteText = edits.notes[okr.id]?.[idx] ?? '';
+                      const noteText = localEdits.notes[okr.id]?.[idx] ?? '';
                       const hasNote = noteText.length > 0;
 
                       return (
@@ -879,11 +817,6 @@ export function OKRView() {
                                 <div style={{ fontSize: 10, color: '#6b6358' }}>
                                   Owner: {owner.name}
                                 </div>
-                                {progressEdited && (
-                                  <div style={{ fontSize: 10, color: '#d4a574', marginTop: 2 }}>
-                                    (edited from {kr.progress}%)
-                                  </div>
-                                )}
                               </div>
                             </div>
                             {isEditingThis ? (
@@ -899,7 +832,6 @@ export function OKRView() {
                                 style={{
                                   fontSize: 12, fontWeight: 700, color: barColor, minWidth: 36,
                                   textAlign: 'right', cursor: 'pointer',
-                                  borderBottom: progressEdited ? `1px dashed ${barColor}` : 'none',
                                   transition: 'opacity 0.15s',
                                 }}
                                 onMouseEnter={(e) => { e.currentTarget.style.opacity = '0.7'; }}

@@ -9,35 +9,21 @@ import {
   CheckSquare,
   Map,
   Scale,
-  StickyNote,
-  Activity,
   Search,
   ChevronLeft,
   ChevronRight,
   MessageCircle,
   Calendar,
-  UserPlus,
   Wallet,
-  CircleDot,
-  Flame,
-  Brain,
-  Sparkles,
-  GitBranch,
-  Heart,
-  DollarSign,
-  Compass,
-  Trophy,
-  MessageSquare,
-  Globe,
-  UserCog,
-  HandshakeIcon,
-  BarChart3,
   LogOut,
+  User,
+  Sparkles,
 } from 'lucide-react';
+import { UserButton } from '@clerk/nextjs';
 import { teamMembers } from '@/lib/data';
 import { isClerkConfigured } from '@/lib/config';
 
-type ViewType = 'dashboard' | 'nodes' | 'team' | 'okrs' | 'tasks' | 'roadmap' | 'governance' | 'events' | 'chat' | 'notes' | 'activity' | 'enrollment' | 'budget' | 'pods' | 'accountability' | 'meeting-intel' | 'what-changed' | 'knowledge-graph' | 'steward-alignment' | 'member-health' | 'cash-runway' | 'role-drift' | 'leaderboard' | 'peer-feedback' | 'ecosystem-intel' | 'steward-os';
+type ViewType = 'profile' | 'dashboard' | 'team' | 'chat' | 'okrs' | 'tasks' | 'governance' | 'roadmap' | 'events' | 'nodes' | 'budget' | 'advisor';
 
 interface SidebarProps {
   currentView: string;
@@ -50,46 +36,28 @@ interface SidebarProps {
 }
 
 const navItems: { label: string; icon: React.ElementType; view: ViewType; group: number }[] = [
-  // Core
+  // Personal
+  { label: 'My Profile', icon: User, view: 'profile', group: 0 },
+  // Core Operations
   { label: 'Dashboard', icon: LayoutDashboard, view: 'dashboard', group: 1 },
-  { label: 'Nodes', icon: Network, view: 'nodes', group: 1 },
   { label: 'Team', icon: Users, view: 'team', group: 1 },
   { label: 'Chat', icon: MessageCircle, view: 'chat', group: 1 },
-  { label: 'Steward OS', icon: UserCog, view: 'steward-os', group: 1 },
-  // Membership & Ops
-  { label: 'Enrollment', icon: UserPlus, view: 'enrollment', group: 2 },
-  { label: 'Member Health', icon: Heart, view: 'member-health', group: 2 },
-  { label: 'Mothership OS', icon: Wallet, view: 'budget', group: 2 },
-  { label: 'Pods', icon: CircleDot, view: 'pods', group: 2 },
   // Strategy & Execution
-  { label: 'OKRs & KPIs', icon: Target, view: 'okrs', group: 3 },
-  { label: 'Tasks', icon: CheckSquare, view: 'tasks', group: 3 },
-  { label: 'Governance', icon: Scale, view: 'governance', group: 3 },
+  { label: 'OKRs & KPIs', icon: Target, view: 'okrs', group: 2 },
+  { label: 'Tasks', icon: CheckSquare, view: 'tasks', group: 2 },
+  { label: 'Governance', icon: Scale, view: 'governance', group: 2 },
+  // Planning & Coordination
+  { label: 'Roadmap', icon: Map, view: 'roadmap', group: 3 },
   { label: 'Events', icon: Calendar, view: 'events', group: 3 },
-  { label: 'Accountability', icon: Flame, view: 'accountability', group: 3 },
-  // Intelligence
-  { label: 'Meeting Intel', icon: Brain, view: 'meeting-intel', group: 4 },
-  { label: 'What Changed', icon: Sparkles, view: 'what-changed', group: 4 },
-  { label: 'Knowledge Graph', icon: GitBranch, view: 'knowledge-graph', group: 4 },
-  { label: 'Cash Runway', icon: DollarSign, view: 'cash-runway', group: 4 },
-  { label: 'Ecosystem Intel', icon: Globe, view: 'ecosystem-intel', group: 4 },
-  // Performance
-  { label: 'Leaderboard', icon: Trophy, view: 'leaderboard', group: 5 },
-  { label: 'Peer Feedback', icon: MessageSquare, view: 'peer-feedback', group: 5 },
-  { label: 'Alignment', icon: HandshakeIcon, view: 'steward-alignment', group: 5 },
-  { label: 'Role Drift', icon: Compass, view: 'role-drift', group: 5 },
-  // More
-  { label: 'Roadmap', icon: Map, view: 'roadmap', group: 6 },
-  { label: 'Notes', icon: StickyNote, view: 'notes', group: 6 },
-  { label: 'Activity', icon: Activity, view: 'activity', group: 6 },
+  { label: 'Nodes', icon: Network, view: 'nodes', group: 3 },
+  // Finance
+  { label: 'Budget', icon: Wallet, view: 'budget', group: 4 },
+  // AI Advisory
+  { label: 'AI Advisor', icon: Sparkles, view: 'advisor', group: 5 },
 ];
 
 // Clerk UserButton section — renders Clerk's built-in user menu when Clerk is configured
-function ClerkUserSection({ collapsed, userName, initials }: { collapsed: boolean; userName: string; initials: string }) {
-  // Dynamic import — only resolved when Clerk is actually configured
-  // eslint-disable-next-line @typescript-eslint/no-var-requires
-  const { UserButton } = require('@clerk/nextjs');
-
+function ClerkUserSection({ collapsed, userName }: { collapsed: boolean; userName: string }) {
   return (
     <>
       <div style={{ flexShrink: 0 }}>
@@ -128,7 +96,7 @@ export function Sidebar({
   const initials = user?.avatar ?? '??';
   const userName = user?.name ?? 'Unknown';
 
-  const groups = [1, 2, 3, 4, 5, 6];
+  const groups = [0, 1, 2, 3, 4, 5];
 
   return (
     <aside
@@ -280,7 +248,7 @@ export function Sidebar({
       {/* User Section */}
       <div style={{ borderTop: '1px solid #1e2638', padding: collapsed ? '16px 0' : '16px', display: 'flex', alignItems: 'center', justifyContent: collapsed ? 'center' : 'flex-start', gap: 12, flexShrink: 0 }}>
         {isClerkConfigured ? (
-          <ClerkUserSection collapsed={collapsed} userName={userName} initials={initials} />
+          <ClerkUserSection collapsed={collapsed} userName={userName} />
         ) : (
           <>
             <div style={{ position: 'relative', flexShrink: 0 }}>

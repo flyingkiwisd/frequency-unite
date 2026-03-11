@@ -27,7 +27,9 @@ import {
   Radio,
   Download,
 } from 'lucide-react';
-import { okrs, nodes, kpis, roadmapPhases, events, teamMembers, exportPdf } from '@/lib/data';
+import { exportPdf } from '@/lib/data';
+import { useFrequencyData } from '@/lib/supabase/DataProvider';
+import type { RoadmapPhase } from '@/lib/supabase/DataProvider';
 
 /* ─── Icon Lookup (for node icons stored as strings) ─── */
 const iconMap: Record<string, React.ElementType> = {
@@ -312,6 +314,7 @@ const dashboardStyles = `
 /* ─── Component ─── */
 
 export function DashboardView({ onNavigate }: { onNavigate: (view: string) => void }) {
+  const { okrs, nodes, kpis, events, teamMembers, tasks, roadmapPhases, dataSource } = useFrequencyData();
   const topOkrs = okrs.slice(0, 3);
   const upcomingEvents = events.filter((e) => e.status === 'upcoming' || e.status === 'planning');
   const containerRef = useRef<HTMLDivElement>(null);
@@ -320,6 +323,44 @@ export function DashboardView({ onNavigate }: { onNavigate: (view: string) => vo
     <div ref={containerRef} className="space-y-8">
       {/* Inject dashboard-specific styles */}
       <style>{dashboardStyles}</style>
+
+      {/* ── Data Source Indicator ── */}
+      <div
+        className="animate-fade-in"
+        style={{
+          display: 'flex',
+          justifyContent: 'flex-end',
+          marginBottom: -24,
+        }}
+      >
+        <span
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: 6,
+            fontSize: 10,
+            fontWeight: 600,
+            textTransform: 'uppercase',
+            letterSpacing: '0.06em',
+            color: dataSource === 'supabase' ? '#6b8f71' : '#e8b44c',
+            backgroundColor: dataSource === 'supabase' ? 'rgba(107, 143, 113, 0.12)' : 'rgba(232, 180, 76, 0.12)',
+            border: `1px solid ${dataSource === 'supabase' ? 'rgba(107, 143, 113, 0.25)' : 'rgba(232, 180, 76, 0.25)'}`,
+            borderRadius: 999,
+            padding: '3px 10px 3px 8px',
+          }}
+        >
+          <div
+            style={{
+              width: 6,
+              height: 6,
+              borderRadius: '50%',
+              backgroundColor: dataSource === 'supabase' ? '#6b8f71' : '#e8b44c',
+              boxShadow: `0 0 6px ${dataSource === 'supabase' ? '#6b8f71' : '#e8b44c'}`,
+            }}
+          />
+          {dataSource === 'supabase' ? 'Live' : 'Demo Data'}
+        </span>
+      </div>
 
       {/* ── War Room Summary Banner ── */}
       <div

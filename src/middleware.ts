@@ -1,16 +1,11 @@
-import { clerkMiddleware, createRouteMatcher } from '@clerk/nextjs/server';
+import { clerkMiddleware } from '@clerk/nextjs/server';
+import { NextResponse } from 'next/server';
 
-const isProtectedRoute = createRouteMatcher(['/(.*)']);
-
-export default clerkMiddleware(async (auth, req) => {
-  // Only enforce auth when Clerk is configured with real keys
-  const clerkKey = process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY ?? '';
-  const isClerkActive =
-    clerkKey.length > 0 && !clerkKey.includes('placeholder');
-
-  if (isClerkActive && isProtectedRoute(req)) {
-    await auth.protect();
-  }
+// Passthrough middleware — no route protection.
+// Clerk initialises client-side via <ClerkProvider>; auth gate lives in AuthProvider → LoginScreen.
+export default clerkMiddleware(async () => {
+  // Intentionally empty — never call auth.protect().
+  return NextResponse.next();
 });
 
 export const config = {

@@ -17,7 +17,7 @@ import {
   Save,
   Target,
 } from 'lucide-react';
-import { roadmapPhases } from '@/lib/data';
+import { useFrequencyData } from '@/lib/supabase/DataProvider';
 
 // ─── Types ───
 
@@ -161,13 +161,14 @@ function getCompletedCount(
   return completed.filter(Boolean).length;
 }
 
-function getActivePhaseIndex(): number {
+function getActivePhaseIndex(roadmapPhases: { status: string }[]): number {
   return roadmapPhases.findIndex((p) => p.status === 'active');
 }
 
 // ─── Component ───
 
 export function RoadmapView() {
+  const { roadmapPhases } = useFrequencyData();
   const [progress, setProgress] = useState<RoadmapProgress>({
     completedMilestones: {},
     notes: {},
@@ -192,7 +193,7 @@ export function RoadmapView() {
         setVisibleCards((prev) => ({ ...prev, [idx]: true }));
       }, 150 * idx);
     });
-  }, [mounted]);
+  }, [mounted, roadmapPhases]);
 
   // Persist changes
   const updateProgress = useCallback((updater: (prev: RoadmapProgress) => RoadmapProgress) => {
@@ -248,10 +249,10 @@ export function RoadmapView() {
       );
     }
     return { totalMilestones, totalCompleted };
-  }, [progress.completedMilestones]);
+  }, [progress.completedMilestones, roadmapPhases]);
 
   const currentPhaseId = useMemo(() => getCurrentPhaseId(), []);
-  const activePhaseIndex = useMemo(() => getActivePhaseIndex(), []);
+  const activePhaseIndex = useMemo(() => getActivePhaseIndex(roadmapPhases), [roadmapPhases]);
 
   // Avoid hydration mismatch: show non-interactive state until mounted
   if (!mounted) {

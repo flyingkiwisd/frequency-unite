@@ -25,7 +25,8 @@ import {
   UserCheck,
   List,
 } from 'lucide-react';
-import { teamMembers, type MemberTier, type TeamMember } from '@/lib/data';
+import { type MemberTier, type TeamMember } from '@/lib/data';
+import { useFrequencyData } from '@/lib/supabase/DataProvider';
 
 /* ─── Tier Config ─── */
 
@@ -259,6 +260,7 @@ function parseHoursToNumber(hrs: string | undefined): number {
 /* ─── Component ─── */
 
 export function TeamView() {
+  const { teamMembers } = useFrequencyData();
   const [filter, setFilter] = useState<TierFilter>('all');
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
@@ -281,7 +283,7 @@ export function TeamView() {
       );
     }
     return result;
-  }, [filter, searchQuery]);
+  }, [filter, searchQuery, teamMembers]);
 
   const toggleExpand = (id: string) => {
     setExpandedId((prev) => (prev === id ? null : id));
@@ -295,7 +297,7 @@ export function TeamView() {
   const avgHoursPerWeek = useMemo(() => {
     const hoursValues = teamMembers.map((m) => parseHoursToNumber(m.hoursPerWeek)).filter((h) => h > 0);
     return hoursValues.length > 0 ? Math.round(hoursValues.reduce((a, b) => a + b, 0) / hoursValues.length) : 0;
-  }, []);
+  }, [teamMembers]);
   const avgCapacity = useMemo(() => {
     const entries = Object.values(capacityData);
     const totalPct = entries.reduce((sum, c) => sum + (c.currentLoad / c.maxCapacity) * 100, 0);
@@ -304,10 +306,10 @@ export function TeamView() {
   const atRiskCount = useMemo(() => {
     return Object.values(capacityData).filter((c) => c.trend === 'overloaded').length;
   }, []);
-  const coreTeamCount = useMemo(() => teamMembers.filter((m) => m.tier === 'core-team').length, []);
-  const boardCount = useMemo(() => teamMembers.filter((m) => m.tier === 'board').length, []);
-  const nodeLeadCount = useMemo(() => teamMembers.filter((m) => m.tier === 'node-lead').length, []);
-  const memberCount = useMemo(() => teamMembers.filter((m) => m.tier === 'member').length, []);
+  const coreTeamCount = useMemo(() => teamMembers.filter((m) => m.tier === 'core-team').length, [teamMembers]);
+  const boardCount = useMemo(() => teamMembers.filter((m) => m.tier === 'board').length, [teamMembers]);
+  const nodeLeadCount = useMemo(() => teamMembers.filter((m) => m.tier === 'node-lead').length, [teamMembers]);
+  const memberCount = useMemo(() => teamMembers.filter((m) => m.tier === 'member').length, [teamMembers]);
 
   /* ─── Org Chart Node Renderer ─── */
   const renderOrgNode = (memberId: string) => {
