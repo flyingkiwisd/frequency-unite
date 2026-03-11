@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useMemo, useEffect, useCallback } from 'react';
+import React, { useState, useRef, useMemo, useEffect, useCallback } from 'react';
 import {
   CheckSquare,
   Circle,
@@ -22,8 +22,21 @@ import {
   X,
   Trash2,
 } from 'lucide-react';
+import {
+  DndContext,
+  DragOverlay,
+  closestCorners,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  useDroppable,
+  useDraggable,
+  type DragStartEvent,
+  type DragEndEvent,
+  type DragOverEvent,
+} from '@dnd-kit/core';
 import { useFrequencyData } from '@/lib/supabase/DataProvider';
-import type { Task, TeamMember } from '@/lib/data';
+import type { Task, TeamMember, Node } from '@/lib/data';
 import { InlineAdvisor } from '@/components/InlineAdvisor';
 
 // ─── CSS Keyframes (injected once) ───
@@ -573,16 +586,23 @@ function TaskCard({
   task,
   index,
   teamMembers,
+  allNodes,
+  allCategories,
   onUpdateTask,
   onDeleteTask,
 }: {
   task: Task;
   index: number;
   teamMembers: TeamMember[];
+  allNodes?: Node[];
+  allCategories?: string[];
   onUpdateTask: (id: string, updates: Partial<Task>) => Promise<void>;
   onDeleteTask: (id: string) => Promise<void>;
 }) {
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [editingField, setEditingField] = useState<string | null>(null);
+  const [titleDraft, setTitleDraft] = useState(task.title);
+  const editable = !!allNodes; // inline editing only when allNodes is passed
   const pConfig = priorityConfig[task.priority];
   const PriorityIcon = pConfig.icon;
 
@@ -718,10 +738,47 @@ function TaskCard({
         </button>
       )}
 
-      {/* Title */}
-      <p style={{ fontSize: 12, fontWeight: 600, color: '#f0ebe4', margin: 0, lineHeight: 1.4, marginBottom: 8, paddingRight: 24 }}>
-        {task.title}
-      </p>
+      {/* Title — click to edit */}
+      {editingField === 'title' ? (
+        <div style={{ marginBottom: 8, paddingRight: 24 }}>
+          <input
+            value={titleDraft}
+            onChange={(e) => setTitleDraft(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                if (titleDraft.trim() && titleDraft.trim() !== task.title) onUpdateTask(task.id, { title: titleDraft.trim() });
+                setEditingField(null);
+              }
+              if (e.key === 'Escape') { setTitleDraft(task.title); setEditingField(null); }
+            }}
+            onBlur={() => {
+              if (titleDraft.trim() && titleDraft.trim() !== task.title) onUpdateTask(task.id, { title: titleDraft.trim() });
+              setEditingField(null);
+            }}
+            autoFocus
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              width: '100%', fontSize: 12, fontWeight: 600, color: '#f0ebe4',
+              backgroundColor: 'rgba(255,255,255,0.05)', border: '1px solid rgba(212,165,116,0.4)',
+              borderRadius: 6, padding: '4px 8px', outline: 'none', fontFamily: 'inherit',
+            }}
+          />
+        </div>
+      ) : (
+        <p
+          onClick={(e) => { if (editable) { e.stopPropagation(); setEditingField('title'); setTitleDraft(task.title); } }}
+          style={{
+            fontSize: 12, fontWeight: 600, color: '#f0ebe4', margin: 0, lineHeight: 1.4,
+            marginBottom: 8, paddingRight: 24, cursor: editable ? 'text' : 'default',
+            borderRadius: 4, transition: 'background 0.15s',
+          }}
+          onMouseEnter={(e) => { if (editable) e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.03)'; }}
+          onMouseLeave={(e) => { if (editable) e.currentTarget.style.backgroundColor = 'transparent'; }}
+          title={editable ? 'Click to edit' : undefined}
+        >
+          {task.title}
+        </p>
+      )}
 
       {/* Badges Row */}
       <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 8 }}>
@@ -755,26 +812,83 @@ function TaskCard({
           <PriorityIcon size={10} />
           {pConfig.label}
         </span>
-        {/* Category */}
-        <span style={{
-          padding: '2px 7px', borderRadius: 6,
-          backgroundColor: 'rgba(139, 92, 246, 0.08)', color: '#a78bfa',
-          fontSize: 10, fontWeight: 600,
-        }}>
-          {task.category}
-        </span>
-        {/* Node badge */}
-        {task.node && (
-          <span style={{
-            display: 'inline-flex', alignItems: 'center', gap: 3,
-            padding: '2px 7px', borderRadius: 6,
-            backgroundColor: 'rgba(34, 211, 153, 0.08)', color: '#34d399',
-            fontSize: 10, fontWeight: 600,
-          }}>
+        {/* Category — click to edit */}
+        {editingField === 'category' && allCategories ? (
+          <select
+            value={task.category}
+            onChange={(e) => { onUpdateTask(task.id, { category: e.target.value }); setEditingField(null); }}
+            onBlur={() => setEditingField(null)}
+            onClick={(e) => e.stopPropagation()}
+            autoFocus
+            style={{
+              padding: '2px 7px', borderRadius: 6, backgroundColor: 'rgba(139,92,246,0.08)',
+              color: '#a78bfa', fontSize: 10, fontWeight: 600,
+              border: '1px solid rgba(139,92,246,0.3)', outline: 'none',
+              fontFamily: 'inherit', cursor: 'pointer',
+            }}
+          >
+            {allCategories.map(c => <option key={c} value={c}>{c}</option>)}
+          </select>
+        ) : (
+          <span
+            onClick={(e) => { if (editable) { e.stopPropagation(); setEditingField('category'); } }}
+            style={{
+              padding: '2px 7px', borderRadius: 6,
+              backgroundColor: 'rgba(139, 92, 246, 0.08)', color: '#a78bfa',
+              fontSize: 10, fontWeight: 600, cursor: editable ? 'pointer' : 'default',
+            }}
+            title={editable ? 'Click to change category' : undefined}
+          >
+            {task.category}
+          </span>
+        )}
+        {/* Node badge — click to edit */}
+        {editingField === 'node' && allNodes ? (
+          <select
+            value={task.node || ''}
+            onChange={(e) => { onUpdateTask(task.id, { node: e.target.value || undefined }); setEditingField(null); }}
+            onBlur={() => setEditingField(null)}
+            onClick={(e) => e.stopPropagation()}
+            autoFocus
+            style={{
+              padding: '2px 7px', borderRadius: 6, backgroundColor: 'rgba(34,211,153,0.08)',
+              color: '#34d399', fontSize: 10, fontWeight: 600,
+              border: '1px solid rgba(34,211,153,0.3)', outline: 'none',
+              fontFamily: 'inherit', cursor: 'pointer',
+            }}
+          >
+            <option value="">None</option>
+            {allNodes.map(n => <option key={n.id} value={n.name}>{n.name}</option>)}
+          </select>
+        ) : task.node ? (
+          <span
+            onClick={(e) => { if (editable) { e.stopPropagation(); setEditingField('node'); } }}
+            style={{
+              display: 'inline-flex', alignItems: 'center', gap: 3,
+              padding: '2px 7px', borderRadius: 6,
+              backgroundColor: 'rgba(34, 211, 153, 0.08)', color: '#34d399',
+              fontSize: 10, fontWeight: 600, cursor: editable ? 'pointer' : 'default',
+            }}
+            title={editable ? 'Click to change node' : undefined}
+          >
             <Network size={9} />
             {task.node}
           </span>
-        )}
+        ) : editable ? (
+          <span
+            onClick={(e) => { e.stopPropagation(); setEditingField('node'); }}
+            style={{
+              display: 'inline-flex', alignItems: 'center', gap: 3,
+              padding: '2px 7px', borderRadius: 6,
+              backgroundColor: 'rgba(34,211,153,0.04)', color: '#34d39966',
+              fontSize: 10, fontWeight: 600, cursor: 'pointer',
+              border: '1px dashed rgba(34,211,153,0.2)',
+            }}
+            title="Click to assign a node"
+          >
+            <Network size={9} /> + node
+          </span>
+        ) : null}
       </div>
 
       {/* Bottom Row: Owner + Deadline */}
@@ -782,7 +896,7 @@ function TaskCard({
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
         paddingBottom: 12,
       }}>
-        {/* Owner */}
+        {/* Owner — click to edit */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
           <div style={{
             width: 20, height: 20, borderRadius: '50%',
@@ -792,20 +906,69 @@ function TaskCard({
           }}>
             {ownerInitials}
           </div>
-          <span style={{ fontSize: 11, color: '#a09888' }}>
-            {ownerName.split(' ')[0]}
-          </span>
+          {editingField === 'owner' ? (
+            <select
+              value={task.owner}
+              onChange={(e) => { onUpdateTask(task.id, { owner: e.target.value }); setEditingField(null); }}
+              onBlur={() => setEditingField(null)}
+              onClick={(e) => e.stopPropagation()}
+              autoFocus
+              style={{
+                fontSize: 11, color: '#f0ebe4', backgroundColor: '#131720',
+                border: '1px solid rgba(212,165,116,0.3)', borderRadius: 6,
+                padding: '1px 4px', outline: 'none', fontFamily: 'inherit', cursor: 'pointer',
+              }}
+            >
+              {teamMembers.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
+            </select>
+          ) : (
+            <span
+              onClick={(e) => { if (editable) { e.stopPropagation(); setEditingField('owner'); } }}
+              style={{
+                fontSize: 11, color: '#a09888', cursor: editable ? 'pointer' : 'default',
+                borderRadius: 4, padding: '1px 4px', transition: 'background 0.15s',
+              }}
+              onMouseEnter={(e) => { if (editable) e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.05)'; }}
+              onMouseLeave={(e) => { if (editable) e.currentTarget.style.backgroundColor = 'transparent'; }}
+              title={editable ? 'Click to change owner' : undefined}
+            >
+              {ownerName.split(' ')[0]}
+            </span>
+          )}
         </div>
-        {/* Deadline */}
-        <div style={{
-          display: 'flex', alignItems: 'center', gap: 4,
-          fontSize: 10,
-          color: overdue ? '#ef4444' : '#6b6358',
-          fontWeight: overdue ? 600 : 400,
-        }}>
-          <CalendarDays size={10} />
-          {new Date(task.deadline).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-        </div>
+        {/* Deadline — click to edit */}
+        {editingField === 'deadline' ? (
+          <input
+            type="date"
+            value={task.deadline}
+            onChange={(e) => { onUpdateTask(task.id, { deadline: e.target.value }); setEditingField(null); }}
+            onBlur={() => setEditingField(null)}
+            onClick={(e) => e.stopPropagation()}
+            autoFocus
+            style={{
+              fontSize: 10, color: '#f0ebe4', backgroundColor: '#131720',
+              border: '1px solid rgba(212,165,116,0.3)', borderRadius: 6,
+              padding: '1px 4px', outline: 'none', fontFamily: 'inherit',
+              cursor: 'pointer', colorScheme: 'dark',
+            }}
+          />
+        ) : (
+          <div
+            onClick={(e) => { if (editable) { e.stopPropagation(); setEditingField('deadline'); } }}
+            style={{
+              display: 'flex', alignItems: 'center', gap: 4,
+              fontSize: 10, color: overdue ? '#ef4444' : '#6b6358',
+              fontWeight: overdue ? 600 : 400, cursor: editable ? 'pointer' : 'default',
+              borderRadius: 4, padding: '1px 4px', transition: 'background 0.15s',
+            }}
+            onMouseEnter={(e) => { if (editable) e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.05)'; }}
+            onMouseLeave={(e) => { if (editable) e.currentTarget.style.backgroundColor = 'transparent'; }}
+            title={editable ? 'Click to change deadline' : undefined}
+          >
+            <CalendarDays size={10} />
+            {new Date(task.deadline).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+          </div>
+        )}
       </div>
 
       {/* Hover reveal: full task details */}
@@ -1012,8 +1175,53 @@ function GroupedByStatus({
 
 // ─── Main Component ───
 
+// ─── DnD Helper: Droppable Column ───
+
+function DroppableColumn({ status, isOver, children }: { status: string; isOver: boolean; children: React.ReactNode }) {
+  const { setNodeRef } = useDroppable({ id: status });
+  const config = statusConfig[status as Task['status']];
+  return (
+    <div ref={setNodeRef} style={{
+      backgroundColor: isOver ? `${config.color}08` : '#0f1219',
+      borderRadius: 12,
+      border: `1px solid ${isOver ? config.color + '40' : '#1e2638'}`,
+      display: 'flex', flexDirection: 'column', overflow: 'hidden',
+      transition: 'border-color 0.2s ease, background-color 0.2s ease',
+      minHeight: 200,
+    }}>
+      {children}
+    </div>
+  );
+}
+
+// ─── DnD Helper: Draggable TaskCard Wrapper ───
+
+function DraggableTaskCard(props: {
+  task: Task; index: number; teamMembers: TeamMember[];
+  allNodes: Node[]; allCategories: string[];
+  onUpdateTask: (id: string, updates: Partial<Task>) => Promise<void>;
+  onDeleteTask: (id: string) => Promise<void>;
+}) {
+  const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({ id: props.task.id });
+  return (
+    <div
+      ref={setNodeRef}
+      style={{
+        transform: transform ? `translate(${transform.x}px, ${transform.y}px)` : undefined,
+        opacity: isDragging ? 0.35 : 1,
+        transition: isDragging ? undefined : 'opacity 0.2s ease',
+        zIndex: isDragging ? 100 : 'auto',
+      }}
+      {...listeners}
+      {...attributes}
+    >
+      <TaskCard {...props} />
+    </div>
+  );
+}
+
 export function TasksView() {
-  const { tasks, teamMembers, updateTask, createTask, deleteTask } = useFrequencyData();
+  const { tasks, teamMembers, nodes, updateTask, createTask, deleteTask } = useFrequencyData();
 
   const [filterStatus, setFilterStatus] = useState<Task['status'] | 'all'>('all');
   const [filterPriority, setFilterPriority] = useState<Task['priority'] | 'all'>('all');
@@ -1022,6 +1230,52 @@ export function TasksView() {
   const [filterTab, setFilterTab] = useState<FilterTab>('all');
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [confirmDeleteRowId, setConfirmDeleteRowId] = useState<string | null>(null);
+
+  // ─── Drag-and-Drop State ───
+  const [activeTaskId, setActiveTaskId] = useState<string | null>(null);
+  const [overColumnId, setOverColumnId] = useState<string | null>(null);
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 8 } })
+  );
+
+  const activeTask = useMemo(
+    () => (activeTaskId ? tasks.find(t => t.id === activeTaskId) ?? null : null),
+    [activeTaskId, tasks]
+  );
+
+  const handleDragStart = useCallback((event: DragStartEvent) => {
+    setActiveTaskId(event.active.id as string);
+  }, []);
+
+  const handleDragOver = useCallback((event: DragOverEvent) => {
+    const overId = event.over?.id as string | undefined;
+    if (overId && statusOrder.includes(overId as Task['status'])) {
+      setOverColumnId(overId);
+    } else {
+      setOverColumnId(null);
+    }
+  }, []);
+
+  const handleDragEnd = useCallback(async (event: DragEndEvent) => {
+    const { active, over } = event;
+    setActiveTaskId(null);
+    setOverColumnId(null);
+    if (!over) return;
+    const taskId = active.id as string;
+    const newStatus = over.id as Task['status'];
+    if (statusOrder.includes(newStatus)) {
+      const task = tasks.find(t => t.id === taskId);
+      if (task && task.status !== newStatus) {
+        await updateTask(taskId, { status: newStatus });
+      }
+    }
+  }, [tasks, updateTask]);
+
+  const handleDragCancel = useCallback(() => {
+    setActiveTaskId(null);
+    setOverColumnId(null);
+  }, []);
 
   useEffect(() => { injectTaskStyles(); }, []);
 
@@ -1244,79 +1498,85 @@ export function TasksView() {
         />
       )}
 
-      {/* ── Kanban Board (only in "all" tab with kanban mode) ── */}
+      {/* ── Kanban Board with Drag-and-Drop ── */}
       {filterTab === 'all' && viewMode === 'kanban' && (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 16, minHeight: 400 }}>
-          {statusOrder.map((status) => {
-            const config = statusConfig[status];
-            const StatusIcon = config.icon;
-            const columnTasks = filteredTasks.filter((t) => t.status === status);
+        <DndContext
+          sensors={sensors}
+          collisionDetection={closestCorners}
+          onDragStart={handleDragStart}
+          onDragOver={handleDragOver}
+          onDragEnd={handleDragEnd}
+          onDragCancel={handleDragCancel}
+        >
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 16, minHeight: 400 }}>
+            {statusOrder.map((status) => {
+              const config = statusConfig[status];
+              const StatusIcon = config.icon;
+              const columnTasks = filteredTasks.filter((t) => t.status === status);
 
-            return (
-              <div
-                key={status}
-                style={{
-                  backgroundColor: '#0f1219',
-                  borderRadius: 12,
-                  border: '1px solid #1e2638',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  overflow: 'hidden',
-                }}
-              >
-                {/* Column Header */}
-                <div
-                  style={{
+              return (
+                <DroppableColumn key={status} status={status} isOver={overColumnId === status}>
+                  {/* Column Header */}
+                  <div style={{
                     padding: '12px 14px',
                     borderBottom: `2px solid ${config.color}33`,
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    flexShrink: 0,
-                  }}
-                >
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <StatusIcon size={15} style={{ color: config.color }} />
-                    <span style={{ fontSize: 13, fontWeight: 700, color: config.color }}>
-                      {config.label}
+                    display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0,
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <StatusIcon size={15} style={{ color: config.color }} />
+                      <span style={{ fontSize: 13, fontWeight: 700, color: config.color }}>{config.label}</span>
+                    </div>
+                    <span style={{
+                      fontSize: 11, fontWeight: 700, backgroundColor: config.bg,
+                      color: config.color, borderRadius: 10, padding: '2px 8px',
+                    }}>
+                      {columnTasks.length}
                     </span>
                   </div>
-                  <span
-                    style={{
-                      fontSize: 11,
-                      fontWeight: 700,
-                      backgroundColor: config.bg,
-                      color: config.color,
-                      borderRadius: 10,
-                      padding: '2px 8px',
-                    }}
-                  >
-                    {columnTasks.length}
-                  </span>
-                </div>
 
-                {/* Cards */}
-                <div style={{ flex: 1, overflowY: 'auto', padding: 8, display: 'flex', flexDirection: 'column', gap: 8 }}>
-                  {columnTasks.map((task, idx) => (
-                    <TaskCard
-                      key={task.id}
-                      task={task}
-                      index={idx}
-                      teamMembers={teamMembers}
-                      onUpdateTask={updateTask}
-                      onDeleteTask={deleteTask}
-                    />
-                  ))}
-                  {columnTasks.length === 0 && (
-                    <div style={{ textAlign: 'center', padding: 20, color: '#3a3530', fontSize: 12 }}>
-                      No tasks
-                    </div>
-                  )}
-                </div>
+                  {/* Cards */}
+                  <div style={{ flex: 1, overflowY: 'auto', padding: 8, display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    {columnTasks.map((task, idx) => (
+                      <DraggableTaskCard
+                        key={task.id}
+                        task={task}
+                        index={idx}
+                        teamMembers={teamMembers}
+                        allNodes={nodes}
+                        allCategories={categories.filter(c => c !== 'all')}
+                        onUpdateTask={updateTask}
+                        onDeleteTask={deleteTask}
+                      />
+                    ))}
+                    {columnTasks.length === 0 && (
+                      <div style={{
+                        textAlign: 'center', padding: 20, color: '#3a3530', fontSize: 12,
+                        border: '1px dashed #1e2638', borderRadius: 8, margin: 4,
+                      }}>
+                        Drop tasks here
+                      </div>
+                    )}
+                  </div>
+                </DroppableColumn>
+              );
+            })}
+          </div>
+
+          {/* Drag Overlay — ghost card follows cursor */}
+          <DragOverlay dropAnimation={{ duration: 200, easing: 'cubic-bezier(0.22, 1, 0.36, 1)' }}>
+            {activeTask ? (
+              <div style={{ opacity: 0.9, transform: 'rotate(2deg)', pointerEvents: 'none' }}>
+                <TaskCard
+                  task={activeTask}
+                  index={0}
+                  teamMembers={teamMembers}
+                  onUpdateTask={async () => {}}
+                  onDeleteTask={async () => {}}
+                />
               </div>
-            );
-          })}
-        </div>
+            ) : null}
+          </DragOverlay>
+        </DndContext>
       )}
 
       {/* ── List View (only in "all" tab with list mode) ── */}
