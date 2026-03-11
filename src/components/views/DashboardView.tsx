@@ -4,11 +4,13 @@ import { useState, useMemo, useCallback, useEffect } from 'react';
 import {
   CheckCircle2, Plus, Circle, ChevronRight, ChevronDown, X, BookOpen,
   Target, Briefcase, Shield, Calendar, AlertCircle, Check, Clock, Flame,
+  Key, Eye, EyeOff, ExternalLink, ShieldCheck, Sparkles, ArrowRight, Loader2,
 } from 'lucide-react';
 import { useFrequencyData } from '@/lib/supabase/DataProvider';
 import { useAuth } from '@/lib/supabase/AuthProvider';
 import { InlineAdvisor } from '@/components/InlineAdvisor';
 import { getMemberColor } from '@/lib/constants';
+import { getApiKey, saveApiKey, removeApiKey, maskApiKey, isValidApiKey, hasApiKey } from '@/lib/apiKey';
 import type { Task, OKR } from '@/lib/data';
 
 /* ─── Theme ─── */
@@ -79,6 +81,36 @@ export function DashboardView({ onNavigate }: { onNavigate?: (view: string) => v
   const [doneMap, setDoneMap] = useState<DoneMap>(() => loadDoneMap());
   const [showAddForm, setShowAddForm] = useState(false);
   const [newTitle, setNewTitle] = useState('');
+
+  /* ── API Key state ── */
+  const [apiKeyInput, setApiKeyInput] = useState('');
+  const [showApiKey, setShowApiKey] = useState(false);
+  const [apiKeyConnected, setApiKeyConnected] = useState(() => hasApiKey(ownerId));
+  const [apiKeySaving, setApiKeySaving] = useState(false);
+  const [apiKeySaved, setApiKeySaved] = useState(false);
+  const [apiKeyError, setApiKeyError] = useState<string | null>(null);
+  const [apiKeyExpanded, setApiKeyExpanded] = useState(false);
+
+  const handleSaveApiKey = useCallback(async () => {
+    const trimmed = apiKeyInput.trim();
+    if (!trimmed) { setApiKeyError('Paste your API key'); return; }
+    if (!isValidApiKey(trimmed)) { setApiKeyError('Should start with sk-ant- and be at least 20 chars'); return; }
+    setApiKeyError(null);
+    setApiKeySaving(true);
+    await new Promise(r => setTimeout(r, 500));
+    saveApiKey(ownerId, trimmed);
+    setApiKeyConnected(true);
+    setApiKeySaved(true);
+    setApiKeySaving(false);
+    setApiKeyInput('');
+    setTimeout(() => setApiKeySaved(false), 2000);
+  }, [apiKeyInput, ownerId]);
+
+  const handleRemoveApiKey = useCallback(() => {
+    removeApiKey(ownerId);
+    setApiKeyConnected(false);
+    setApiKeyInput('');
+  }, [ownerId]);
 
   /* ── Non-Negotiables checks ── */
   const [nonNegChecks, setNonNegChecks] = useState<Record<string, boolean>>({});
@@ -261,6 +293,163 @@ export function DashboardView({ onNavigate }: { onNavigate?: (view: string) => v
             </div>
           ))}
         </div>
+      </div>
+
+      {/* ── API Key Connection ── */}
+      <div style={{
+        ...card, padding: 0, overflow: 'hidden',
+        borderLeft: apiKeyConnected ? '3px solid rgba(107,143,113,0.5)' : '3px solid rgba(212,165,116,0.5)',
+      }}>
+        <button
+          onClick={() => setApiKeyExpanded(e => !e)}
+          style={{
+            width: '100%', display: 'flex', alignItems: 'center', gap: 10,
+            padding: '12px 16px', background: 'none', border: 'none',
+            cursor: 'pointer', fontFamily: 'inherit',
+          }}
+        >
+          <div style={{
+            width: 28, height: 28, borderRadius: 8, flexShrink: 0,
+            background: apiKeyConnected
+              ? 'rgba(107,143,113,0.12)' : 'linear-gradient(135deg, rgba(212,165,116,0.15), rgba(139,92,246,0.15))',
+            border: `1px solid ${apiKeyConnected ? 'rgba(107,143,113,0.25)' : 'rgba(212,165,116,0.25)'}`,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+          }}>
+            {apiKeyConnected ? <Check size={14} style={{ color: C.success }} /> : <Key size={14} style={{ color: C.accent }} />}
+          </div>
+          <div style={{ flex: 1, textAlign: 'left' }}>
+            <span style={{ fontSize: 13, fontWeight: 600, color: C.text }}>
+              {apiKeyConnected ? 'AI Advisor Connected' : 'Connect Your AI Advisor'}
+            </span>
+            <span style={{ fontSize: 11, color: C.textSec, marginLeft: 8 }}>
+              {apiKeyConnected
+                ? maskApiKey(getApiKey(ownerId) || '')
+                : '30 seconds to set up'}
+            </span>
+          </div>
+          {apiKeyConnected && (
+            <span style={{
+              padding: '2px 8px', borderRadius: 6, fontSize: 10, fontWeight: 600,
+              background: 'rgba(107,143,113,0.12)', color: C.success,
+              border: '1px solid rgba(107,143,113,0.25)',
+            }}>
+              <span style={{ width: 5, height: 5, borderRadius: '50%', backgroundColor: C.success, display: 'inline-block', marginRight: 4 }} />
+              Active
+            </span>
+          )}
+          <ChevronDown size={14} style={{ color: C.textSec, transition: 'transform 0.2s', transform: apiKeyExpanded ? 'rotate(180deg)' : 'rotate(0)' }} />
+        </button>
+
+        {apiKeyExpanded && (
+          <div style={{ padding: '0 16px 16px' }}>
+            {!apiKeyConnected ? (
+              <>
+                {/* Step-by-step */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 14 }}>
+                  <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
+                    <div style={{
+                      width: 22, height: 22, borderRadius: '50%', flexShrink: 0,
+                      background: 'rgba(212,165,116,0.12)', border: '1px solid rgba(212,165,116,0.25)',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      fontSize: 10, fontWeight: 700, color: C.accent,
+                    }}>1</div>
+                    <div>
+                      <p style={{ fontSize: 12, fontWeight: 600, color: C.text, margin: 0 }}>Get your API key</p>
+                      <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noopener noreferrer"
+                        style={{ fontSize: 11, color: C.accent, textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 3, marginTop: 2 }}>
+                        console.anthropic.com <ExternalLink size={9} />
+                      </a>
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
+                    <div style={{
+                      width: 22, height: 22, borderRadius: '50%', flexShrink: 0,
+                      background: 'rgba(212,165,116,0.12)', border: '1px solid rgba(212,165,116,0.25)',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      fontSize: 10, fontWeight: 700, color: C.accent,
+                    }}>2</div>
+                    <p style={{ fontSize: 12, fontWeight: 600, color: C.text, margin: 0 }}>Paste it below</p>
+                  </div>
+                </div>
+
+                {/* Input */}
+                <div style={{ position: 'relative', marginBottom: 8 }}>
+                  <Key size={14} style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: C.textSec, opacity: 0.5 }} />
+                  <input
+                    type={showApiKey ? 'text' : 'password'}
+                    value={apiKeyInput}
+                    onChange={e => { setApiKeyInput(e.target.value); setApiKeyError(null); }}
+                    onKeyDown={e => { if (e.key === 'Enter') handleSaveApiKey(); }}
+                    placeholder="sk-ant-api03-..."
+                    autoFocus
+                    style={{
+                      width: '100%', padding: '10px 40px 10px 34px', borderRadius: 10,
+                      border: `1px solid ${apiKeyError ? 'rgba(239,68,68,0.4)' : C.border}`,
+                      backgroundColor: 'rgba(11,13,20,0.6)', color: C.text, fontSize: 12,
+                      fontFamily: 'monospace', outline: 'none', boxSizing: 'border-box',
+                    }}
+                  />
+                  <button onClick={() => setShowApiKey(s => !s)} title={showApiKey ? 'Hide' : 'Show'}
+                    style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', padding: 2, color: C.textSec }}>
+                    {showApiKey ? <EyeOff size={14} /> : <Eye size={14} />}
+                  </button>
+                </div>
+
+                {apiKeyError && (
+                  <p style={{ fontSize: 11, color: C.danger, margin: '0 0 8px', display: 'flex', alignItems: 'center', gap: 4 }}>
+                    <AlertCircle size={11} /> {apiKeyError}
+                  </p>
+                )}
+
+                <button onClick={handleSaveApiKey} disabled={apiKeySaving || !apiKeyInput.trim()}
+                  style={{
+                    width: '100%', padding: '10px 0', borderRadius: 10, border: 'none',
+                    backgroundColor: apiKeyInput.trim() && !apiKeySaving ? C.accent : 'rgba(30,38,56,0.5)',
+                    color: apiKeyInput.trim() && !apiKeySaving ? '#0b0d14' : C.textSec,
+                    fontSize: 13, fontWeight: 600, cursor: apiKeyInput.trim() ? 'pointer' : 'default',
+                    fontFamily: 'inherit', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                    transition: 'all 0.2s',
+                  }}>
+                  {apiKeySaving ? <><Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} /> Connecting...</>
+                    : <><Sparkles size={14} /> Activate AI Advisor</>}
+                </button>
+
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, marginTop: 8 }}>
+                  <ShieldCheck size={11} style={{ color: C.success }} />
+                  <span style={{ fontSize: 10, color: C.textSec }}>Stored locally in your browser. Never shared.</span>
+                </div>
+              </>
+            ) : (
+              <>
+                {/* Connected state */}
+                <div style={{
+                  display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px',
+                  borderRadius: 8, marginBottom: 8,
+                  background: 'rgba(107,143,113,0.08)', border: '1px solid rgba(107,143,113,0.15)',
+                }}>
+                  <span style={{ width: 6, height: 6, borderRadius: '50%', backgroundColor: C.success }} />
+                  <span style={{ fontSize: 11, color: C.success, flex: 1 }}>
+                    Connected — key: <span style={{ fontFamily: 'monospace' }}>{maskApiKey(getApiKey(ownerId) || '')}</span>
+                  </span>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <span style={{ fontSize: 10, color: C.textSec }}>
+                    Your key powers the AI Advisor across all views.
+                  </span>
+                  <button onClick={handleRemoveApiKey}
+                    style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 11, color: 'rgba(239,68,68,0.6)', fontFamily: 'inherit' }}
+                    onMouseEnter={e => { e.currentTarget.style.color = '#ef4444'; }}
+                    onMouseLeave={e => { e.currentTarget.style.color = 'rgba(239,68,68,0.6)'; }}>
+                    Remove key
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        )}
+        {apiKeySaved && (
+          <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+        )}
       </div>
 
       {/* ── 2. Tab Selector ── */}

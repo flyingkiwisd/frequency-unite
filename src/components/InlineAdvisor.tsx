@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import { useFrequencyData } from '@/lib/supabase/DataProvider';
 import { useAuth } from '@/lib/supabase/AuthProvider';
+import { getApiKey } from '@/lib/apiKey';
 
 /* ─── Theme ─── */
 const C = {
@@ -192,12 +193,15 @@ export function InlineAdvisor({
     const newHistory = [...history, { role: 'user' as const, content: text.trim() }];
 
     try {
+      // Include user's personal API key if available
+      const userApiKey = teamMemberId ? getApiKey(teamMemberId) : null;
       const res = await fetch('/api/advisor', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           messages: newHistory.slice(-6),
           context,
+          ...(userApiKey ? { apiKey: userApiKey } : {}),
         }),
       });
       const data = await res.json();

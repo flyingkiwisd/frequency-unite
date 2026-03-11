@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import { useFrequencyData } from '@/lib/supabase/DataProvider';
 import { useAuth } from '@/lib/supabase/AuthProvider';
+import { getApiKey } from '@/lib/apiKey';
 
 interface Message { id: string; role: 'user' | 'assistant'; content: string; timestamp: Date; }
 interface StoredMessage { id: string; role: 'user' | 'assistant'; content: string; timestamp: string; }
@@ -223,9 +224,10 @@ TEAM: ${teamMembers.length} members, ${teamMembers.filter(m => m.tier === 'core-
     setError(null);
     try {
       const allMsgs = [...messages, userMsg].map(m => ({ role: m.role, content: m.content }));
+      const userApiKey = teamMemberId ? getApiKey(teamMemberId) : null;
       const res = await fetch('/api/advisor', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messages: allMsgs, context }),
+        body: JSON.stringify({ messages: allMsgs, context, ...(userApiKey ? { apiKey: userApiKey } : {}) }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed to get response');

@@ -80,15 +80,21 @@ You will receive the current state of Frequency's data as context with each mess
 
 export async function POST(request: NextRequest) {
   try {
-    const apiKey = process.env.ANTHROPIC_API_KEY;
+    const body = await request.json();
+    const { messages, context } = body;
+
+    // Resolve API key: user-provided key takes precedence, then env var fallback
+    const userKey = typeof body.apiKey === 'string' && body.apiKey.startsWith('sk-ant-') ? body.apiKey : null;
+    const apiKey = userKey || process.env.ANTHROPIC_API_KEY;
     if (!apiKey) {
       return NextResponse.json(
-        { error: 'Anthropic API key not configured. Add ANTHROPIC_API_KEY to your environment variables.' },
+        {
+          error: 'No API key available. Connect your Claude API key on the Dashboard, or set ANTHROPIC_API_KEY in environment variables.',
+          setup: true,
+        },
         { status: 503 }
       );
     }
-
-    const { messages, context } = await request.json();
 
     // ─── Input Validation ───
     if (!messages || !Array.isArray(messages)) {
