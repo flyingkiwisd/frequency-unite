@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import {
   Map,
   CheckCircle2,
@@ -16,6 +16,11 @@ import {
   BarChart3,
   Save,
   Target,
+  Clock,
+  MessageCircle,
+  Sparkles,
+  Users,
+  TrendingUp,
 } from 'lucide-react';
 import { useFrequencyData } from '@/lib/supabase/DataProvider';
 
@@ -24,6 +29,19 @@ import { useFrequencyData } from '@/lib/supabase/DataProvider';
 interface RoadmapProgress {
   completedMilestones: Record<string, boolean[]>;
   notes: Record<string, string>;
+}
+
+interface ContributorAvatar {
+  initials: string;
+  color: string;
+  name: string;
+}
+
+interface SuccessMetric {
+  label: string;
+  current: number;
+  target: number;
+  unit: string;
 }
 
 // ─── Constants ───
@@ -48,7 +66,7 @@ const statusStyles: Record<
     dotBg: '#d4a574',
     dotBorder: 'rgba(212, 165, 116, 0.4)',
     glow: '0 0 20px rgba(212, 165, 116, 0.5)',
-    cardBg: 'rgba(212, 165, 116, 0.05)',
+    cardBg: 'rgba(19, 23, 32, 0.8)',
     cardBorder: 'rgba(212, 165, 116, 0.25)',
     cardGlow:
       '0 0 40px rgba(212, 165, 116, 0.08), inset 0 0 40px rgba(212, 165, 116, 0.02)',
@@ -60,7 +78,7 @@ const statusStyles: Record<
     dotBg: '#8b5cf6',
     dotBorder: 'rgba(139, 92, 246, 0.3)',
     glow: '0 0 12px rgba(139, 92, 246, 0.3)',
-    cardBg: 'rgba(139, 92, 246, 0.03)',
+    cardBg: 'rgba(19, 23, 32, 0.8)',
     cardBorder: 'rgba(139, 92, 246, 0.15)',
     cardGlow: 'none',
     label: 'Upcoming',
@@ -71,7 +89,7 @@ const statusStyles: Record<
     dotBg: '#3e4a5e',
     dotBorder: '#2e3a4e',
     glow: 'none',
-    cardBg: '#131720',
+    cardBg: 'rgba(19, 23, 32, 0.8)',
     cardBorder: '#1e2638',
     cardGlow: 'none',
     label: 'Planned',
@@ -95,6 +113,104 @@ const phaseDependencies: Record<string, string> = {
   'phase-4': 'Depends on: Bioregion pilot results, community feedback',
   'phase-5': 'Depends on: All prior phases, sustainable revenue model',
 };
+
+// Contributor avatars per milestone [phaseId][milestoneIdx]
+const milestoneContributors: Record<string, ContributorAvatar[][]> = {
+  'phase-1': [
+    [{ initials: 'JH', color: '#d4a574', name: 'James H.' }, { initials: 'KM', color: '#8b5cf6', name: 'Kaitlin M.' }],
+    [{ initials: 'KM', color: '#8b5cf6', name: 'Kaitlin M.' }],
+    [{ initials: 'JH', color: '#d4a574', name: 'James H.' }, { initials: 'TC', color: '#6b8f71', name: 'Team Council' }],
+    [{ initials: 'TC', color: '#6b8f71', name: 'Team Council' }],
+    [{ initials: 'JH', color: '#d4a574', name: 'James H.' }, { initials: 'NS', color: '#60a5fa', name: 'Node Stewards' }],
+  ],
+  'phase-2': [
+    [{ initials: 'JH', color: '#d4a574', name: 'James H.' }, { initials: 'EP', color: '#f472b6', name: 'Events Pod' }],
+    [{ initials: 'NS', color: '#60a5fa', name: 'Node Stewards' }],
+    [{ initials: 'TC', color: '#6b8f71', name: 'Team Council' }],
+    [{ initials: 'KM', color: '#8b5cf6', name: 'Kaitlin M.' }],
+    [{ initials: 'JH', color: '#d4a574', name: 'James H.' }],
+  ],
+  'phase-3': [
+    [{ initials: 'TC', color: '#6b8f71', name: 'Team Council' }],
+    [{ initials: 'JH', color: '#d4a574', name: 'James H.' }, { initials: 'KM', color: '#8b5cf6', name: 'Kaitlin M.' }],
+    [{ initials: 'NS', color: '#60a5fa', name: 'Node Stewards' }],
+    [{ initials: 'EP', color: '#f472b6', name: 'Events Pod' }],
+    [{ initials: 'JH', color: '#d4a574', name: 'James H.' }],
+  ],
+  'phase-4': [
+    [{ initials: 'NS', color: '#60a5fa', name: 'Node Stewards' }],
+    [{ initials: 'TC', color: '#6b8f71', name: 'Team Council' }],
+    [{ initials: 'KM', color: '#8b5cf6', name: 'Kaitlin M.' }],
+    [{ initials: 'JH', color: '#d4a574', name: 'James H.' }],
+    [{ initials: 'TC', color: '#6b8f71', name: 'Team Council' }],
+  ],
+  'phase-5': [
+    [{ initials: 'TC', color: '#6b8f71', name: 'Team Council' }],
+    [{ initials: 'NS', color: '#60a5fa', name: 'Node Stewards' }],
+    [{ initials: 'JH', color: '#d4a574', name: 'James H.' }],
+    [{ initials: 'TC', color: '#6b8f71', name: 'Team Council' }],
+    [{ initials: 'EP', color: '#f472b6', name: 'Events Pod' }],
+  ],
+};
+
+// Risk level per milestone: 0=none, 1=low, 2=medium, 3=high
+const milestoneRiskLevels: Record<string, number[]> = {
+  'phase-1': [1, 2, 1, 0, 1],
+  'phase-2': [2, 1, 1, 3, 2],
+  'phase-3': [1, 2, 2, 2, 3],
+  'phase-4': [2, 1, 2, 3, 1],
+  'phase-5': [2, 2, 3, 2, 1],
+};
+
+// Success metrics per phase
+const phaseSuccessMetrics: Record<string, SuccessMetric[]> = {
+  'phase-1': [
+    { label: 'Well-Stewards', current: 52, target: 65, unit: '' },
+    { label: 'Monthly Burn', current: 24, target: 25, unit: 'K' },
+    { label: 'DAF Progress', current: 35, target: 100, unit: '%' },
+  ],
+  'phase-2': [
+    { label: 'BS 6.0 Tickets', current: 0, target: 150, unit: '' },
+    { label: 'Active Nodes', current: 3, target: 6, unit: '' },
+    { label: 'Well-Stewards', current: 52, target: 100, unit: '' },
+  ],
+  'phase-3': [
+    { label: 'Well-Stewards', current: 52, target: 144, unit: '' },
+    { label: '2026 Revenue', current: 280, target: 2000, unit: 'K' },
+    { label: 'Map Node', current: 15, target: 100, unit: '%' },
+  ],
+  'phase-4': [
+    { label: 'Bioregion Sites', current: 1, target: 2, unit: '' },
+    { label: 'Funded Projects', current: 2, target: 5, unit: '' },
+    { label: 'Self-Org Score', current: 40, target: 80, unit: '%' },
+  ],
+  'phase-5': [
+    { label: 'Global Stewards', current: 52, target: 200, unit: '' },
+    { label: 'Active Bioregions', current: 1, target: 4, unit: '' },
+    { label: 'Policy Impact', current: 5, target: 100, unit: '%' },
+  ],
+};
+
+// Discussion/comment counts per phase
+const phaseCommentCounts: Record<string, number> = {
+  'phase-1': 12,
+  'phase-2': 5,
+  'phase-3': 3,
+  'phase-4': 1,
+  'phase-5': 0,
+};
+
+// Planned vs actual timeline data (percent through phase)
+const phaseActualProgress: Record<string, { planned: number; actual: number }> = {
+  'phase-1': { planned: 42, actual: 35 },
+  'phase-2': { planned: 0, actual: 0 },
+  'phase-3': { planned: 0, actual: 0 },
+  'phase-4': { planned: 0, actual: 0 },
+  'phase-5': { planned: 0, actual: 0 },
+};
+
+const riskColors = ['transparent', '#d4a574', '#f59e0b', '#ef4444'];
+const riskLabels = ['', 'Low Risk', 'Medium Risk', 'High Risk'];
 
 // Parse timeline strings to date ranges for "You are here" indicator
 const phaseTimelineRanges: Record<string, { start: Date; end: Date }> = {
@@ -168,6 +284,87 @@ function getActivePhaseIndex(roadmapPhases: { status: string }[]): number {
   return roadmapPhases.findIndex((p) => p.status === 'upcoming');
 }
 
+function getDaysRemaining(phaseId: string): number | null {
+  const range = phaseTimelineRanges[phaseId];
+  if (!range) return null;
+  const now = new Date();
+  if (now < range.start || now > range.end) return null;
+  const diff = range.end.getTime() - now.getTime();
+  return Math.ceil(diff / (1000 * 60 * 60 * 24));
+}
+
+function getNoteWordCount(note: string): number {
+  if (!note || !note.trim()) return 0;
+  return note.trim().split(/\s+/).length;
+}
+
+// ─── Sparkle Particle Component ───
+function SparkleEffect({ active }: { active: boolean }) {
+  if (!active) return null;
+  const particles = Array.from({ length: 8 }, (_, i) => {
+    const angle = (i / 8) * 360;
+    const rad = (angle * Math.PI) / 180;
+    const dx = Math.cos(rad) * 20;
+    const dy = Math.sin(rad) * 20;
+    return (
+      <div
+        key={i}
+        style={{
+          position: 'absolute',
+          width: 4,
+          height: 4,
+          borderRadius: '50%',
+          backgroundColor: i % 2 === 0 ? '#d4a574' : '#6b8f71',
+          top: '50%',
+          left: '50%',
+          transform: 'translate(-50%, -50%)',
+          animation: `sparkleParticle 0.6s ease-out forwards`,
+          animationDelay: `${i * 0.03}s`,
+          ['--dx' as string]: `${dx}px`,
+          ['--dy' as string]: `${dy}px`,
+          opacity: 0,
+        }}
+      />
+    );
+  });
+  return (
+    <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none', zIndex: 10 }}>
+      {particles}
+    </div>
+  );
+}
+
+// ─── Animated Counter Hook ───
+function useAnimatedCounter(target: number, duration: number = 1200): number {
+  const [count, setCount] = useState(0);
+  const prevTarget = useRef(0);
+
+  useEffect(() => {
+    const start = prevTarget.current;
+    prevTarget.current = target;
+    if (start === target) {
+      setCount(target);
+      return;
+    }
+    const startTime = performance.now();
+    let rafId: number;
+    const animate = (now: number) => {
+      const elapsed = now - startTime;
+      const progress = Math.min(elapsed / duration, 1);
+      // easeOutCubic
+      const eased = 1 - Math.pow(1 - progress, 3);
+      setCount(Math.round(start + (target - start) * eased));
+      if (progress < 1) {
+        rafId = requestAnimationFrame(animate);
+      }
+    };
+    rafId = requestAnimationFrame(animate);
+    return () => cancelAnimationFrame(rafId);
+  }, [target, duration]);
+
+  return count;
+}
+
 // ─── Component ───
 
 export function RoadmapView() {
@@ -181,6 +378,13 @@ export function RoadmapView() {
   );
   const [mounted, setMounted] = useState(false);
   const [visibleCards, setVisibleCards] = useState<Record<number, boolean>>({});
+  const [visibleMilestones, setVisibleMilestones] = useState<Record<string, Record<number, boolean>>>({});
+  const [progressAnimated, setProgressAnimated] = useState(false);
+  const [hoveredCard, setHoveredCard] = useState<number | null>(null);
+  const [recentlyToggled, setRecentlyToggled] = useState<string | null>(null);
+  const [celebratingMilestone, setCelebratingMilestone] = useState<string | null>(null);
+  const [expandedMetrics, setExpandedMetrics] = useState<Record<string, boolean>>({});
+  const phaseCardRefs = useRef<Record<string, HTMLDivElement | null>>({});
 
   // Load from localStorage on mount
   useEffect(() => {
@@ -188,13 +392,32 @@ export function RoadmapView() {
     setMounted(true);
   }, []);
 
-  // Cascading reveal animation
+  // Cascading reveal animation for cards (left to right feel)
   useEffect(() => {
     if (!mounted) return;
     roadmapPhases.forEach((_, idx) => {
       setTimeout(() => {
         setVisibleCards((prev) => ({ ...prev, [idx]: true }));
-      }, 150 * idx);
+      }, 200 * idx);
+    });
+    // Trigger progress bar animation after cards appear
+    setTimeout(() => {
+      setProgressAnimated(true);
+    }, 300);
+  }, [mounted, roadmapPhases]);
+
+  // Staggered milestone reveal
+  useEffect(() => {
+    if (!mounted) return;
+    roadmapPhases.forEach((phase, phaseIdx) => {
+      phase.milestones.forEach((_, mIdx) => {
+        setTimeout(() => {
+          setVisibleMilestones((prev) => ({
+            ...prev,
+            [phase.id]: { ...(prev[phase.id] || {}), [mIdx]: true },
+          }));
+        }, 200 * phaseIdx + 80 * mIdx + 400);
+      });
     });
   }, [mounted, roadmapPhases]);
 
@@ -209,6 +432,15 @@ export function RoadmapView() {
 
   const toggleMilestone = useCallback(
     (phaseId: string, milestoneIdx: number, totalMilestones: number) => {
+      const wasCompleted = progress.completedMilestones[phaseId]?.[milestoneIdx] ?? false;
+      const willBeCompleted = !wasCompleted;
+      setRecentlyToggled(`${phaseId}-${milestoneIdx}`);
+      setTimeout(() => setRecentlyToggled(null), 600);
+      // Trigger sparkle celebration when marking complete
+      if (willBeCompleted) {
+        setCelebratingMilestone(`${phaseId}-${milestoneIdx}`);
+        setTimeout(() => setCelebratingMilestone(null), 700);
+      }
       updateProgress((prev) => {
         const phaseMilestones = prev.completedMilestones[phaseId]
           ? [...prev.completedMilestones[phaseId]]
@@ -223,8 +455,12 @@ export function RoadmapView() {
         };
       });
     },
-    [updateProgress],
+    [updateProgress, progress.completedMilestones],
   );
+
+  const toggleMetrics = useCallback((phaseId: string) => {
+    setExpandedMetrics((prev) => ({ ...prev, [phaseId]: !prev[phaseId] }));
+  }, []);
 
   const updateNote = useCallback(
     (phaseId: string, note: string) => {
@@ -256,6 +492,14 @@ export function RoadmapView() {
 
   const currentPhaseId = useMemo(() => getCurrentPhaseId(), []);
   const activePhaseIndex = useMemo(() => getActivePhaseIndex(roadmapPhases), [roadmapPhases]);
+
+  // Animated counters
+  const animatedOverallPercent = useAnimatedCounter(
+    overallStats.totalMilestones > 0
+      ? Math.round((overallStats.totalCompleted / overallStats.totalMilestones) * 100)
+      : 0,
+    1400,
+  );
 
   // Avoid hydration mismatch: show non-interactive state until mounted
   if (!mounted) {
@@ -323,7 +567,7 @@ export function RoadmapView() {
   return (
     <div style={{ padding: 'clamp(16px, 4vw, 40px)', maxWidth: 'min(1000px, 90vw)', margin: '0 auto' }}>
       {/* Header */}
-      <div style={{ marginBottom: 24 }}>
+      <div className="noise-overlay dot-pattern" style={{ marginBottom: 24 }}>
         <div
           style={{
             display: 'flex',
@@ -332,62 +576,98 @@ export function RoadmapView() {
             marginBottom: 8,
           }}
         >
-          <Map size={28} style={{ color: '#d4a574' }} />
-          <h1
+          <div
             style={{
-              fontSize: 28,
-              fontWeight: 700,
-              color: '#f0ebe4',
-              margin: 0,
-              letterSpacing: '-0.01em',
+              width: 44,
+              height: 44,
+              borderRadius: 12,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              background: 'linear-gradient(135deg, rgba(212, 165, 116, 0.2), rgba(139, 92, 246, 0.2))',
+              border: '1px solid rgba(212, 165, 116, 0.15)',
+              animation: 'headerIconGlow 4s ease-in-out infinite',
             }}
           >
-            Strategic Roadmap
-          </h1>
+            <Map size={24} style={{ color: '#d4a574' }} />
+          </div>
+          <div>
+            <h1
+              className="text-glow"
+              style={{
+                fontSize: 28,
+                fontWeight: 700,
+                color: '#f0ebe4',
+                margin: 0,
+                letterSpacing: '-0.01em',
+              }}
+            >
+              Strategic Roadmap
+            </h1>
+            <p
+              style={{
+                fontSize: 14,
+                color: '#a09888',
+                margin: '2px 0 0 0',
+                fontStyle: 'italic',
+                lineHeight: 1.6,
+              }}
+            >
+              Envision, fund, and implement the world we want to leave to our
+              children
+            </p>
+          </div>
         </div>
-        <p
-          style={{
-            fontSize: 15,
-            color: '#a09888',
-            margin: '0 0 0 40px',
-            fontStyle: 'italic',
-            lineHeight: 1.6,
-          }}
-        >
-          Envision, fund, and implement the world we want to leave to our
-          children
-        </p>
       </div>
 
-      {/* Compact Progress Summary */}
+      {/* Compact Progress Summary - Glassmorphism */}
       <div
+        className="card-premium noise-overlay"
         style={{
-          backgroundColor: '#131720',
-          border: '1px solid #1e2638',
-          borderRadius: 14,
-          padding: '18px 24px',
+          backgroundColor: 'rgba(19, 23, 32, 0.8)',
+          backdropFilter: 'blur(20px)',
+          WebkitBackdropFilter: 'blur(20px)',
+          border: '1px solid rgba(255, 255, 255, 0.06)',
+          borderRadius: 16,
+          padding: '20px 24px',
           marginBottom: 28,
           display: 'flex',
           alignItems: 'center',
           gap: 20,
+          position: 'relative',
+          overflow: 'hidden',
         }}
       >
+        {/* Subtle background gradient shimmer */}
         <div
           style={{
-            width: 44,
-            height: 44,
-            borderRadius: 12,
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: 'linear-gradient(135deg, rgba(212, 165, 116, 0.03) 0%, transparent 50%, rgba(139, 92, 246, 0.03) 100%)',
+            pointerEvents: 'none',
+          }}
+        />
+        <div
+          style={{
+            width: 48,
+            height: 48,
+            borderRadius: 14,
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
             background: 'linear-gradient(135deg, rgba(212, 165, 116, 0.15), rgba(139, 92, 246, 0.15))',
             border: '1px solid rgba(212, 165, 116, 0.2)',
             flexShrink: 0,
+            position: 'relative',
+            zIndex: 1,
           }}
         >
-          <Target size={20} style={{ color: '#d4a574' }} />
+          <Target size={22} style={{ color: '#d4a574' }} />
         </div>
-        <div style={{ flex: 1 }}>
+        <div style={{ flex: 1, position: 'relative', zIndex: 1 }}>
           <div
             style={{
               display: 'flex',
@@ -407,14 +687,16 @@ export function RoadmapView() {
                   fontSize: 11,
                   fontWeight: 600,
                   color: '#d4a574',
-                  backgroundColor: 'rgba(212, 165, 116, 0.12)',
-                  padding: '3px 10px',
+                  background: 'linear-gradient(135deg, rgba(212, 165, 116, 0.15), rgba(212, 165, 116, 0.08))',
+                  padding: '4px 12px',
                   borderRadius: 10,
                   textTransform: 'uppercase',
                   letterSpacing: '0.06em',
+                  border: '1px solid rgba(212, 165, 116, 0.12)',
+                  animation: overallPercent === 100 ? 'celebrationGlow 2s ease-in-out infinite' : 'none',
                 }}
               >
-                {overallPercent}% complete
+                {animatedOverallPercent}% complete
               </span>
             </div>
             <span style={{ fontSize: 13, fontWeight: 600, color: '#a09888' }}>
@@ -434,12 +716,13 @@ export function RoadmapView() {
             <div
               style={{
                 height: '100%',
-                width: `${overallPercent}%`,
+                width: progressAnimated ? `${overallPercent}%` : '0%',
                 background:
                   'linear-gradient(90deg, #d4a574, #8b5cf6)',
                 borderRadius: 4,
-                transition: 'width 0.6s cubic-bezier(0.4, 0, 0.2, 1)',
+                transition: 'width 1.2s cubic-bezier(0.4, 0, 0.2, 1)',
                 position: 'relative',
+                boxShadow: overallPercent === 100 ? '0 0 20px rgba(107, 143, 113, 0.5)' : '0 0 12px rgba(212, 165, 116, 0.3)',
               }}
             >
               {/* Shimmer effect on the progress bar */}
@@ -450,13 +733,13 @@ export function RoadmapView() {
                   left: 0,
                   right: 0,
                   bottom: 0,
-                  background: 'linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent)',
+                  background: 'linear-gradient(90deg, transparent, rgba(255,255,255,0.25), transparent)',
                   animation: 'shimmer 2s infinite',
                 }}
               />
             </div>
           </div>
-          {/* Phase mini indicators */}
+          {/* Phase mini indicators with sliding active marker */}
           <div style={{ display: 'flex', gap: 6, marginTop: 10 }}>
             {roadmapPhases.map((phase, idx) => {
               const pPercent = getPhaseProgressPercent(
@@ -465,6 +748,7 @@ export function RoadmapView() {
                 progress.completedMilestones,
               );
               const accentColor = colorMap[phase.color] ?? '#a09888';
+              const isActivePhase = idx === activePhaseIndex;
               return (
                 <div
                   key={phase.id}
@@ -473,9 +757,23 @@ export function RoadmapView() {
                     display: 'flex',
                     flexDirection: 'column',
                     alignItems: 'center',
-                    gap: 3,
+                    gap: 4,
+                    position: 'relative',
                   }}
                 >
+                  {/* Mini progress dot */}
+                  <div
+                    style={{
+                      width: isActivePhase ? 10 : 7,
+                      height: isActivePhase ? 10 : 7,
+                      borderRadius: '50%',
+                      backgroundColor: pPercent === 100 ? '#6b8f71' : pPercent > 0 ? accentColor : 'rgba(255,255,255,0.1)',
+                      border: isActivePhase ? `2px solid ${accentColor}` : '1px solid rgba(255,255,255,0.06)',
+                      transition: 'all 0.4s ease',
+                      boxShadow: isActivePhase ? `0 0 8px ${accentColor}66` : 'none',
+                      animation: isActivePhase ? 'phaseNodePulse 2.5s ease-in-out infinite' : 'none',
+                    }}
+                  />
                   <div
                     style={{
                       height: 3,
@@ -488,24 +786,286 @@ export function RoadmapView() {
                     <div
                       style={{
                         height: '100%',
-                        width: `${pPercent}%`,
-                        backgroundColor: accentColor,
+                        width: progressAnimated ? `${pPercent}%` : '0%',
+                        backgroundColor: pPercent === 100 ? '#6b8f71' : accentColor,
                         borderRadius: 2,
-                        transition: 'width 0.4s ease',
+                        transition: `width 1s cubic-bezier(0.4, 0, 0.2, 1) ${idx * 0.15}s`,
                       }}
                     />
                   </div>
                   <span
                     style={{
                       fontSize: 9,
-                      fontWeight: idx === activePhaseIndex ? 700 : 500,
-                      color: idx === activePhaseIndex ? accentColor : '#6b6358',
+                      fontWeight: isActivePhase ? 700 : 500,
+                      color: isActivePhase ? accentColor : '#6b6358',
                       textTransform: 'uppercase',
                       letterSpacing: '0.04em',
+                      transition: 'color 0.3s ease',
                     }}
                   >
                     P{idx + 1}
                   </span>
+                  {/* Active phase sliding underline */}
+                  {isActivePhase && (
+                    <div
+                      style={{
+                        position: 'absolute',
+                        bottom: -2,
+                        left: '20%',
+                        right: '20%',
+                        height: 2,
+                        backgroundColor: accentColor,
+                        borderRadius: 1,
+                        animation: 'slideIn 0.5s ease-out',
+                      }}
+                    />
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+
+      {/* ── Horizontal Phase Timeline ── */}
+      <div
+        className="card-premium"
+        style={{
+          backgroundColor: 'rgba(19, 23, 32, 0.6)',
+          backdropFilter: 'blur(12px)',
+          WebkitBackdropFilter: 'blur(12px)',
+          border: '1px solid rgba(255, 255, 255, 0.04)',
+          borderRadius: 16,
+          padding: '24px 28px 20px',
+          marginBottom: 28,
+          position: 'relative',
+          overflow: 'hidden',
+        }}
+      >
+        {/* Background shimmer */}
+        <div style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, background: 'linear-gradient(135deg, rgba(212, 165, 116, 0.02) 0%, transparent 40%, rgba(139, 92, 246, 0.02) 100%)', pointerEvents: 'none' }} />
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 16, position: 'relative', zIndex: 1 }}>
+          <MapPin size={14} style={{ color: '#d4a574' }} />
+          <span style={{ fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#6b6358' }}>Phase Timeline</span>
+        </div>
+
+        <div style={{ position: 'relative', padding: '0 20px', zIndex: 1 }}>
+          {/* Connecting line - base track */}
+          <div style={{
+            position: 'absolute',
+            top: 16,
+            left: 40,
+            right: 40,
+            height: 3,
+            background: 'linear-gradient(90deg, rgba(212, 165, 116, 0.15), rgba(139, 92, 246, 0.15), rgba(107, 143, 113, 0.1), rgba(96, 165, 250, 0.08))',
+            borderRadius: 2,
+          }} />
+
+          {/* Gradient fill that grows as phases complete */}
+          <div style={{
+            position: 'absolute',
+            top: 16,
+            left: 40,
+            width: progressAnimated
+              ? `${Math.max(0, ((activePhaseIndex + (overallPercent > 0 ? 0.5 : 0)) / Math.max(roadmapPhases.length - 1, 1)) * (100 - 10))}%`
+              : '0%',
+            height: 3,
+            background: 'linear-gradient(90deg, #d4a574, #8b5cf6, #6b8f71)',
+            borderRadius: 2,
+            transition: 'width 2s cubic-bezier(0.23, 1, 0.32, 1)',
+            boxShadow: '0 0 10px rgba(212, 165, 116, 0.4), 0 0 20px rgba(139, 92, 246, 0.2)',
+          }}>
+            {/* Animated leading edge particle */}
+            <div style={{
+              position: 'absolute',
+              right: -2,
+              top: -2,
+              width: 7,
+              height: 7,
+              borderRadius: '50%',
+              backgroundColor: '#d4a574',
+              boxShadow: '0 0 8px rgba(212, 165, 116, 0.8)',
+              animation: 'pulseCore 2s ease-in-out infinite',
+            }} />
+          </div>
+
+          {/* SVG Dependency arrows between phase dots */}
+          <svg style={{
+            position: 'absolute',
+            top: 0,
+            left: 40,
+            right: 40,
+            height: 34,
+            pointerEvents: 'none',
+            overflow: 'visible',
+          }}>
+            <defs>
+              <marker id="depArrowHead" markerWidth="6" markerHeight="4" refX="5" refY="2" orient="auto">
+                <path d="M0,0 L6,2 L0,4" fill="rgba(212, 165, 116, 0.3)" />
+              </marker>
+            </defs>
+            {roadmapPhases.slice(0, -1).map((_, idx) => {
+              const segW = 100 / (roadmapPhases.length - 1);
+              const x1 = segW * idx + 3;
+              const x2 = segW * (idx + 1) - 3;
+              const isPastConnection = idx < activePhaseIndex;
+              return (
+                <line
+                  key={`dep-${idx}`}
+                  x1={`${x1}%`}
+                  y1="17"
+                  x2={`${x2}%`}
+                  y2="17"
+                  stroke={isPastConnection ? 'rgba(107, 143, 113, 0.25)' : 'rgba(212, 165, 116, 0.15)'}
+                  strokeWidth="1"
+                  strokeDasharray={isPastConnection ? 'none' : '4 3'}
+                  markerEnd="url(#depArrowHead)"
+                  style={{
+                    animation: isPastConnection ? 'none' : `depArrowFlow 3s linear infinite ${idx * 0.5}s`,
+                  }}
+                />
+              );
+            })}
+          </svg>
+
+          {/* Phase markers */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', position: 'relative' }}>
+            {roadmapPhases.map((phase, idx) => {
+              const accentColor = colorMap[phase.color] ?? '#a09888';
+              const isActivePhase = idx === activePhaseIndex;
+              const isPast = idx < activePhaseIndex;
+              const pPercent = getPhaseProgressPercent(phase.id, phase.milestones.length, progress.completedMilestones);
+              const isComplete = pPercent === 100;
+
+              return (
+                <div key={phase.id} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8, flex: 1, minWidth: 0 }}>
+                  {/* Dot marker */}
+                  <div style={{
+                    width: isActivePhase ? 32 : 24,
+                    height: isActivePhase ? 32 : 24,
+                    borderRadius: '50%',
+                    backgroundColor: isComplete ? '#6b8f71' : isActivePhase ? accentColor : isPast ? `${accentColor}aa` : 'rgba(62, 74, 94, 0.5)',
+                    border: isActivePhase ? `3px solid ${accentColor}40` : isComplete ? '2px solid rgba(107, 143, 113, 0.4)' : '2px solid rgba(62, 74, 94, 0.3)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    position: 'relative',
+                    transition: 'all 0.4s cubic-bezier(0.23, 1, 0.32, 1)',
+                    boxShadow: isActivePhase
+                      ? `0 0 20px ${accentColor}50, 0 0 40px ${accentColor}20`
+                      : isComplete
+                        ? '0 0 12px rgba(107, 143, 113, 0.3)'
+                        : 'none',
+                    animation: isActivePhase ? 'phaseNodePulse 2.5s ease-in-out infinite' : 'none',
+                  }}>
+                    {isComplete ? (
+                      <CheckCircle2 size={isActivePhase ? 14 : 12} style={{ color: '#fff' }} />
+                    ) : isActivePhase ? (
+                      <Zap size={14} style={{ color: '#fff' }} fill="#fff" />
+                    ) : (
+                      <span style={{ fontSize: 10, fontWeight: 700, color: isPast ? '#fff' : '#6b6358' }}>{idx + 1}</span>
+                    )}
+                    {/* Active pulse ring */}
+                    {isActivePhase && (
+                      <div style={{
+                        position: 'absolute',
+                        inset: -6,
+                        borderRadius: '50%',
+                        border: `2px solid ${accentColor}30`,
+                        animation: 'pulseRing 2.5s ease-in-out infinite',
+                      }} />
+                    )}
+                  </div>
+
+                  {/* Phase label */}
+                  <div style={{ textAlign: 'center', minWidth: 0, maxWidth: '100%' }}>
+                    <div style={{
+                      fontSize: 11,
+                      fontWeight: isActivePhase ? 700 : 500,
+                      color: isActivePhase ? '#f0ebe4' : isPast || isComplete ? '#a09888' : '#6b6358',
+                      whiteSpace: 'nowrap',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      transition: 'color 0.3s',
+                    }}>
+                      {phase.name.replace(/^Phase \d+:\s*/, '').split(' ').slice(0, 2).join(' ')}
+                    </div>
+                    <div style={{
+                      fontSize: 9,
+                      color: isActivePhase ? accentColor : '#6b6358',
+                      fontWeight: 500,
+                      marginTop: 2,
+                    }}>
+                      {phase.timeline}
+                    </div>
+                    {isActivePhase && (
+                      <div style={{
+                        fontSize: 8,
+                        fontWeight: 700,
+                        color: '#d4a574',
+                        textTransform: 'uppercase',
+                        letterSpacing: '0.1em',
+                        marginTop: 4,
+                        backgroundColor: 'rgba(212, 165, 116, 0.12)',
+                        border: '1px solid rgba(212, 165, 116, 0.15)',
+                        borderRadius: 8,
+                        padding: '2px 8px',
+                        display: 'inline-block',
+                      }}>
+                        Current
+                      </div>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Planned vs Actual Timeline Comparison */}
+        <div style={{ marginTop: 20, position: 'relative', zIndex: 1 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 10 }}>
+            <TrendingUp size={12} style={{ color: '#a09888' }} />
+            <span style={{ fontSize: 10, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#6b6358' }}>Planned vs Actual</span>
+            <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 12 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                <div style={{ width: 8, height: 3, borderRadius: 1, backgroundColor: 'rgba(139, 92, 246, 0.6)' }} />
+                <span style={{ fontSize: 9, color: '#6b6358' }}>Planned</span>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                <div style={{ width: 8, height: 3, borderRadius: 1, backgroundColor: '#d4a574' }} />
+                <span style={{ fontSize: 9, color: '#6b6358' }}>Actual</span>
+              </div>
+            </div>
+          </div>
+          <div style={{ display: 'flex', gap: 4 }}>
+            {roadmapPhases.map((phase) => {
+              const ap = phaseActualProgress[phase.id] ?? { planned: 0, actual: 0 };
+              const isAhead = ap.actual >= ap.planned;
+              return (
+                <div key={phase.id} style={{ flex: 1 }}>
+                  {/* Planned bar */}
+                  <div style={{ height: 4, backgroundColor: 'rgba(255,255,255,0.04)', borderRadius: 2, marginBottom: 2, overflow: 'hidden' }}>
+                    <div style={{
+                      height: '100%',
+                      width: progressAnimated ? `${ap.planned}%` : '0%',
+                      backgroundColor: 'rgba(139, 92, 246, 0.4)',
+                      borderRadius: 2,
+                      transition: 'width 1.5s cubic-bezier(0.23, 1, 0.32, 1)',
+                    }} />
+                  </div>
+                  {/* Actual bar */}
+                  <div style={{ height: 4, backgroundColor: 'rgba(255,255,255,0.04)', borderRadius: 2, overflow: 'hidden' }}>
+                    <div style={{
+                      height: '100%',
+                      width: progressAnimated ? `${ap.actual}%` : '0%',
+                      backgroundColor: isAhead ? '#6b8f71' : '#d4a574',
+                      borderRadius: 2,
+                      transition: 'width 1.5s cubic-bezier(0.23, 1, 0.32, 1)',
+                      boxShadow: ap.actual > 0 ? `0 0 4px ${isAhead ? 'rgba(107, 143, 113, 0.4)' : 'rgba(212, 165, 116, 0.4)'}` : 'none',
+                    }} />
+                  </div>
                 </div>
               );
             })}
@@ -515,7 +1075,7 @@ export function RoadmapView() {
 
       {/* Phase Cards with SVG Timeline */}
       <div style={{ position: 'relative' }}>
-        {/* SVG Vertical Timeline */}
+        {/* SVG Vertical Timeline with animated gradient */}
         <svg
           style={{
             position: 'absolute',
@@ -528,11 +1088,23 @@ export function RoadmapView() {
         >
           <defs>
             <linearGradient id="timelineGrad" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="rgba(212, 165, 116, 0.5)" />
-              <stop offset="30%" stopColor="rgba(139, 92, 246, 0.4)" />
-              <stop offset="60%" stopColor="rgba(107, 143, 113, 0.3)" />
-              <stop offset="80%" stopColor="rgba(96, 165, 250, 0.2)" />
-              <stop offset="100%" stopColor="rgba(244, 114, 182, 0.1)" />
+              <stop offset="0%" stopColor="rgba(212, 165, 116, 0.6)">
+                <animate attributeName="stopColor" values="rgba(212,165,116,0.6);rgba(139,92,246,0.6);rgba(212,165,116,0.6)" dur="6s" repeatCount="indefinite" />
+              </stop>
+              <stop offset="35%" stopColor="rgba(139, 92, 246, 0.5)">
+                <animate attributeName="stopColor" values="rgba(139,92,246,0.5);rgba(107,143,113,0.5);rgba(139,92,246,0.5)" dur="6s" repeatCount="indefinite" />
+              </stop>
+              <stop offset="65%" stopColor="rgba(107, 143, 113, 0.4)">
+                <animate attributeName="stopColor" values="rgba(107,143,113,0.4);rgba(212,165,116,0.4);rgba(107,143,113,0.4)" dur="6s" repeatCount="indefinite" />
+              </stop>
+              <stop offset="100%" stopColor="rgba(96, 165, 250, 0.2)">
+                <animate attributeName="stopColor" values="rgba(96,165,250,0.2);rgba(244,114,182,0.2);rgba(96,165,250,0.2)" dur="6s" repeatCount="indefinite" />
+              </stop>
+            </linearGradient>
+            <linearGradient id="timelineGlowGrad" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="rgba(212, 165, 116, 0.15)" />
+              <stop offset="50%" stopColor="rgba(139, 92, 246, 0.1)" />
+              <stop offset="100%" stopColor="rgba(107, 143, 113, 0.05)" />
             </linearGradient>
             <filter id="glowFilter">
               <feGaussianBlur stdDeviation="3" result="blur" />
@@ -541,7 +1113,27 @@ export function RoadmapView() {
                 <feMergeNode in="SourceGraphic" />
               </feMerge>
             </filter>
+            <filter id="strongGlow">
+              <feGaussianBlur stdDeviation="5" result="blur" />
+              <feMerge>
+                <feMergeNode in="blur" />
+                <feMergeNode in="blur" />
+                <feMergeNode in="SourceGraphic" />
+              </feMerge>
+            </filter>
           </defs>
+          {/* Glow behind the timeline line */}
+          <line
+            x1="25"
+            y1="0"
+            x2="25"
+            y2="9999"
+            stroke="url(#timelineGlowGrad)"
+            strokeWidth="8"
+            style={{
+              animation: 'timelineDraw 1.5s ease-out forwards',
+            }}
+          />
           {/* Main timeline line */}
           <line
             x1="25"
@@ -551,6 +1143,9 @@ export function RoadmapView() {
             stroke="url(#timelineGrad)"
             strokeWidth="2"
             strokeDasharray="6 4"
+            style={{
+              animation: 'timelineDraw 1.5s ease-out forwards',
+            }}
           />
         </svg>
 
@@ -571,6 +1166,8 @@ export function RoadmapView() {
           const noteExpanded = expandedNotes[phase.id] ?? false;
           const noteText = progress.notes[phase.id] ?? '';
           const isVisible = visibleCards[idx] ?? false;
+          const isHovered = hoveredCard === idx;
+          const isPhaseComplete = phasePercent === 100;
 
           return (
             <div
@@ -580,8 +1177,10 @@ export function RoadmapView() {
                 paddingLeft: 56,
                 marginBottom: idx < roadmapPhases.length - 1 ? 24 : 0,
                 opacity: isVisible ? 1 : 0,
-                transform: isVisible ? 'translateY(0)' : 'translateY(20px)',
-                transition: `opacity 0.5s cubic-bezier(0.4, 0, 0.2, 1), transform 0.5s cubic-bezier(0.4, 0, 0.2, 1)`,
+                transform: isVisible
+                  ? 'translateX(0) translateY(0)'
+                  : 'translateX(-30px) translateY(10px)',
+                transition: `opacity 0.6s cubic-bezier(0.4, 0, 0.2, 1) ${idx * 0.05}s, transform 0.6s cubic-bezier(0.4, 0, 0.2, 1) ${idx * 0.05}s`,
               }}
             >
               {/* SVG Timeline Dot */}
@@ -610,18 +1209,32 @@ export function RoadmapView() {
                     }}
                   />
                 )}
+                {/* Completed phase outer ring */}
+                {isPhaseComplete && !isActive && (
+                  <circle
+                    cx="16"
+                    cy="16"
+                    r="14"
+                    fill="none"
+                    stroke="rgba(107, 143, 113, 0.4)"
+                    strokeWidth="2"
+                    style={{
+                      animation: 'completedRingPulse 3s ease-in-out infinite',
+                    }}
+                  />
+                )}
                 {/* Main dot */}
                 <circle
                   cx={isActive ? 20 : 16}
                   cy={isActive ? 20 : 16}
                   r={isActive ? 12 : 9}
-                  fill={style.dotBg}
-                  stroke={style.dotBorder}
+                  fill={isPhaseComplete ? '#6b8f71' : style.dotBg}
+                  stroke={isPhaseComplete ? 'rgba(107, 143, 113, 0.5)' : style.dotBorder}
                   strokeWidth="3"
-                  filter={isActive ? 'url(#glowFilter)' : undefined}
+                  filter={isActive ? 'url(#strongGlow)' : isPhaseComplete ? 'url(#glowFilter)' : undefined}
                 />
                 {/* Inner dot for active */}
-                {isActive && (
+                {isActive && !isPhaseComplete && (
                   <circle
                     cx="20"
                     cy="20"
@@ -633,21 +1246,23 @@ export function RoadmapView() {
                     }}
                   />
                 )}
-                {/* Checkmark for completed phases - none are completed yet but ready */}
-                {phasePercent === 100 && (
-                  <text
-                    x={isActive ? 20 : 16}
-                    y={isActive ? 25 : 21}
-                    textAnchor="middle"
-                    fill="#fff"
-                    fontSize="14"
-                    fontWeight="bold"
-                  >
-                    &#10003;
-                  </text>
+                {/* Animated checkmark for completed phases */}
+                {isPhaseComplete && (
+                  <g style={{ animation: 'milestoneCheck 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) forwards' }}>
+                    <text
+                      x={isActive ? 20 : 16}
+                      y={isActive ? 25 : 21}
+                      textAnchor="middle"
+                      fill="#fff"
+                      fontSize="14"
+                      fontWeight="bold"
+                    >
+                      &#10003;
+                    </text>
+                  </g>
                 )}
-                {/* Phase number */}
-                {phasePercent < 100 && !isActive && (
+                {/* Phase number for non-active, non-completed */}
+                {!isPhaseComplete && !isActive && (
                   <text
                     x="16"
                     y="20"
@@ -661,7 +1276,7 @@ export function RoadmapView() {
                 )}
               </svg>
 
-              {/* "You are here" marker */}
+              {/* "You are here" marker with glowing dot */}
               {isCurrent && (
                 <div
                   style={{
@@ -682,6 +1297,18 @@ export function RoadmapView() {
                       gap: 0,
                     }}
                   >
+                    {/* Glowing dot above pin */}
+                    <div
+                      style={{
+                        width: 8,
+                        height: 8,
+                        borderRadius: '50%',
+                        backgroundColor: '#d4a574',
+                        boxShadow: '0 0 12px rgba(212, 165, 116, 0.8), 0 0 24px rgba(212, 165, 116, 0.4)',
+                        animation: 'youAreHereGlow 2s ease-in-out infinite',
+                        marginBottom: 2,
+                      }}
+                    />
                     <MapPin
                       size={16}
                       style={{ color: '#d4a574' }}
@@ -695,10 +1322,11 @@ export function RoadmapView() {
                         textTransform: 'uppercase',
                         letterSpacing: '0.08em',
                         whiteSpace: 'nowrap',
-                        backgroundColor: 'rgba(212, 165, 116, 0.15)',
+                        background: 'linear-gradient(135deg, rgba(212, 165, 116, 0.2), rgba(212, 165, 116, 0.1))',
                         padding: '2px 6px',
                         borderRadius: 4,
                         marginTop: 2,
+                        border: '1px solid rgba(212, 165, 116, 0.2)',
                         animation: 'youAreHerePulse 3s ease-in-out infinite',
                       }}
                     >
@@ -728,22 +1356,36 @@ export function RoadmapView() {
                 </div>
               )}
 
-              {/* Phase Card */}
+              {/* Phase Card - Premium Glassmorphism with gradient fill */}
               <div
+                className="roadmap-phase-card card-premium"
+                onMouseEnter={() => setHoveredCard(idx)}
+                onMouseLeave={() => setHoveredCard(null)}
                 style={{
                   backgroundColor: style.cardBg,
-                  border: `1px solid ${style.cardBorder}`,
-                  borderRadius: 16,
+                  backdropFilter: 'blur(20px)',
+                  WebkitBackdropFilter: 'blur(20px)',
+                  border: `1px solid ${isActive && isHovered ? 'rgba(212, 165, 116, 0.45)' : isActive ? 'rgba(212, 165, 116, 0.3)' : isHovered ? 'rgba(255, 255, 255, 0.1)' : style.cardBorder}`,
+                  borderRadius: 18,
                   padding: isActive ? 28 : 24,
                   boxShadow: isActive
-                    ? `${style.cardGlow}, 0 0 0 1px rgba(212, 165, 116, 0.1)`
-                    : style.cardGlow,
-                  transition: 'border-color 0.3s, box-shadow 0.3s, transform 0.2s',
+                    ? isHovered
+                      ? `0 0 60px rgba(212, 165, 116, 0.15), 0 20px 60px rgba(0,0,0,0.3), inset 0 0 60px rgba(212, 165, 116, 0.04), 0 0 0 1px rgba(212, 165, 116, 0.15)`
+                      : `0 0 40px rgba(212, 165, 116, 0.08), inset 0 0 40px rgba(212, 165, 116, 0.02), 0 0 0 1px rgba(212, 165, 116, 0.12)`
+                    : isPhaseComplete
+                      ? isHovered
+                        ? '0 0 40px rgba(107, 143, 113, 0.12), 0 12px 40px rgba(0,0,0,0.3), 0 0 0 1px rgba(107, 143, 113, 0.1)'
+                        : '0 0 20px rgba(107, 143, 113, 0.06), 0 0 0 1px rgba(107, 143, 113, 0.05)'
+                      : isHovered
+                        ? '0 12px 40px rgba(0,0,0,0.3), 0 0 0 1px rgba(255,255,255,0.05)'
+                        : style.cardGlow,
+                  transition: 'border-color 0.3s ease, box-shadow 0.5s ease, transform 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+                  transform: isHovered ? 'translateY(-4px)' : 'translateY(0)',
                   position: 'relative',
                   overflow: 'hidden',
                 }}
               >
-                {/* Active phase top accent line */}
+                {/* Active phase top accent line with animated gradient */}
                 {isActive && (
                   <div
                     style={{
@@ -751,11 +1393,82 @@ export function RoadmapView() {
                       top: 0,
                       left: 0,
                       right: 0,
-                      height: 2,
-                      background: `linear-gradient(90deg, ${accentColor}, transparent)`,
+                      height: 3,
+                      background: `linear-gradient(90deg, ${accentColor}, #8b5cf6, ${accentColor})`,
+                      backgroundSize: '200% 100%',
+                      animation: 'gradientSlide 3s linear infinite',
+                      boxShadow: `0 0 12px ${accentColor}40`,
                     }}
                   />
                 )}
+
+                {/* Phase progress gradient fill (background fills from left based on progress) */}
+                <div
+                  style={{
+                    position: 'absolute',
+                    top: 0,
+                    left: 0,
+                    bottom: 0,
+                    width: `${phasePercent}%`,
+                    background: isPhaseComplete
+                      ? 'linear-gradient(135deg, rgba(107, 143, 113, 0.06) 0%, rgba(107, 143, 113, 0.02) 100%)'
+                      : isActive
+                        ? `linear-gradient(135deg, ${accentColor}0d 0%, ${accentColor}04 100%)`
+                        : `linear-gradient(135deg, ${accentColor}08 0%, transparent 100%)`,
+                    pointerEvents: 'none',
+                    transition: 'width 1s cubic-bezier(0.23, 1, 0.32, 1)',
+                    borderRight: phasePercent > 0 && phasePercent < 100
+                      ? `1px solid ${isPhaseComplete ? 'rgba(107, 143, 113, 0.15)' : `${accentColor}15`}`
+                      : 'none',
+                  }}
+                />
+
+                {/* Celebration glow overlay for 100% complete */}
+                {isPhaseComplete && (
+                  <div
+                    style={{
+                      position: 'absolute',
+                      top: 0,
+                      left: 0,
+                      right: 0,
+                      bottom: 0,
+                      background: 'radial-gradient(ellipse at 50% 0%, rgba(107, 143, 113, 0.08) 0%, transparent 70%)',
+                      pointerEvents: 'none',
+                      animation: 'celebrationPulse 3s ease-in-out infinite',
+                    }}
+                  />
+                )}
+
+                {/* Active phase animated glow border overlay */}
+                {isActive && (
+                  <div
+                    style={{
+                      position: 'absolute',
+                      top: 0,
+                      left: 0,
+                      right: 0,
+                      bottom: 0,
+                      borderRadius: 18,
+                      border: '1px solid transparent',
+                      background: `linear-gradient(135deg, ${accentColor}08, transparent 50%, ${accentColor}04) border-box`,
+                      pointerEvents: 'none',
+                      animation: 'activePhaseGlow 4s ease-in-out infinite',
+                    }}
+                  />
+                )}
+
+                {/* Glassmorphism noise overlay */}
+                <div
+                  style={{
+                    position: 'absolute',
+                    top: 0,
+                    left: 0,
+                    right: 0,
+                    bottom: 0,
+                    background: 'linear-gradient(135deg, rgba(255,255,255,0.02) 0%, transparent 50%, rgba(255,255,255,0.01) 100%)',
+                    pointerEvents: 'none',
+                  }}
+                />
 
                 {/* Card header */}
                 <div
@@ -766,6 +1479,8 @@ export function RoadmapView() {
                     marginBottom: 14,
                     flexWrap: 'wrap',
                     gap: 10,
+                    position: 'relative',
+                    zIndex: 1,
                   }}
                 >
                   <div>
@@ -791,7 +1506,7 @@ export function RoadmapView() {
                       {isActive && (
                         <Zap
                           size={16}
-                          style={{ color: '#d4a574' }}
+                          style={{ color: '#d4a574', animation: 'zapPulse 2s ease-in-out infinite' }}
                           fill="#d4a574"
                         />
                       )}
@@ -817,20 +1532,27 @@ export function RoadmapView() {
                       gap: 6,
                     }}
                   >
-                    {/* Status badge */}
+                    {/* Status badge with animated background */}
                     <span
                       style={{
                         fontSize: 10,
                         fontWeight: 600,
                         textTransform: 'uppercase',
                         letterSpacing: '0.08em',
-                        color: style.labelText,
-                        backgroundColor: style.labelBg,
+                        color: isPhaseComplete ? '#6b8f71' : style.labelText,
+                        background: isActive
+                          ? 'linear-gradient(135deg, rgba(212, 165, 116, 0.2), rgba(212, 165, 116, 0.1))'
+                          : isPhaseComplete
+                            ? 'linear-gradient(135deg, rgba(107, 143, 113, 0.2), rgba(107, 143, 113, 0.1))'
+                            : style.labelBg,
+                        backgroundSize: isActive ? '200% 200%' : 'auto',
+                        animation: isActive ? 'statusBadgeGlow 3s ease-in-out infinite' : 'none',
                         borderRadius: 12,
-                        padding: '3px 12px',
+                        padding: '4px 14px',
                         display: 'flex',
                         alignItems: 'center',
-                        gap: 5,
+                        gap: 6,
+                        border: `1px solid ${isActive ? 'rgba(212, 165, 116, 0.15)' : isPhaseComplete ? 'rgba(107, 143, 113, 0.15)' : 'transparent'}`,
                       }}
                     >
                       {isActive && (
@@ -846,7 +1568,10 @@ export function RoadmapView() {
                           }}
                         />
                       )}
-                      {style.label}
+                      {isPhaseComplete && (
+                        <CheckCircle2 size={10} style={{ color: '#6b8f71' }} />
+                      )}
+                      {isPhaseComplete ? 'Complete' : style.label}
                     </span>
 
                     {/* Timeline */}
@@ -862,76 +1587,115 @@ export function RoadmapView() {
                   </div>
                 </div>
 
-                {/* Animated Phase Progress Bar */}
-                <div style={{ marginBottom: 16 }}>
+                {/* Enhanced Phase Progress Bar with animated gradient fill */}
+                <div style={{ marginBottom: 18, position: 'relative', zIndex: 1 }}>
                   <div
                     style={{
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'space-between',
-                      marginBottom: 6,
+                      marginBottom: 8,
                     }}
                   >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <span
+                        style={{
+                          fontSize: 11,
+                          fontWeight: 600,
+                          color: '#a09888',
+                          textTransform: 'uppercase',
+                          letterSpacing: '0.06em',
+                        }}
+                      >
+                        Phase Progress
+                      </span>
+                      {isActive && phasePercent > 0 && phasePercent < 100 && (
+                        <span style={{
+                          fontSize: 9,
+                          fontWeight: 600,
+                          color: accentColor,
+                          backgroundColor: `${accentColor}15`,
+                          border: `1px solid ${accentColor}20`,
+                          borderRadius: 8,
+                          padding: '1px 8px',
+                          textTransform: 'uppercase',
+                          letterSpacing: '0.04em',
+                        }}>
+                          In Progress
+                        </span>
+                      )}
+                    </div>
                     <span
                       style={{
-                        fontSize: 11,
-                        fontWeight: 600,
-                        color: '#a09888',
-                        textTransform: 'uppercase',
-                        letterSpacing: '0.06em',
+                        fontSize: 13,
+                        fontWeight: 700,
+                        color: isPhaseComplete ? '#6b8f71' : accentColor,
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 6,
                       }}
                     >
-                      Phase Progress
-                    </span>
-                    <span
-                      style={{
+                      <span style={{ fontSize: 11, fontWeight: 500, color: '#a09888' }}>
+                        {phaseCompleted}/{phase.milestones.length}
+                      </span>
+                      <span style={{
+                        backgroundColor: isPhaseComplete ? 'rgba(107, 143, 113, 0.12)' : `${accentColor}12`,
+                        padding: '2px 8px',
+                        borderRadius: 8,
                         fontSize: 12,
-                        fontWeight: 600,
-                        color: phasePercent === 100 ? '#6b8f71' : accentColor,
-                      }}
-                    >
-                      {phaseCompleted} of {phase.milestones.length} milestones (
-                      {phasePercent}%)
+                      }}>
+                        {phasePercent}%
+                      </span>
                     </span>
                   </div>
+                  {/* Progress bar track */}
                   <div
                     style={{
-                      height: 8,
-                      backgroundColor: 'rgba(255,255,255,0.06)',
-                      borderRadius: 4,
+                      height: 10,
+                      backgroundColor: 'rgba(255,255,255,0.04)',
+                      borderRadius: 5,
                       overflow: 'hidden',
                       position: 'relative',
+                      border: '1px solid rgba(255,255,255,0.03)',
                     }}
                   >
                     {/* Background track segments */}
-                    <div style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, display: 'flex', gap: 2 }}>
+                    <div style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, display: 'flex', gap: 1 }}>
                       {phase.milestones.map((_, mIdx) => (
                         <div
                           key={mIdx}
                           style={{
                             flex: 1,
-                            backgroundColor: 'rgba(255,255,255,0.02)',
+                            backgroundColor: 'rgba(255,255,255,0.015)',
                             borderRadius: 1,
                           }}
                         />
                       ))}
                     </div>
-                    {/* Animated fill */}
+                    {/* Animated gradient fill - grows from 0 on mount */}
                     <div
                       style={{
                         height: '100%',
-                        width: `${phasePercent}%`,
-                        background: phasePercent === 100
-                          ? 'linear-gradient(90deg, #6b8f71, #8bc49a)'
-                          : `linear-gradient(90deg, ${accentColor}, ${accentColor}dd)`,
-                        borderRadius: 4,
-                        transition: 'width 0.6s cubic-bezier(0.4, 0, 0.2, 1)',
+                        width: progressAnimated ? `${phasePercent}%` : '0%',
+                        background: isPhaseComplete
+                          ? 'linear-gradient(90deg, #4a7a50, #6b8f71, #8bc49a)'
+                          : isActive
+                            ? `linear-gradient(90deg, ${accentColor}cc, ${accentColor}, ${accentColor}ee)`
+                            : `linear-gradient(90deg, ${accentColor}99, ${accentColor}cc)`,
+                        backgroundSize: isActive ? '200% 100%' : '100% 100%',
+                        animation: isActive && phasePercent > 0 ? 'gradientSlide 4s linear infinite' : 'none',
+                        borderRadius: 5,
+                        transition: `width 1.2s cubic-bezier(0.23, 1, 0.32, 1) ${0.2 + idx * 0.15}s`,
                         position: 'relative',
-                        boxShadow: phasePercent > 0 ? `0 0 12px ${accentColor}44` : 'none',
+                        boxShadow: isPhaseComplete
+                          ? '0 0 16px rgba(107, 143, 113, 0.5), 0 2px 8px rgba(107, 143, 113, 0.3)'
+                          : phasePercent > 0
+                            ? `0 0 12px ${accentColor}44, 0 2px 6px ${accentColor}22`
+                            : 'none',
                       }}
                     >
-                      {/* Animated shimmer on active phase progress */}
-                      {isActive && phasePercent > 0 && (
+                      {/* Animated shimmer on progress */}
+                      {phasePercent > 0 && (
                         <div
                           style={{
                             position: 'absolute',
@@ -939,47 +1703,111 @@ export function RoadmapView() {
                             left: 0,
                             right: 0,
                             bottom: 0,
-                            background: 'linear-gradient(90deg, transparent, rgba(255,255,255,0.25), transparent)',
-                            animation: 'shimmer 2.5s infinite',
+                            background: 'linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.3) 50%, transparent 100%)',
+                            backgroundSize: '200% 100%',
+                            animation: isActive ? 'shimmer 2s infinite' : 'shimmer 4s infinite',
                           }}
                         />
                       )}
+                      {/* Leading edge glow */}
+                      {phasePercent > 0 && phasePercent < 100 && (
+                        <div style={{
+                          position: 'absolute',
+                          right: 0,
+                          top: -1,
+                          bottom: -1,
+                          width: 6,
+                          background: `linear-gradient(to right, transparent, ${isPhaseComplete ? '#8bc49a' : accentColor})`,
+                          filter: `blur(2px)`,
+                          borderRadius: '0 5px 5px 0',
+                        }} />
+                      )}
                     </div>
+                  </div>
+                  {/* Milestone markers on the progress bar track */}
+                  <div
+                    style={{
+                      position: 'relative',
+                      height: 8,
+                      marginTop: 4,
+                    }}
+                  >
+                    {phase.milestones.map((_, mIdx) => {
+                      const markerPos = ((mIdx + 1) / phase.milestones.length) * 100;
+                      const isCompleted = progress.completedMilestones[phase.id]?.[mIdx] ?? false;
+                      return (
+                        <div
+                          key={mIdx}
+                          style={{
+                            position: 'absolute',
+                            left: `${markerPos}%`,
+                            top: 0,
+                            transform: 'translateX(-50%)',
+                            width: isCompleted ? 6 : 4,
+                            height: isCompleted ? 6 : 4,
+                            borderRadius: '50%',
+                            backgroundColor: isCompleted ? (isPhaseComplete ? '#6b8f71' : accentColor) : 'rgba(255,255,255,0.08)',
+                            border: isCompleted ? `1px solid ${isPhaseComplete ? 'rgba(107, 143, 113, 0.5)' : `${accentColor}50`}` : 'none',
+                            transition: 'all 0.3s ease',
+                            boxShadow: isCompleted ? `0 0 4px ${isPhaseComplete ? 'rgba(107, 143, 113, 0.4)' : `${accentColor}40`}` : 'none',
+                          }}
+                        />
+                      );
+                    })}
                   </div>
                 </div>
 
-                {/* Milestones with checkmark/pending indicators */}
+                {/* Enhanced Milestones with premium checkmark/pending indicators */}
                 <div
+                  className="scrollbar-autohide"
                   style={{
-                    backgroundColor: 'rgba(255,255,255,0.02)',
-                    borderRadius: 10,
-                    padding: '14px 18px',
-                    border: '1px solid rgba(255,255,255,0.03)',
+                    backgroundColor: isActive ? 'rgba(212, 165, 116, 0.02)' : 'rgba(255,255,255,0.02)',
+                    borderRadius: 14,
+                    padding: '16px 20px',
+                    border: `1px solid ${isActive ? 'rgba(212, 165, 116, 0.06)' : 'rgba(255,255,255,0.03)'}`,
                     marginBottom: 12,
+                    position: 'relative',
+                    zIndex: 1,
                   }}
                 >
                   <div
                     style={{
                       display: 'flex',
                       alignItems: 'center',
-                      gap: 6,
+                      gap: 8,
                       fontSize: 11,
                       fontWeight: 600,
                       textTransform: 'uppercase',
                       letterSpacing: '0.08em',
-                      color: '#6b6358',
-                      marginBottom: 12,
+                      color: isActive ? accentColor : '#6b6358',
+                      marginBottom: 14,
+                      paddingBottom: 10,
+                      borderBottom: `1px solid ${isActive ? `${accentColor}10` : 'rgba(255,255,255,0.03)'}`,
                     }}
                   >
-                    <Milestone size={12} />
+                    <div style={{
+                      width: 22,
+                      height: 22,
+                      borderRadius: 6,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      backgroundColor: isActive ? `${accentColor}15` : 'rgba(255,255,255,0.04)',
+                      border: `1px solid ${isActive ? `${accentColor}25` : 'rgba(255,255,255,0.06)'}`,
+                    }}>
+                      <Milestone size={11} />
+                    </div>
                     Milestones
                     <span style={{
                       marginLeft: 'auto',
                       fontSize: 10,
-                      color: phasePercent === 100 ? '#6b8f71' : '#6b6358',
-                      fontWeight: 500,
+                      color: isPhaseComplete ? '#6b8f71' : isActive ? accentColor : '#6b6358',
+                      fontWeight: 600,
                       textTransform: 'none',
                       letterSpacing: 'normal',
+                      backgroundColor: isPhaseComplete ? 'rgba(107, 143, 113, 0.1)' : isActive ? `${accentColor}10` : 'rgba(255,255,255,0.04)',
+                      padding: '2px 10px',
+                      borderRadius: 8,
                     }}>
                       {phaseCompleted}/{phase.milestones.length} done
                     </span>
@@ -997,6 +1825,12 @@ export function RoadmapView() {
                     {phase.milestones.map((milestone, mIdx) => {
                       const isCompleted =
                         progress.completedMilestones[phase.id]?.[mIdx] ?? false;
+                      const isMilestoneVisible = visibleMilestones[phase.id]?.[mIdx] ?? false;
+                      const wasJustToggled = recentlyToggled === `${phase.id}-${mIdx}`;
+                      const isCelebrating = celebratingMilestone === `${phase.id}-${mIdx}`;
+                      const contributors = milestoneContributors[phase.id]?.[mIdx] ?? [];
+                      const riskLevel = milestoneRiskLevels[phase.id]?.[mIdx] ?? 0;
+                      const daysLeft = isActive ? getDaysRemaining(phase.id) : null;
 
                       return (
                         <li
@@ -1013,10 +1847,13 @@ export function RoadmapView() {
                                 : '#b0a898',
                             lineHeight: 1.5,
                             cursor: 'pointer',
-                            padding: '6px 8px',
-                            borderRadius: 8,
-                            transition: 'background-color 0.15s, transform 0.15s',
+                            padding: '7px 10px',
+                            borderRadius: 10,
+                            transition: 'background-color 0.2s ease, transform 0.2s ease, opacity 0.4s ease, translate 0.4s ease',
                             backgroundColor: isCompleted ? 'rgba(107, 143, 113, 0.05)' : 'transparent',
+                            opacity: isMilestoneVisible ? 1 : 0,
+                            translate: isMilestoneVisible ? '0 0' : '0 8px',
+                            position: 'relative',
                           }}
                           onClick={() =>
                             toggleMilestone(
@@ -1034,7 +1871,10 @@ export function RoadmapView() {
                               isCompleted ? 'rgba(107, 143, 113, 0.05)' : 'transparent';
                           }}
                         >
-                          {/* Custom checkmark/pending indicator */}
+                          {/* Sparkle celebration effect */}
+                          <SparkleEffect active={isCelebrating} />
+
+                          {/* Custom checkmark/pending indicator with animation */}
                           <div
                             style={{
                               width: 22,
@@ -1044,13 +1884,19 @@ export function RoadmapView() {
                               alignItems: 'center',
                               justifyContent: 'center',
                               flexShrink: 0,
+                              position: 'relative',
                               backgroundColor: isCompleted
                                 ? 'rgba(107, 143, 113, 0.2)'
                                 : 'rgba(255,255,255,0.04)',
                               border: isCompleted
                                 ? '1.5px solid rgba(107, 143, 113, 0.4)'
                                 : `1.5px solid ${isActive ? `${accentColor}44` : phase.status === 'upcoming' ? `${accentColor}33` : 'rgba(255,255,255,0.06)'}`,
-                              transition: 'all 0.2s ease',
+                              transition: 'all 0.25s cubic-bezier(0.34, 1.56, 0.64, 1)',
+                              transform: wasJustToggled ? 'scale(1.2)' : 'scale(1)',
+                              boxShadow: isCelebrating
+                                ? '0 0 20px rgba(107, 143, 113, 0.6), 0 0 40px rgba(212, 165, 116, 0.3)'
+                                : isCompleted && wasJustToggled ? '0 0 12px rgba(107, 143, 113, 0.4)' : 'none',
+                              animation: !isCompleted && isActive ? 'milestoneGoldPulse 3s ease-in-out infinite' : 'none',
                             }}
                           >
                             {isCompleted ? (
@@ -1058,6 +1904,7 @@ export function RoadmapView() {
                                 size={14}
                                 style={{
                                   color: '#6b8f71',
+                                  animation: wasJustToggled ? 'milestoneCheck 0.4s cubic-bezier(0.34, 1.56, 0.64, 1)' : 'none',
                                 }}
                               />
                             ) : (
@@ -1074,33 +1921,117 @@ export function RoadmapView() {
                               />
                             )}
                           </div>
+
+                          {/* Milestone text */}
                           <span
                             style={{
                               textDecoration: isCompleted
                                 ? 'line-through'
                                 : 'none',
+                              textDecorationColor: isCompleted ? 'rgba(107, 143, 113, 0.5)' : undefined,
                               opacity: isCompleted ? 0.7 : 1,
                               flex: 1,
+                              transition: 'opacity 0.3s ease',
                             }}
                           >
                             {milestone}
                           </span>
-                          {/* Status indicator on the right */}
-                          {isCompleted && (
-                            <span style={{
-                              fontSize: 9,
-                              fontWeight: 600,
-                              color: '#6b8f71',
-                              textTransform: 'uppercase',
-                              letterSpacing: '0.06em',
-                              backgroundColor: 'rgba(107, 143, 113, 0.1)',
-                              padding: '2px 8px',
-                              borderRadius: 6,
-                              flexShrink: 0,
-                            }}>
-                              Done
-                            </span>
-                          )}
+
+                          {/* Right side: risk + avatars + days remaining + status */}
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
+                            {/* Risk indicator */}
+                            {riskLevel >= 2 && !isCompleted && (
+                              <div
+                                title={riskLabels[riskLevel]}
+                                style={{
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  gap: 2,
+                                  padding: '1px 6px',
+                                  borderRadius: 6,
+                                  backgroundColor: `${riskColors[riskLevel]}15`,
+                                  border: `1px solid ${riskColors[riskLevel]}25`,
+                                  animation: riskLevel === 3 ? 'riskPulse 2s ease-in-out infinite' : 'none',
+                                }}
+                              >
+                                <AlertTriangle size={9} style={{ color: riskColors[riskLevel] }} />
+                                <span style={{ fontSize: 8, fontWeight: 600, color: riskColors[riskLevel], textTransform: 'uppercase' }}>
+                                  {riskLevel === 3 ? 'High' : 'Med'}
+                                </span>
+                              </div>
+                            )}
+
+                            {/* Contributor avatars */}
+                            {contributors.length > 0 && (
+                              <div style={{ display: 'flex', marginLeft: 2 }}>
+                                {contributors.slice(0, 3).map((c, cIdx) => (
+                                  <div
+                                    key={cIdx}
+                                    title={c.name}
+                                    style={{
+                                      width: 20,
+                                      height: 20,
+                                      borderRadius: '50%',
+                                      backgroundColor: `${c.color}25`,
+                                      border: `1.5px solid ${c.color}50`,
+                                      display: 'flex',
+                                      alignItems: 'center',
+                                      justifyContent: 'center',
+                                      fontSize: 7,
+                                      fontWeight: 700,
+                                      color: c.color,
+                                      marginLeft: cIdx > 0 ? -6 : 0,
+                                      zIndex: 3 - cIdx,
+                                      position: 'relative',
+                                      transition: 'transform 0.2s ease',
+                                    }}
+                                  >
+                                    {c.initials}
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+
+                            {/* Days remaining badge (active phase, incomplete milestones only) */}
+                            {isActive && !isCompleted && daysLeft !== null && (
+                              <div style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: 3,
+                                padding: '2px 7px',
+                                borderRadius: 8,
+                                backgroundColor: daysLeft <= 30 ? 'rgba(239, 68, 68, 0.1)' : 'rgba(212, 165, 116, 0.1)',
+                                border: `1px solid ${daysLeft <= 30 ? 'rgba(239, 68, 68, 0.15)' : 'rgba(212, 165, 116, 0.15)'}`,
+                              }}>
+                                <Clock size={8} style={{ color: daysLeft <= 30 ? '#ef4444' : '#d4a574' }} />
+                                <span style={{
+                                  fontSize: 8,
+                                  fontWeight: 700,
+                                  color: daysLeft <= 30 ? '#ef4444' : '#d4a574',
+                                }}>
+                                  {daysLeft}d
+                                </span>
+                              </div>
+                            )}
+
+                            {/* Done badge */}
+                            {isCompleted && (
+                              <span style={{
+                                fontSize: 9,
+                                fontWeight: 600,
+                                color: '#6b8f71',
+                                textTransform: 'uppercase',
+                                letterSpacing: '0.06em',
+                                backgroundColor: 'rgba(107, 143, 113, 0.1)',
+                                padding: '2px 8px',
+                                borderRadius: 6,
+                                flexShrink: 0,
+                                animation: wasJustToggled ? 'fadeSlideIn 0.3s ease-out' : 'none',
+                              }}>
+                                Done
+                              </span>
+                            )}
+                          </div>
                         </li>
                       );
                     })}
@@ -1109,12 +2040,15 @@ export function RoadmapView() {
 
                 {/* Dependencies & Risks */}
                 <div
+                  className="card-interactive"
                   style={{
                     backgroundColor: 'rgba(239, 68, 68, 0.04)',
-                    borderRadius: 10,
+                    borderRadius: 12,
                     padding: '12px 18px',
                     border: '1px solid rgba(239, 68, 68, 0.08)',
                     marginBottom: 12,
+                    position: 'relative',
+                    zIndex: 1,
                   }}
                 >
                   <div
@@ -1146,13 +2080,153 @@ export function RoadmapView() {
                   </p>
                 </div>
 
-                {/* Phase Notes (collapsible) */}
+                {/* Success Metrics with mini progress bars (collapsible) */}
+                {phaseSuccessMetrics[phase.id] && (
+                  <div
+                    className="card-interactive"
+                    style={{
+                      backgroundColor: 'rgba(107, 143, 113, 0.03)',
+                      borderRadius: 12,
+                      border: '1px solid rgba(107, 143, 113, 0.08)',
+                      overflow: 'hidden',
+                      marginBottom: 12,
+                      position: 'relative',
+                      zIndex: 1,
+                    }}
+                  >
+                    <button
+                      onClick={() => toggleMetrics(phase.id)}
+                      style={{
+                        width: '100%',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 6,
+                        padding: '10px 18px',
+                        fontSize: 11,
+                        fontWeight: 600,
+                        textTransform: 'uppercase',
+                        letterSpacing: '0.08em',
+                        color: '#6b6358',
+                        backgroundColor: 'transparent',
+                        border: 'none',
+                        cursor: 'pointer',
+                        textAlign: 'left',
+                        transition: 'color 0.2s ease',
+                      }}
+                      onMouseEnter={(e) => {
+                        (e.currentTarget as HTMLElement).style.color = '#a09888';
+                      }}
+                      onMouseLeave={(e) => {
+                        (e.currentTarget as HTMLElement).style.color = '#6b6358';
+                      }}
+                    >
+                      <span
+                        style={{
+                          display: 'inline-flex',
+                          transition: 'transform 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+                          transform: expandedMetrics[phase.id] ? 'rotate(0deg)' : 'rotate(-90deg)',
+                        }}
+                      >
+                        <ChevronDown size={12} />
+                      </span>
+                      <BarChart3 size={12} style={{ color: '#6b8f71' }} />
+                      Success Metrics
+                      <span style={{
+                        marginLeft: 'auto',
+                        fontSize: 9,
+                        fontWeight: 600,
+                        color: '#6b8f71',
+                        backgroundColor: 'rgba(107, 143, 113, 0.1)',
+                        padding: '2px 8px',
+                        borderRadius: 8,
+                        textTransform: 'none',
+                        letterSpacing: 'normal',
+                      }}>
+                        {phaseSuccessMetrics[phase.id].length} metrics
+                      </span>
+                    </button>
+                    <div
+                      className="scrollbar-autohide"
+                      style={{
+                        maxHeight: expandedMetrics[phase.id] ? '400px' : '0px',
+                        opacity: expandedMetrics[phase.id] ? 1 : 0,
+                        transition: 'max-height 0.5s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.3s ease 0.1s',
+                        overflow: 'hidden',
+                      }}
+                    >
+                      <div style={{ padding: '0 18px 14px 18px', display: 'flex', flexDirection: 'column', gap: 10 }}>
+                        {phaseSuccessMetrics[phase.id].map((metric, mIdx) => {
+                          const pct = Math.min(100, Math.round((metric.current / metric.target) * 100));
+                          const isOnTrack = pct >= 50;
+                          return (
+                            <div key={mIdx}>
+                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                                <span style={{ fontSize: 12, color: '#b0a898', fontWeight: 500 }}>{metric.label}</span>
+                                <span style={{ fontSize: 11, fontWeight: 600, color: isOnTrack ? '#6b8f71' : '#d4a574' }}>
+                                  {metric.current}{metric.unit} / {metric.target}{metric.unit}
+                                </span>
+                              </div>
+                              <div style={{
+                                height: 6,
+                                backgroundColor: 'rgba(255,255,255,0.04)',
+                                borderRadius: 3,
+                                overflow: 'hidden',
+                                position: 'relative',
+                              }}>
+                                <div style={{
+                                  height: '100%',
+                                  width: `${pct}%`,
+                                  background: pct >= 100
+                                    ? 'linear-gradient(90deg, #4a7a50, #6b8f71)'
+                                    : isOnTrack
+                                      ? `linear-gradient(90deg, ${accentColor}99, ${accentColor})`
+                                      : 'linear-gradient(90deg, #d4a574aa, #d4a574)',
+                                  borderRadius: 3,
+                                  transition: 'width 1s cubic-bezier(0.23, 1, 0.32, 1)',
+                                  boxShadow: pct >= 100 ? '0 0 8px rgba(107, 143, 113, 0.4)' : 'none',
+                                  position: 'relative',
+                                }}>
+                                  {pct > 0 && (
+                                    <div style={{
+                                      position: 'absolute',
+                                      top: 0,
+                                      left: 0,
+                                      right: 0,
+                                      bottom: 0,
+                                      background: 'linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent)',
+                                      backgroundSize: '200% 100%',
+                                      animation: 'shimmer 3s infinite',
+                                    }} />
+                                  )}
+                                </div>
+                              </div>
+                              <div style={{ textAlign: 'right', marginTop: 2 }}>
+                                <span style={{
+                                  fontSize: 9,
+                                  fontWeight: 600,
+                                  color: pct >= 100 ? '#6b8f71' : isOnTrack ? '#a09888' : '#d4a574',
+                                }}>
+                                  {pct}%
+                                </span>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Phase Notes (collapsible with smooth expand) */}
                 <div
+                  className="card-interactive"
                   style={{
                     backgroundColor: 'rgba(139, 92, 246, 0.03)',
-                    borderRadius: 10,
+                    borderRadius: 12,
                     border: '1px solid rgba(139, 92, 246, 0.08)',
                     overflow: 'hidden',
+                    position: 'relative',
+                    zIndex: 1,
                   }}
                 >
                   <button
@@ -1172,13 +2246,24 @@ export function RoadmapView() {
                       border: 'none',
                       cursor: 'pointer',
                       textAlign: 'left',
+                      transition: 'color 0.2s ease',
+                    }}
+                    onMouseEnter={(e) => {
+                      (e.currentTarget as HTMLElement).style.color = '#a09888';
+                    }}
+                    onMouseLeave={(e) => {
+                      (e.currentTarget as HTMLElement).style.color = '#6b6358';
                     }}
                   >
-                    {noteExpanded ? (
+                    <span
+                      style={{
+                        display: 'inline-flex',
+                        transition: 'transform 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+                        transform: noteExpanded ? 'rotate(0deg)' : 'rotate(-90deg)',
+                      }}
+                    >
                       <ChevronDown size={12} />
-                    ) : (
-                      <ChevronRight size={12} />
-                    )}
+                    </span>
                     <StickyNote size={12} />
                     Strategic Notes
                     {noteText && !noteExpanded && (
@@ -1192,11 +2277,40 @@ export function RoadmapView() {
                           marginLeft: 6,
                         }}
                       >
-                        (has notes)
+                        ({getNoteWordCount(noteText)} words)
+                      </span>
+                    )}
+                    {/* Comments/discussions count badge */}
+                    {(phaseCommentCounts[phase.id] ?? 0) > 0 && (
+                      <span style={{
+                        marginLeft: 'auto',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 3,
+                        fontSize: 9,
+                        fontWeight: 600,
+                        color: '#8b5cf6',
+                        backgroundColor: 'rgba(139, 92, 246, 0.1)',
+                        padding: '2px 8px',
+                        borderRadius: 8,
+                        textTransform: 'none',
+                        letterSpacing: 'normal',
+                        border: '1px solid rgba(139, 92, 246, 0.12)',
+                      }}>
+                        <MessageCircle size={8} />
+                        {phaseCommentCounts[phase.id]}
                       </span>
                     )}
                   </button>
-                  {noteExpanded && (
+                  <div
+                    className="scrollbar-autohide"
+                    style={{
+                      maxHeight: noteExpanded ? '300px' : '0px',
+                      opacity: noteExpanded ? 1 : 0,
+                      transition: 'max-height 0.4s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.3s ease',
+                      overflow: 'hidden',
+                    }}
+                  >
                     <div style={{ padding: '0 18px 14px 18px' }}>
                       <textarea
                         value={noteText}
@@ -1218,14 +2332,15 @@ export function RoadmapView() {
                           outline: 'none',
                           fontFamily: 'inherit',
                           boxSizing: 'border-box',
+                          transition: 'border-color 0.3s ease, box-shadow 0.3s ease',
                         }}
                         onFocus={(e) => {
-                          (e.target as HTMLTextAreaElement).style.borderColor =
-                            '#2e3a4e';
+                          (e.target as HTMLTextAreaElement).style.borderColor = 'rgba(139, 92, 246, 0.3)';
+                          (e.target as HTMLTextAreaElement).style.boxShadow = '0 0 0 3px rgba(139, 92, 246, 0.08)';
                         }}
                         onBlur={(e) => {
-                          (e.target as HTMLTextAreaElement).style.borderColor =
-                            '#1e2638';
+                          (e.target as HTMLTextAreaElement).style.borderColor = '#1e2638';
+                          (e.target as HTMLTextAreaElement).style.boxShadow = 'none';
                         }}
                       />
                       <div
@@ -1242,7 +2357,7 @@ export function RoadmapView() {
                         Auto-saved to browser
                       </div>
                     </div>
-                  )}
+                  </div>
                 </div>
               </div>
             </div>
@@ -1271,6 +2386,101 @@ export function RoadmapView() {
         @keyframes youAreHerePulse {
           0%, 100% { opacity: 1; }
           50% { opacity: 0.6; }
+        }
+        @keyframes timelineDraw {
+          from { clip-path: inset(0 0 100% 0); }
+          to { clip-path: inset(0 0 0% 0); }
+        }
+        @keyframes phaseNodePulse {
+          0%, 100% { box-shadow: 0 0 0 0 rgba(212, 165, 116, 0.4); }
+          50% { box-shadow: 0 0 0 8px rgba(212, 165, 116, 0); }
+        }
+        @keyframes milestoneCheck {
+          0% { transform: scale(0) rotate(-10deg); }
+          60% { transform: scale(1.2) rotate(5deg); }
+          100% { transform: scale(1) rotate(0deg); }
+        }
+        @keyframes progressGrow {
+          from { width: 0%; }
+        }
+        @keyframes gradientSlide {
+          0% { background-position: 0% 50%; }
+          100% { background-position: 200% 50%; }
+        }
+        @keyframes celebrationGlow {
+          0%, 100% { box-shadow: 0 0 8px rgba(107, 143, 113, 0.3); }
+          50% { box-shadow: 0 0 20px rgba(107, 143, 113, 0.5), 0 0 40px rgba(107, 143, 113, 0.2); }
+        }
+        @keyframes celebrationPulse {
+          0%, 100% { opacity: 0.5; }
+          50% { opacity: 1; }
+        }
+        @keyframes statusBadgeGlow {
+          0%, 100% { background-position: 0% 50%; }
+          50% { background-position: 100% 50%; }
+        }
+        @keyframes headerIconGlow {
+          0%, 100% { box-shadow: 0 0 0 rgba(212, 165, 116, 0); }
+          50% { box-shadow: 0 0 20px rgba(212, 165, 116, 0.1); }
+        }
+        @keyframes youAreHereGlow {
+          0%, 100% {
+            box-shadow: 0 0 12px rgba(212, 165, 116, 0.8), 0 0 24px rgba(212, 165, 116, 0.4);
+            transform: scale(1);
+          }
+          50% {
+            box-shadow: 0 0 20px rgba(212, 165, 116, 1), 0 0 40px rgba(212, 165, 116, 0.6);
+            transform: scale(1.3);
+          }
+        }
+        @keyframes milestoneGoldPulse {
+          0%, 100% { border-color: rgba(212, 165, 116, 0.15); }
+          50% { border-color: rgba(212, 165, 116, 0.35); }
+        }
+        @keyframes slideIn {
+          from { opacity: 0; transform: scaleX(0); }
+          to { opacity: 1; transform: scaleX(1); }
+        }
+        @keyframes fadeSlideIn {
+          from { opacity: 0; transform: translateX(8px); }
+          to { opacity: 1; transform: translateX(0); }
+        }
+        @keyframes zapPulse {
+          0%, 100% { opacity: 1; filter: drop-shadow(0 0 2px rgba(212, 165, 116, 0.5)); }
+          50% { opacity: 0.7; filter: drop-shadow(0 0 8px rgba(212, 165, 116, 0.8)); }
+        }
+        @keyframes completedRingPulse {
+          0%, 100% { r: 14; opacity: 0.4; stroke: rgba(107, 143, 113, 0.4); }
+          50% { r: 16; opacity: 0.15; stroke: rgba(107, 143, 113, 0.2); }
+        }
+        @keyframes activePhaseGlow {
+          0%, 100% { box-shadow: 0 0 30px rgba(212, 165, 116, 0.05), inset 0 0 30px rgba(212, 165, 116, 0.02); }
+          50% { box-shadow: 0 0 50px rgba(212, 165, 116, 0.1), inset 0 0 50px rgba(212, 165, 116, 0.04); }
+        }
+        @keyframes sparkleParticle {
+          0% {
+            transform: translate(-50%, -50%) scale(0);
+            opacity: 1;
+          }
+          50% {
+            opacity: 1;
+            transform: translate(calc(-50% + var(--dx) * 0.6), calc(-50% + var(--dy) * 0.6)) scale(1.2);
+          }
+          100% {
+            transform: translate(calc(-50% + var(--dx)), calc(-50% + var(--dy))) scale(0);
+            opacity: 0;
+          }
+        }
+        @keyframes riskPulse {
+          0%, 100% { opacity: 1; }
+          50% { opacity: 0.6; }
+        }
+        @keyframes depArrowFlow {
+          0% { stroke-dashoffset: 14; }
+          100% { stroke-dashoffset: 0; }
+        }
+        @keyframes metricBarGrow {
+          from { width: 0%; }
         }
       `}</style>
     </div>

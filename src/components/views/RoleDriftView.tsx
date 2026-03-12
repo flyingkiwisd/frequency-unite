@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import {
   Compass,
   AlertTriangle,
@@ -16,10 +16,87 @@ import {
   Shield,
   ArrowRight,
   BarChart3,
+  Zap,
+  Clock,
+  Layers,
+  Eye,
 } from 'lucide-react';
 import { teamMembers } from '@/lib/data';
 
-/* --- Colors --- */
+/* ═══════════════════════════════════════════════════════════════════
+   Scoped Keyframes
+   ═══════════════════════════════════════════════════════════════════ */
+
+const scopedKeyframes = `
+@keyframes rd-fadeUp {
+  from { opacity: 0; transform: translateY(16px) scale(0.97); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+@keyframes rd-slideIn {
+  from { opacity: 0; transform: translateX(-12px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+@keyframes rd-ringDraw {
+  from { stroke-dashoffset: var(--rd-circumference); }
+  to   { stroke-dashoffset: var(--rd-offset); }
+}
+@keyframes rd-pulseAlert {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(224,96,96,0.4); }
+  50%      { box-shadow: 0 0 0 8px rgba(224,96,96,0); }
+}
+@keyframes rd-pulseGlow {
+  0%, 100% { opacity: 0.4; }
+  50%      { opacity: 1; }
+}
+@keyframes rd-radarSpin {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+@keyframes rd-shimmer {
+  0%   { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+@keyframes rd-breathe {
+  0%, 100% { transform: scale(1); }
+  50%      { transform: scale(1.02); }
+}
+@keyframes rd-countUp {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes rd-expandIn {
+  from { opacity: 0; max-height: 0; }
+  to   { opacity: 1; max-height: 600px; }
+}
+@keyframes rd-gaugeNeedle {
+  from { transform: rotate(-90deg); }
+  to   { transform: rotate(var(--rd-needle-angle)); }
+}
+@keyframes rd-sparklineIn {
+  from { stroke-dashoffset: 200; }
+  to   { stroke-dashoffset: 0; }
+}
+@keyframes rd-dotPulse {
+  0%, 100% { r: 3; }
+  50%      { r: 5; }
+}
+@keyframes rd-barGrow {
+  from { width: 0; }
+}
+@keyframes rd-scaleIn {
+  from { transform: scale(0.8); opacity: 0; }
+  to   { transform: scale(1); opacity: 1; }
+}
+@keyframes rd-floatBadge {
+  0%, 100% { transform: translateY(0); }
+  50%      { transform: translateY(-3px); }
+}
+`;
+
+/* ═══════════════════════════════════════════════════════════════════
+   Design Tokens
+   ═══════════════════════════════════════════════════════════════════ */
+
 const AMBER = '#d4a574';
 const VIOLET = '#8b5cf6';
 const SAGE = '#6b8f71';
@@ -27,8 +104,24 @@ const GOLD = '#e8b44c';
 const DANGER = '#e06060';
 const SKY = '#5eaed4';
 const ROSE = '#e879a0';
+const CREAM = '#f0ebe4';
+const MUTED = '#a09888';
+const DIM = '#6b6358';
+const SURFACE = '#131720';
+const SURFACE2 = '#1c2230';
+const BORDER = '#1e2638';
+const BORDER2 = '#2e3a4e';
+const BG = '#0b0d14';
 
-/* --- Types --- */
+const EASE = 'cubic-bezier(0.16, 1, 0.3, 1)';
+const GLASS_BG = 'rgba(19,23,32,0.7)';
+const GLASS_BORDER = 'rgba(212,165,116,0.08)';
+const GLASS_HOVER = 'rgba(19,23,32,0.85)';
+
+/* ═══════════════════════════════════════════════════════════════════
+   Types
+   ═══════════════════════════════════════════════════════════════════ */
+
 interface DriftActivity {
   label: string;
   type: 'in-seat' | 'out-of-seat';
@@ -43,7 +136,10 @@ interface DriftMember {
   recommendation?: string;
 }
 
-/* --- Mock Data --- */
+/* ═══════════════════════════════════════════════════════════════════
+   Mock Data (preserved)
+   ═══════════════════════════════════════════════════════════════════ */
+
 const driftData: DriftMember[] = [
   {
     id: 'sian',
@@ -81,7 +177,7 @@ const driftData: DriftMember[] = [
       { label: 'DECO framework', type: 'in-seat', hoursPerWeek: 4 },
       { label: 'Event logistics', type: 'out-of-seat', hoursPerWeek: 3 },
     ],
-    recommendation: 'Well-focused. Minor drift into event logistics \u2014 could be redirected to ops team.',
+    recommendation: 'Well-focused. Minor drift into event logistics — could be redirected to ops team.',
   },
   {
     id: 'greg',
@@ -139,7 +235,10 @@ const driftData: DriftMember[] = [
   },
 ];
 
-/* --- Avatar gradient helper --- */
+/* ═══════════════════════════════════════════════════════════════════
+   Helpers
+   ═══════════════════════════════════════════════════════════════════ */
+
 function avatarGradient(color: string): string {
   const gradientMap: Record<string, string> = {
     'bg-amber-500': 'linear-gradient(135deg, #c4925a, #d4a574)',
@@ -160,7 +259,6 @@ function avatarGradient(color: string): string {
   return gradientMap[color] || 'linear-gradient(135deg, #a09888, #6b6358)';
 }
 
-/* --- Score color helpers --- */
 function scoreColor(score: number): string {
   if (score >= 80) return SAGE;
   if (score >= 60) return GOLD;
@@ -179,15 +277,481 @@ function scoreLabel(score: number): string {
   return 'High Drift';
 }
 
-/* --- SVG Radar Chart --- */
-function RadarChart({ data, size = 200 }: { data: typeof driftData; size?: number }) {
+function scoreLabelIcon(score: number) {
+  if (score >= 80) return CheckCircle2;
+  if (score >= 60) return Activity;
+  return AlertTriangle;
+}
+
+/** Generate synthetic sparkline data for drift-over-time visualization */
+function generateSparkline(current: number, prev: number, points = 8): number[] {
+  const result: number[] = [];
+  const start = Math.max(10, Math.min(95, prev - Math.floor(Math.random() * 15)));
+  for (let i = 0; i < points; i++) {
+    const t = i / (points - 1);
+    const base = start + (current - start) * t;
+    const noise = (Math.random() - 0.5) * 12;
+    result.push(Math.max(5, Math.min(98, Math.round(base + noise * (1 - t * 0.5)))));
+  }
+  result[result.length - 1] = current;
+  return result;
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   Sub-Components
+   ═══════════════════════════════════════════════════════════════════ */
+
+/* --- Animated Counter --- */
+function AnimatedNumber({ value, color, size = 28, delay = 0 }: { value: number; color: string; size?: number; delay?: number }) {
+  const [display, setDisplay] = useState(0);
+  const ref = useRef<HTMLSpanElement>(null);
+
+  useEffect(() => {
+    const timeout = setTimeout(() => {
+      const duration = 800;
+      const start = performance.now();
+      const animate = (now: number) => {
+        const elapsed = now - start;
+        const progress = Math.min(elapsed / duration, 1);
+        const eased = 1 - Math.pow(1 - progress, 3);
+        setDisplay(Math.round(eased * value));
+        if (progress < 1) requestAnimationFrame(animate);
+      };
+      requestAnimationFrame(animate);
+    }, delay);
+    return () => clearTimeout(timeout);
+  }, [value, delay]);
+
+  return (
+    <span
+      ref={ref}
+      style={{
+        fontSize: size,
+        fontWeight: 800,
+        color,
+        fontFamily: 'var(--font-mono, monospace)',
+        lineHeight: 1,
+        animation: `rd-countUp 0.5s ${EASE} ${delay}ms both`,
+      }}
+    >
+      {display}
+    </span>
+  );
+}
+
+/* --- Circular Drift Score Ring --- */
+function DriftRing({
+  score,
+  size = 72,
+  strokeWidth = 5,
+  delay = 0,
+  showLabel = true,
+}: {
+  score: number;
+  size?: number;
+  strokeWidth?: number;
+  delay?: number;
+  showLabel?: boolean;
+}) {
+  const radius = (size - strokeWidth * 2) / 2;
+  const circumference = 2 * Math.PI * radius;
+  const offset = circumference - (score / 100) * circumference;
+  const color = scoreColor(score);
   const cx = size / 2;
   const cy = size / 2;
-  const maxRadius = size / 2 - 20;
-  const members = data.slice(0, 8); // Max 8 for radar
+
+  return (
+    <div style={{ position: 'relative', width: size, height: size, flexShrink: 0 }}>
+      <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
+        <defs>
+          <linearGradient id={`rd-ring-grad-${score}-${size}`} x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stopColor={color} stopOpacity="1" />
+            <stop offset="100%" stopColor={color} stopOpacity="0.4" />
+          </linearGradient>
+          <filter id={`rd-ring-glow-${score}-${size}`}>
+            <feGaussianBlur stdDeviation="2" result="blur" />
+            <feComposite in="SourceGraphic" in2="blur" operator="over" />
+          </filter>
+        </defs>
+
+        {/* Background track */}
+        <circle
+          cx={cx} cy={cy} r={radius}
+          fill="none"
+          stroke="rgba(255,255,255,0.04)"
+          strokeWidth={strokeWidth}
+        />
+
+        {/* Score arc */}
+        <circle
+          cx={cx} cy={cy} r={radius}
+          fill="none"
+          stroke={`url(#rd-ring-grad-${score}-${size})`}
+          strokeWidth={strokeWidth}
+          strokeLinecap="round"
+          strokeDasharray={circumference}
+          strokeDashoffset={offset}
+          transform={`rotate(-90 ${cx} ${cy})`}
+          style={{
+            '--rd-circumference': `${circumference}`,
+            '--rd-offset': `${offset}`,
+            animation: `rd-ringDraw 1.2s ${EASE} ${delay}ms both`,
+            filter: `drop-shadow(0 0 4px ${color}40)`,
+          } as React.CSSProperties}
+        />
+
+        {/* Tip glow dot */}
+        {score > 0 && (
+          <circle
+            cx={cx + radius * Math.cos((-90 + (score / 100) * 360) * Math.PI / 180)}
+            cy={cy + radius * Math.sin((-90 + (score / 100) * 360) * Math.PI / 180)}
+            r={strokeWidth / 2 + 1}
+            fill={color}
+            style={{
+              filter: `drop-shadow(0 0 6px ${color})`,
+              animation: `rd-scaleIn 0.3s ${EASE} ${delay + 1000}ms both`,
+            }}
+          />
+        )}
+      </svg>
+
+      {/* Center label */}
+      {showLabel && (
+        <div
+          style={{
+            position: 'absolute',
+            inset: 0,
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}
+        >
+          <AnimatedNumber value={score} color={color} size={size > 60 ? 20 : 14} delay={delay + 200} />
+          <span style={{ fontSize: 8, fontWeight: 600, color: DIM, textTransform: 'uppercase', letterSpacing: '0.08em', marginTop: 1 }}>
+            focus
+          </span>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* --- Sparkline Mini-Chart --- */
+function Sparkline({
+  data,
+  width = 80,
+  height = 28,
+  color,
+  delay = 0,
+}: {
+  data: number[];
+  width?: number;
+  height?: number;
+  color: string;
+  delay?: number;
+}) {
+  const padding = 2;
+  const max = Math.max(...data);
+  const min = Math.min(...data);
+  const range = max - min || 1;
+  const points = data.map((v, i) => {
+    const x = padding + (i / (data.length - 1)) * (width - padding * 2);
+    const y = height - padding - ((v - min) / range) * (height - padding * 2);
+    return { x, y };
+  });
+  const pathD = points.map((p, i) => `${i === 0 ? 'M' : 'L'}${p.x},${p.y}`).join(' ');
+  const areaD = pathD + ` L${points[points.length - 1].x},${height} L${points[0].x},${height} Z`;
+
+  return (
+    <svg width={width} height={height} viewBox={`0 0 ${width} ${height}`} style={{ overflow: 'visible' }}>
+      <defs>
+        <linearGradient id={`rd-spark-fill-${delay}`} x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor={color} stopOpacity="0.2" />
+          <stop offset="100%" stopColor={color} stopOpacity="0" />
+        </linearGradient>
+      </defs>
+      <path d={areaD} fill={`url(#rd-spark-fill-${delay})`} />
+      <path
+        d={pathD}
+        fill="none"
+        stroke={color}
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeDasharray="200"
+        style={{
+          animation: `rd-sparklineIn 1s ${EASE} ${delay}ms both`,
+        }}
+      />
+      {/* End dot */}
+      <circle
+        cx={points[points.length - 1].x}
+        cy={points[points.length - 1].y}
+        r="3"
+        fill={color}
+        stroke={SURFACE}
+        strokeWidth="1.5"
+        style={{
+          animation: `rd-scaleIn 0.3s ${EASE} ${delay + 800}ms both`,
+        }}
+      />
+    </svg>
+  );
+}
+
+/* --- Pulsing Alert Badge --- */
+function AlertBadge({ label, delay = 0 }: { label: string; delay?: number }) {
+  return (
+    <span
+      style={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: 5,
+        fontSize: 9,
+        fontWeight: 700,
+        padding: '3px 10px',
+        borderRadius: 20,
+        color: DANGER,
+        backgroundColor: 'rgba(224,96,96,0.12)',
+        border: '1px solid rgba(224,96,96,0.25)',
+        animation: `rd-pulseAlert 2s ease-in-out infinite, rd-scaleIn 0.4s ${EASE} ${delay}ms both`,
+        textTransform: 'uppercase',
+        letterSpacing: '0.06em',
+      }}
+    >
+      <AlertTriangle size={10} />
+      {label}
+    </span>
+  );
+}
+
+/* --- Category Domain Tag --- */
+function DomainTag({
+  label,
+  type,
+  hours,
+  delay = 0,
+}: {
+  label: string;
+  type: 'in-seat' | 'out-of-seat';
+  hours: number;
+  delay?: number;
+}) {
+  const isInSeat = type === 'in-seat';
+  const color = isInSeat ? SAGE : GOLD;
+
+  return (
+    <div
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        fontSize: 11,
+        padding: '6px 10px',
+        borderRadius: 8,
+        background: `linear-gradient(135deg, ${color}08, ${color}04)`,
+        border: `1px solid ${color}15`,
+        transition: `all 0.3s ${EASE}`,
+        animation: `rd-fadeUp 0.4s ${EASE} ${delay}ms both`,
+        cursor: 'default',
+      }}
+      onMouseEnter={(e) => {
+        e.currentTarget.style.borderColor = `${color}35`;
+        e.currentTarget.style.background = `linear-gradient(135deg, ${color}14, ${color}08)`;
+        e.currentTarget.style.transform = 'translateX(3px)';
+      }}
+      onMouseLeave={(e) => {
+        e.currentTarget.style.borderColor = `${color}15`;
+        e.currentTarget.style.background = `linear-gradient(135deg, ${color}08, ${color}04)`;
+        e.currentTarget.style.transform = 'none';
+      }}
+    >
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+        <div
+          style={{
+            width: 6,
+            height: 6,
+            borderRadius: '50%',
+            backgroundColor: color,
+            boxShadow: `0 0 6px ${color}50`,
+          }}
+        />
+        <span style={{ color: MUTED }}>{label}</span>
+      </div>
+      <span
+        style={{
+          fontSize: 10,
+          fontWeight: 700,
+          color,
+          fontFamily: 'var(--font-mono, monospace)',
+          minWidth: 28,
+          textAlign: 'right',
+        }}
+      >
+        {hours}h
+      </span>
+    </div>
+  );
+}
+
+/* --- Gauge Visualization (overall team drift) --- */
+function DriftGauge({ score, size = 180 }: { score: number; size?: number }) {
+  const cx = size / 2;
+  const cy = size * 0.6;
+  const radius = size * 0.4;
+  const startAngle = -180;
+  const endAngle = 0;
+  const sweepAngle = endAngle - startAngle;
+  const scoreAngle = startAngle + (score / 100) * sweepAngle;
+
+  const arcPath = (angle: number, r: number) => {
+    const rad = (angle * Math.PI) / 180;
+    return { x: cx + r * Math.cos(rad), y: cy + r * Math.sin(rad) };
+  };
+
+  const start = arcPath(startAngle, radius);
+  const end = arcPath(endAngle, radius);
+  const scorePoint = arcPath(scoreAngle, radius);
+
+  // Build arc for background
+  const bgArc = `M ${start.x} ${start.y} A ${radius} ${radius} 0 0 1 ${end.x} ${end.y}`;
+
+  // Build arc for score fill
+  const largeArc = score > 50 ? 1 : 0;
+  const scoreArc = `M ${start.x} ${start.y} A ${radius} ${radius} 0 ${largeArc} 1 ${scorePoint.x} ${scorePoint.y}`;
+
+  const color = scoreColor(score);
+
+  // Tick marks
+  const ticks = [0, 25, 50, 75, 100];
+
+  return (
+    <svg width={size} height={size * 0.7} viewBox={`0 0 ${size} ${size * 0.7}`} style={{ overflow: 'visible' }}>
+      <defs>
+        <linearGradient id="rd-gauge-gradient" x1="0%" y1="0%" x2="100%" y2="0%">
+          <stop offset="0%" stopColor={DANGER} />
+          <stop offset="40%" stopColor={GOLD} />
+          <stop offset="100%" stopColor={SAGE} />
+        </linearGradient>
+        <filter id="rd-gauge-glow">
+          <feGaussianBlur stdDeviation="3" result="blur" />
+          <feComposite in="SourceGraphic" in2="blur" operator="over" />
+        </filter>
+      </defs>
+
+      {/* Background arc */}
+      <path
+        d={bgArc}
+        fill="none"
+        stroke="rgba(255,255,255,0.05)"
+        strokeWidth="12"
+        strokeLinecap="round"
+      />
+
+      {/* Gradient colored arc */}
+      <path
+        d={bgArc}
+        fill="none"
+        stroke="url(#rd-gauge-gradient)"
+        strokeWidth="12"
+        strokeLinecap="round"
+        opacity="0.2"
+      />
+
+      {/* Active score arc */}
+      <path
+        d={scoreArc}
+        fill="none"
+        stroke={color}
+        strokeWidth="12"
+        strokeLinecap="round"
+        filter="url(#rd-gauge-glow)"
+        strokeDasharray="500"
+        style={{
+          animation: `rd-sparklineIn 1.5s ${EASE} 300ms both`,
+        }}
+      />
+
+      {/* Tick marks */}
+      {ticks.map((tick) => {
+        const angle = startAngle + (tick / 100) * sweepAngle;
+        const innerR = radius - 10;
+        const outerR = radius + 10;
+        const p1 = arcPath(angle, innerR);
+        const p2 = arcPath(angle, outerR);
+        const labelP = arcPath(angle, outerR + 12);
+        return (
+          <g key={tick}>
+            <line
+              x1={p1.x} y1={p1.y} x2={p2.x} y2={p2.y}
+              stroke="rgba(255,255,255,0.1)"
+              strokeWidth="1"
+            />
+            <text
+              x={labelP.x} y={labelP.y}
+              fill={DIM}
+              fontSize="8"
+              fontWeight="600"
+              textAnchor="middle"
+              dominantBaseline="middle"
+              fontFamily="var(--font-mono, monospace)"
+            >
+              {tick}
+            </text>
+          </g>
+        );
+      })}
+
+      {/* Needle */}
+      <line
+        x1={cx} y1={cy}
+        x2={scorePoint.x} y2={scorePoint.y}
+        stroke={color}
+        strokeWidth="2"
+        strokeLinecap="round"
+        style={{
+          transformOrigin: `${cx}px ${cy}px`,
+          filter: `drop-shadow(0 0 4px ${color}80)`,
+        }}
+      />
+
+      {/* Center dot */}
+      <circle cx={cx} cy={cy} r="5" fill={color} stroke={SURFACE} strokeWidth="2" />
+
+      {/* Score display */}
+      <text
+        x={cx} y={cy + 24}
+        fill={color}
+        fontSize="22"
+        fontWeight="800"
+        textAnchor="middle"
+        fontFamily="var(--font-mono, monospace)"
+      >
+        {score}%
+      </text>
+      <text
+        x={cx} y={cy + 38}
+        fill={DIM}
+        fontSize="9"
+        fontWeight="600"
+        textAnchor="middle"
+        style={{ textTransform: 'uppercase', letterSpacing: '0.08em' }}
+      >
+        TEAM FOCUS
+      </text>
+    </svg>
+  );
+}
+
+/* --- Enhanced Radar Chart --- */
+function RadarChart({ data, size = 220 }: { data: typeof driftData; size?: number }) {
+  const cx = size / 2;
+  const cy = size / 2;
+  const maxRadius = size / 2 - 24;
+  const members = data.slice(0, 8);
   const angleStep = (2 * Math.PI) / members.length;
 
-  // Generate points for each ring level
   function ringPoints(radius: number) {
     return members.map((_, i) => {
       const angle = -Math.PI / 2 + i * angleStep;
@@ -197,35 +761,69 @@ function RadarChart({ data, size = 200 }: { data: typeof driftData; size?: numbe
     }).join(' ');
   }
 
-  // Generate points for data polygon
   const dataPoints = members.map((m, i) => {
     const angle = -Math.PI / 2 + i * angleStep;
     const r = (m.driftScore / 100) * maxRadius;
+    const x = cx + r * Math.cos(angle);
+    const y = cy + r * Math.sin(angle);
+    return { x, y, score: m.driftScore };
+  });
+
+  const prevDataPoints = members.map((m, i) => {
+    const angle = -Math.PI / 2 + i * angleStep;
+    const r = (m.prevDriftScore / 100) * maxRadius;
     const x = cx + r * Math.cos(angle);
     const y = cy + r * Math.sin(angle);
     return { x, y };
   });
 
   const dataPolygon = dataPoints.map((p) => `${p.x},${p.y}`).join(' ');
+  const prevPolygon = prevDataPoints.map((p) => `${p.x},${p.y}`).join(' ');
 
   return (
-    <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
+    <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} style={{ overflow: 'visible' }}>
       <defs>
-        <radialGradient id="radar-fill" cx="50%" cy="50%">
-          <stop offset="0%" stopColor={AMBER} stopOpacity="0.2" />
-          <stop offset="100%" stopColor={AMBER} stopOpacity="0.05" />
+        <radialGradient id="rd-radar-fill" cx="50%" cy="50%">
+          <stop offset="0%" stopColor={AMBER} stopOpacity="0.25" />
+          <stop offset="100%" stopColor={AMBER} stopOpacity="0.03" />
         </radialGradient>
+        <radialGradient id="rd-radar-bg" cx="50%" cy="50%">
+          <stop offset="0%" stopColor="rgba(255,255,255,0.02)" />
+          <stop offset="100%" stopColor="transparent" />
+        </radialGradient>
+        <filter id="rd-radar-glow">
+          <feGaussianBlur stdDeviation="3" result="blur" />
+          <feComposite in="SourceGraphic" in2="blur" operator="over" />
+        </filter>
       </defs>
 
-      {/* Background rings */}
+      {/* Background fill */}
+      <circle cx={cx} cy={cy} r={maxRadius} fill="url(#rd-radar-bg)" />
+
+      {/* Concentric rings */}
       {[0.25, 0.5, 0.75, 1].map((level) => (
         <polygon
           key={level}
           points={ringPoints(maxRadius * level)}
           fill="none"
-          stroke="rgba(255,255,255,0.06)"
+          stroke="rgba(255,255,255,0.05)"
           strokeWidth="0.5"
+          strokeDasharray={level < 1 ? '2,3' : 'none'}
         />
+      ))}
+
+      {/* Ring labels */}
+      {[25, 50, 75, 100].map((val) => (
+        <text
+          key={val}
+          x={cx + 4}
+          y={cy - (val / 100) * maxRadius + 3}
+          fill="rgba(255,255,255,0.12)"
+          fontSize="7"
+          fontFamily="var(--font-mono, monospace)"
+        >
+          {val}
+        </text>
       ))}
 
       {/* Axis lines */}
@@ -234,25 +832,56 @@ function RadarChart({ data, size = 200 }: { data: typeof driftData; size?: numbe
         const x2 = cx + maxRadius * Math.cos(angle);
         const y2 = cy + maxRadius * Math.sin(angle);
         return (
-          <line key={i} x1={cx} y1={cy} x2={x2} y2={y2} stroke="rgba(255,255,255,0.06)" strokeWidth="0.5" />
+          <line key={i} x1={cx} y1={cy} x2={x2} y2={y2} stroke="rgba(255,255,255,0.04)" strokeWidth="0.5" />
         );
       })}
 
-      {/* Data polygon */}
+      {/* Previous period polygon (ghost) */}
+      <polygon
+        points={prevPolygon}
+        fill="none"
+        stroke="rgba(255,255,255,0.08)"
+        strokeWidth="1"
+        strokeDasharray="3,3"
+        strokeLinejoin="round"
+      />
+
+      {/* Current data polygon */}
       <polygon
         points={dataPolygon}
-        fill="url(#radar-fill)"
+        fill="url(#rd-radar-fill)"
         stroke={AMBER}
         strokeWidth="1.5"
         strokeLinejoin="round"
-        style={{ filter: `drop-shadow(0 0 4px ${AMBER}30)` }}
+        filter="url(#rd-radar-glow)"
+        style={{ transition: `all 0.6s ${EASE}` }}
       />
 
-      {/* Data points */}
+      {/* Data points with color coding */}
       {dataPoints.map((p, i) => {
         const color = scoreColor(members[i].driftScore);
         return (
-          <circle key={i} cx={p.x} cy={p.y} r="4" fill={color} stroke="#131720" strokeWidth="1.5" />
+          <g key={i}>
+            {/* Outer glow ring */}
+            <circle
+              cx={p.x} cy={p.y} r="8"
+              fill="none"
+              stroke={color}
+              strokeWidth="0.5"
+              opacity="0.3"
+            />
+            {/* Data dot */}
+            <circle
+              cx={p.x} cy={p.y} r="4.5"
+              fill={color}
+              stroke={SURFACE}
+              strokeWidth="2"
+              style={{
+                animation: `rd-scaleIn 0.4s ${EASE} ${300 + i * 80}ms both`,
+                filter: `drop-shadow(0 0 4px ${color}60)`,
+              }}
+            />
+          </g>
         );
       })}
 
@@ -261,55 +890,23 @@ function RadarChart({ data, size = 200 }: { data: typeof driftData; size?: numbe
         const member = teamMembers.find((tm) => tm.id === m.id);
         if (!member) return null;
         const angle = -Math.PI / 2 + i * angleStep;
-        const labelR = maxRadius + 14;
+        const labelR = maxRadius + 18;
         const x = cx + labelR * Math.cos(angle);
         const y = cy + labelR * Math.sin(angle);
         const textAnchor = Math.abs(Math.cos(angle)) < 0.1 ? 'middle' : Math.cos(angle) > 0 ? 'start' : 'end';
+        const color = scoreColor(m.driftScore);
         return (
-          <text
-            key={m.id}
-            x={x}
-            y={y}
-            textAnchor={textAnchor}
-            dominantBaseline="middle"
-            fill={scoreColor(m.driftScore)}
-            fontSize="9"
-            fontWeight="600"
-          >
-            {member.name.split(' ')[0]}
-          </text>
-        );
-      })}
-    </svg>
-  );
-}
-
-/* --- SVG Bar Chart for Activities --- */
-function ActivityBarChart({ activities }: { activities: DriftActivity[] }) {
-  const maxHours = Math.max(...activities.map((a) => a.hoursPerWeek), 1);
-  const barHeight = 16;
-  const gap = 6;
-  const labelWidth = 110;
-  const chartWidth = 200;
-  const totalHeight = activities.length * (barHeight + gap) - gap;
-
-  return (
-    <svg width={labelWidth + chartWidth + 40} height={totalHeight} viewBox={`0 0 ${labelWidth + chartWidth + 40} ${totalHeight}`}>
-      {activities.map((a, i) => {
-        const y = i * (barHeight + gap);
-        const barW = (a.hoursPerWeek / maxHours) * chartWidth;
-        const color = a.type === 'in-seat' ? SAGE : GOLD;
-        return (
-          <g key={i}>
-            <text x={labelWidth - 6} y={y + barHeight / 2 + 1} textAnchor="end" fill="#a09888" fontSize="10" dominantBaseline="middle">
-              {a.label}
-            </text>
-            <rect x={labelWidth} y={y} width={barW} height={barHeight} rx={4} fill={`${color}30`} stroke={`${color}40`} strokeWidth="0.5" />
-            <rect x={labelWidth} y={y} width={barW} height={barHeight} rx={4} fill={`${color}20`}>
-              <animate attributeName="width" from="0" to={barW} dur="0.6s" fill="freeze" />
-            </rect>
-            <text x={labelWidth + barW + 6} y={y + barHeight / 2 + 1} fill={color} fontSize="10" fontWeight="600" fontFamily="monospace" dominantBaseline="middle">
-              {a.hoursPerWeek}h
+          <g key={m.id}>
+            <text
+              x={x} y={y}
+              textAnchor={textAnchor}
+              dominantBaseline="middle"
+              fill={color}
+              fontSize="9"
+              fontWeight="700"
+              style={{ textShadow: `0 0 8px ${color}30` }}
+            >
+              {member.name.split(' ')[0]}
             </text>
           </g>
         );
@@ -318,120 +915,376 @@ function ActivityBarChart({ activities }: { activities: DriftActivity[] }) {
   );
 }
 
-/* --- Drift Score Badge --- */
-function DriftBadge({ score, size = 'normal' }: { score: number; size?: 'normal' | 'large' }) {
-  const color = scoreColor(score);
-  const bg = scoreBg(score);
-  const label = scoreLabel(score);
-  const driftPct = 100 - score;
-
-  if (size === 'large') {
-    return (
-      <div
-        style={{
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-          padding: '10px 16px',
-          borderRadius: 12,
-          backgroundColor: bg,
-          border: `1px solid ${color}30`,
-        }}
-      >
-        <span style={{ fontSize: 28, fontWeight: 800, color, fontFamily: 'monospace', lineHeight: 1 }}>
-          {score}
-        </span>
-        <span style={{ fontSize: 9, fontWeight: 600, color, textTransform: 'uppercase', letterSpacing: '0.06em', marginTop: 4 }}>
-          {label}
-        </span>
-        <span style={{ fontSize: 10, color: '#6b6358', marginTop: 2 }}>
-          {driftPct}% drift
-        </span>
-      </div>
-    );
-  }
+/* --- Role Comparison Panel --- */
+function RoleComparison({
+  member,
+  activities,
+  delay = 0,
+}: {
+  member: any;
+  activities: DriftActivity[];
+  delay?: number;
+}) {
+  const inSeat = activities.filter((a) => a.type === 'in-seat');
+  const outSeat = activities.filter((a) => a.type === 'out-of-seat');
+  const totalIn = inSeat.reduce((s, a) => s + a.hoursPerWeek, 0);
+  const totalOut = outSeat.reduce((s, a) => s + a.hoursPerWeek, 0);
+  const total = totalIn + totalOut;
 
   return (
-    <span
+    <div
       style={{
-        fontSize: 10,
-        fontWeight: 700,
-        padding: '3px 8px',
-        borderRadius: 20,
-        color,
-        backgroundColor: bg,
-        border: `1px solid ${color}25`,
-        fontFamily: 'monospace',
+        display: 'grid',
+        gridTemplateColumns: '1fr 1fr',
+        gap: 1,
+        borderRadius: 12,
+        overflow: 'hidden',
+        border: `1px solid ${BORDER}`,
+        animation: `rd-fadeUp 0.5s ${EASE} ${delay}ms both`,
       }}
     >
-      {score}
-    </span>
+      {/* Defined Role */}
+      <div style={{ padding: '14px 16px', background: `linear-gradient(135deg, ${SAGE}06, ${SAGE}02)` }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 10 }}>
+          <Shield size={12} style={{ color: SAGE }} />
+          <span style={{ fontSize: 9, fontWeight: 700, color: SAGE, textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+            Defined Role
+          </span>
+          <span
+            style={{
+              marginLeft: 'auto',
+              fontSize: 10,
+              fontWeight: 700,
+              color: SAGE,
+              fontFamily: 'var(--font-mono, monospace)',
+            }}
+          >
+            {totalIn}h/wk
+          </span>
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+          {inSeat.map((a, i) => (
+            <div
+              key={i}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6,
+                fontSize: 11,
+                color: MUTED,
+              }}
+            >
+              <div style={{ width: 4, height: 4, borderRadius: '50%', backgroundColor: SAGE, flexShrink: 0 }} />
+              <span style={{ flex: 1 }}>{a.label}</span>
+              <span style={{ fontSize: 10, fontWeight: 600, color: SAGE, fontFamily: 'var(--font-mono, monospace)' }}>
+                {a.hoursPerWeek}h
+              </span>
+            </div>
+          ))}
+          {inSeat.length === 0 && (
+            <span style={{ fontSize: 11, color: DIM, fontStyle: 'italic' }}>No in-seat activities</span>
+          )}
+        </div>
+        {/* Percentage bar */}
+        <div style={{ marginTop: 10 }}>
+          <div className="progress-bar-animated" style={{ height: 3, borderRadius: 2, backgroundColor: 'rgba(255,255,255,0.04)', overflow: 'hidden' }}>
+            <div
+              style={{
+                height: '100%',
+                width: total > 0 ? `${(totalIn / total) * 100}%` : '0%',
+                backgroundColor: SAGE,
+                borderRadius: 2,
+                transition: `width 0.8s ${EASE}`,
+              }}
+            />
+          </div>
+          <span style={{ fontSize: 9, color: DIM, marginTop: 3, display: 'block' }}>
+            {total > 0 ? Math.round((totalIn / total) * 100) : 0}% of time
+          </span>
+        </div>
+      </div>
+
+      {/* Actual Activity (drift) */}
+      <div style={{ padding: '14px 16px', background: `linear-gradient(135deg, ${GOLD}06, ${GOLD}02)` }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 10 }}>
+          <Compass size={12} style={{ color: GOLD }} />
+          <span style={{ fontSize: 9, fontWeight: 700, color: GOLD, textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+            Drift Activity
+          </span>
+          <span
+            style={{
+              marginLeft: 'auto',
+              fontSize: 10,
+              fontWeight: 700,
+              color: GOLD,
+              fontFamily: 'var(--font-mono, monospace)',
+            }}
+          >
+            {totalOut}h/wk
+          </span>
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+          {outSeat.map((a, i) => (
+            <div
+              key={i}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6,
+                fontSize: 11,
+                color: MUTED,
+              }}
+            >
+              <div style={{ width: 4, height: 4, borderRadius: '50%', backgroundColor: GOLD, flexShrink: 0 }} />
+              <span style={{ flex: 1 }}>{a.label}</span>
+              <span style={{ fontSize: 10, fontWeight: 600, color: GOLD, fontFamily: 'var(--font-mono, monospace)' }}>
+                {a.hoursPerWeek}h
+              </span>
+            </div>
+          ))}
+          {outSeat.length === 0 && (
+            <span style={{ fontSize: 11, color: DIM, fontStyle: 'italic' }}>No drift detected</span>
+          )}
+        </div>
+        {/* Percentage bar */}
+        <div style={{ marginTop: 10 }}>
+          <div className="progress-bar-animated" style={{ height: 3, borderRadius: 2, backgroundColor: 'rgba(255,255,255,0.04)', overflow: 'hidden' }}>
+            <div
+              style={{
+                height: '100%',
+                width: total > 0 ? `${(totalOut / total) * 100}%` : '0%',
+                backgroundColor: GOLD,
+                borderRadius: 2,
+                transition: `width 0.8s ${EASE}`,
+              }}
+            />
+          </div>
+          <span style={{ fontSize: 9, color: DIM, marginTop: 3, display: 'block' }}>
+            {total > 0 ? Math.round((totalOut / total) * 100) : 0}% of time
+          </span>
+        </div>
+      </div>
+    </div>
   );
 }
 
-/* --- Team Drift Overview SVG --- */
+/* --- Activity Bar Chart (enhanced) --- */
+function ActivityBarChart({ activities, delay = 0 }: { activities: DriftActivity[]; delay?: number }) {
+  const maxHours = Math.max(...activities.map((a) => a.hoursPerWeek), 1);
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+      {activities.map((a, i) => {
+        const color = a.type === 'in-seat' ? SAGE : GOLD;
+        const pct = (a.hoursPerWeek / maxHours) * 100;
+        return (
+          <div
+            key={i}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 10,
+              animation: `rd-fadeUp 0.4s ${EASE} ${delay + i * 60}ms both`,
+            }}
+          >
+            <span style={{ fontSize: 10, color: MUTED, width: 110, textAlign: 'right', flexShrink: 0 }}>
+              {a.label}
+            </span>
+            <div style={{ flex: 1, height: 16, borderRadius: 4, backgroundColor: 'rgba(255,255,255,0.02)', overflow: 'hidden', position: 'relative' }}>
+              <div
+                style={{
+                  height: '100%',
+                  width: `${pct}%`,
+                  background: `linear-gradient(90deg, ${color}30, ${color}50)`,
+                  borderRadius: 4,
+                  animation: `rd-barGrow 0.8s ${EASE} ${delay + i * 60 + 200}ms both`,
+                  position: 'relative',
+                }}
+              >
+                {/* Shimmer */}
+                <div
+                  style={{
+                    position: 'absolute',
+                    inset: 0,
+                    background: `linear-gradient(90deg, transparent, ${color}20, transparent)`,
+                    backgroundSize: '200% 100%',
+                    animation: 'rd-shimmer 3s ease-in-out infinite',
+                  }}
+                />
+              </div>
+            </div>
+            <span
+              style={{
+                fontSize: 10,
+                fontWeight: 700,
+                color,
+                fontFamily: 'var(--font-mono, monospace)',
+                width: 28,
+                textAlign: 'right',
+              }}
+            >
+              {a.hoursPerWeek}h
+            </span>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+/* --- Glassmorphism Card Wrapper --- */
+function GlassCard({
+  children,
+  style,
+  className = '',
+  hover = true,
+  delay = 0,
+  glow,
+  onClick,
+}: {
+  children: React.ReactNode;
+  style?: React.CSSProperties;
+  className?: string;
+  hover?: boolean;
+  delay?: number;
+  glow?: string;
+  onClick?: () => void;
+}) {
+  return (
+    <div
+      className={`glow-card ${className}`}
+      onClick={onClick}
+      style={{
+        background: GLASS_BG,
+        backdropFilter: 'blur(20px)',
+        WebkitBackdropFilter: 'blur(20px)',
+        border: `1px solid ${GLASS_BORDER}`,
+        borderRadius: 16,
+        animation: `rd-fadeUp 0.5s ${EASE} ${delay}ms both`,
+        transition: `all 0.3s ${EASE}`,
+        ...(hover ? { cursor: 'pointer' } : {}),
+        ...style,
+      }}
+      onMouseEnter={hover ? (e) => {
+        e.currentTarget.style.background = GLASS_HOVER;
+        e.currentTarget.style.borderColor = 'rgba(212,165,116,0.18)';
+        e.currentTarget.style.boxShadow = `0 8px 32px rgba(0,0,0,0.3), 0 0 0 1px rgba(255,255,255,0.04)${glow ? `, 0 0 20px ${glow}` : ''}`;
+        e.currentTarget.style.transform = 'translateY(-2px)';
+      } : undefined}
+      onMouseLeave={hover ? (e) => {
+        e.currentTarget.style.background = GLASS_BG;
+        e.currentTarget.style.borderColor = GLASS_BORDER;
+        e.currentTarget.style.boxShadow = 'none';
+        e.currentTarget.style.transform = 'none';
+      } : undefined}
+    >
+      {children}
+    </div>
+  );
+}
+
+/* --- Team Drift Overview (horizontal stacked bars) --- */
 function TeamDriftOverview({ data }: { data: Array<{ id: string; driftScore: number; member: any }> }) {
-  const barHeight = 24;
-  const gap = 8;
-  const labelWidth = 90;
-  const chartWidth = 400;
-  const totalHeight = data.length * (barHeight + gap) - gap;
   const sorted = [...data].sort((a, b) => a.driftScore - b.driftScore);
 
   return (
-    <svg width="100%" height={totalHeight + 10} viewBox={`0 0 ${labelWidth + chartWidth + 60} ${totalHeight + 10}`}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
       {sorted.map((item, i) => {
-        const y = i * (barHeight + gap);
-        const inSeatW = (item.driftScore / 100) * chartWidth;
-        const outSeatW = ((100 - item.driftScore) / 100) * chartWidth;
         const color = scoreColor(item.driftScore);
-
+        const driftPct = 100 - item.driftScore;
         return (
-          <g key={item.id}>
+          <div
+            key={item.id}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 10,
+              animation: `rd-fadeUp 0.4s ${EASE} ${200 + i * 60}ms both`,
+            }}
+          >
             {/* Name */}
-            <text x={labelWidth - 8} y={y + barHeight / 2 + 1} textAnchor="end" fill="#d8cfc4" fontSize="11" fontWeight="600" dominantBaseline="middle">
-              {item.member?.name.split(' ')[0] || item.id}
-            </text>
-
-            {/* In-seat bar (green) */}
-            <rect x={labelWidth} y={y} width={inSeatW} height={barHeight} rx={4} fill={`${SAGE}30`} stroke={`${SAGE}25`} strokeWidth="0.5" />
-
-            {/* Out-of-seat bar (amber/red) */}
-            <rect x={labelWidth + inSeatW} y={y} width={outSeatW} height={barHeight} rx={0} fill={`${item.driftScore < 50 ? DANGER : GOLD}20`} stroke={`${item.driftScore < 50 ? DANGER : GOLD}20`} strokeWidth="0.5">
-              <animate attributeName="rx" from="0" to="4" dur="0.3s" fill="freeze" />
-            </rect>
-
-            {/* Score overlay text */}
-            <text x={labelWidth + 8} y={y + barHeight / 2 + 1} fill={SAGE} fontSize="10" fontWeight="700" fontFamily="monospace" dominantBaseline="middle">
-              {item.driftScore}%
-            </text>
-
-            {/* Drift % on right */}
-            <text
-              x={labelWidth + chartWidth + 8}
-              y={y + barHeight / 2 + 1}
-              fill={color}
-              fontSize="10"
-              fontWeight="600"
-              fontFamily="monospace"
-              dominantBaseline="middle"
+            <span
+              style={{
+                fontSize: 11,
+                fontWeight: 600,
+                color: CREAM,
+                width: 70,
+                textAlign: 'right',
+                flexShrink: 0,
+              }}
             >
-              {100 - item.driftScore}%
-            </text>
-          </g>
+              {item.member?.name.split(' ')[0] || item.id}
+            </span>
+
+            {/* Bar track */}
+            <div
+              style={{
+                flex: 1,
+                height: 22,
+                borderRadius: 6,
+                backgroundColor: 'rgba(255,255,255,0.02)',
+                overflow: 'hidden',
+                display: 'flex',
+                position: 'relative',
+              }}
+            >
+              {/* In-seat fill */}
+              <div
+                style={{
+                  height: '100%',
+                  width: `${item.driftScore}%`,
+                  background: `linear-gradient(90deg, ${SAGE}20, ${SAGE}35)`,
+                  borderRadius: '6px 0 0 6px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  paddingLeft: 8,
+                  animation: `rd-barGrow 0.8s ${EASE} ${300 + i * 80}ms both`,
+                }}
+              >
+                <span style={{ fontSize: 9, fontWeight: 700, color: SAGE, fontFamily: 'var(--font-mono, monospace)' }}>
+                  {item.driftScore}%
+                </span>
+              </div>
+
+              {/* Drift fill */}
+              <div
+                style={{
+                  height: '100%',
+                  width: `${driftPct}%`,
+                  background: `linear-gradient(90deg, ${item.driftScore < 50 ? DANGER : GOLD}15, ${item.driftScore < 50 ? DANGER : GOLD}25)`,
+                  borderRadius: '0 6px 6px 0',
+                }}
+              />
+            </div>
+
+            {/* Drift % badge */}
+            <span
+              style={{
+                fontSize: 10,
+                fontWeight: 700,
+                color,
+                fontFamily: 'var(--font-mono, monospace)',
+                width: 36,
+                textAlign: 'right',
+              }}
+            >
+              {driftPct}%
+            </span>
+          </div>
         );
       })}
-    </svg>
+    </div>
   );
 }
 
-/* ===================================================================
+/* ═══════════════════════════════════════════════════════════════════
    Main Component
-   =================================================================== */
+   ═══════════════════════════════════════════════════════════════════ */
 
 export function RoleDriftView() {
   const [sortAsc, setSortAsc] = useState(false);
   const [expandedCard, setExpandedCard] = useState<string | null>(null);
+  const [hoveredCard, setHoveredCard] = useState<string | null>(null);
 
   const enrichedData = useMemo(() => {
     return driftData
@@ -448,6 +1301,15 @@ export function RoleDriftView() {
     );
   }, [enrichedData, sortAsc]);
 
+  // Sparkline cache
+  const sparklines = useMemo(() => {
+    const map: Record<string, number[]> = {};
+    enrichedData.forEach((d) => {
+      map[d.id] = generateSparkline(d.driftScore, d.prevDriftScore);
+    });
+    return map;
+  }, [enrichedData]);
+
   // Aggregate stats
   const avgScore = Math.round(
     enrichedData.reduce((sum, d) => sum + d.driftScore, 0) / enrichedData.length
@@ -456,165 +1318,261 @@ export function RoleDriftView() {
   const mostDrifted = enrichedData.reduce((worst, d) => d.driftScore < worst.driftScore ? d : worst);
   const totalActivities = enrichedData.reduce((sum, d) => sum + d.activities.length, 0);
   const membersWithRecs = enrichedData.filter((d) => d.recommendation).length;
+  const atRiskCount = enrichedData.filter((d) => d.driftScore < 60).length;
+  const totalInSeatHours = enrichedData.reduce(
+    (s, d) => s + d.activities.filter((a) => a.type === 'in-seat').reduce((h, a) => h + a.hoursPerWeek, 0),
+    0
+  );
+  const totalOutSeatHours = enrichedData.reduce(
+    (s, d) => s + d.activities.filter((a) => a.type === 'out-of-seat').reduce((h, a) => h + a.hoursPerWeek, 0),
+    0
+  );
 
   return (
-    <div style={{ maxWidth: 1080, margin: '0 auto', padding: '32px 40px' }}>
-      {/* -- Header -- */}
-      <div className="animate-fade-in" style={{ marginBottom: 32, opacity: 0, animationDelay: '0s' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 6 }}>
-          <Compass size={28} style={{ color: AMBER }} />
-          <h1 style={{ fontSize: 28, fontWeight: 700, color: '#f0ebe4', margin: 0 }}>
-            Role Drift Detector
-          </h1>
+    <div style={{ maxWidth: 1120, margin: '0 auto', padding: '32px 40px' }}>
+      {/* Inject scoped keyframes */}
+      <style dangerouslySetInnerHTML={{ __html: scopedKeyframes }} />
+
+      {/* ── Header ── */}
+      <div style={{ marginBottom: 36, animation: `rd-fadeUp 0.6s ${EASE} 0ms both`, position: 'relative', overflow: 'hidden' }}>
+        <div className="noise-overlay" style={{ position: 'absolute', inset: 0, borderRadius: 'inherit', pointerEvents: 'none' }} />
+        <div className="dot-pattern" style={{ position: 'absolute', inset: 0, borderRadius: 'inherit', pointerEvents: 'none', opacity: 0.3 }} />
+        <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 8 }}>
+          <div
+            style={{
+              width: 44,
+              height: 44,
+              borderRadius: 14,
+              background: `linear-gradient(135deg, ${AMBER}20, ${VIOLET}15)`,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              border: `1px solid ${AMBER}20`,
+            }}
+          >
+            <Compass size={24} style={{ color: AMBER }} />
+          </div>
+          <div>
+            <h1 className="text-glow" style={{ fontSize: 28, fontWeight: 800, color: CREAM, margin: 0, letterSpacing: '-0.02em' }}>
+              Role Drift Detector
+            </h1>
+            <p style={{ fontSize: 13, color: MUTED, margin: '4px 0 0', lineHeight: 1.4 }}>
+              Tracking role adherence across the steward team. Lower scores indicate more time spent outside defined responsibilities.
+            </p>
+          </div>
         </div>
-        <p style={{ fontSize: 14, color: '#a09888', margin: 0, paddingLeft: 40 }}>
-          Tracking role adherence across the steward team. Lower scores indicate more time spent outside defined responsibilities.
-        </p>
       </div>
 
-      {/* -- Summary Stats -- */}
+      {/* ── Stats Header Row ── */}
       <div
-        className="animate-fade-in"
         style={{
           display: 'grid',
-          gridTemplateColumns: 'repeat(5, 1fr)',
-          gap: 12,
-          marginBottom: 24,
-          animationDelay: '0.03s',
-          opacity: 0,
+          gridTemplateColumns: 'repeat(6, 1fr)',
+          gap: 10,
+          marginBottom: 28,
         }}
       >
         {[
-          { label: 'Avg Focus Score', value: avgScore.toString(), color: scoreColor(avgScore), icon: Target },
-          { label: 'Most Focused', value: mostFocused.member?.name.split(' ')[0] || '', sub: `Score: ${mostFocused.driftScore}`, color: SAGE, icon: CheckCircle2 },
-          { label: 'Most Drifted', value: mostDrifted.member?.name.split(' ')[0] || '', sub: `Score: ${mostDrifted.driftScore}`, color: DANGER, icon: TrendingDown },
-          { label: 'Total Activities', value: totalActivities.toString(), color: VIOLET, icon: Activity },
-          { label: 'Action Needed', value: membersWithRecs.toString(), sub: 'recommendations', color: GOLD, icon: Lightbulb },
+          {
+            label: 'Team Focus',
+            value: avgScore,
+            suffix: '%',
+            color: scoreColor(avgScore),
+            icon: Target,
+            sub: scoreLabel(avgScore),
+          },
+          {
+            label: 'Members at Risk',
+            value: atRiskCount,
+            suffix: '',
+            color: atRiskCount > 0 ? DANGER : SAGE,
+            icon: AlertTriangle,
+            sub: atRiskCount > 0 ? 'need attention' : 'all clear',
+            pulse: atRiskCount > 0,
+          },
+          {
+            label: 'Most Focused',
+            value: mostFocused.driftScore,
+            suffix: '',
+            color: SAGE,
+            icon: CheckCircle2,
+            sub: mostFocused.member?.name.split(' ')[0] || '',
+          },
+          {
+            label: 'Most Drifted',
+            value: mostDrifted.driftScore,
+            suffix: '',
+            color: DANGER,
+            icon: TrendingDown,
+            sub: mostDrifted.member?.name.split(' ')[0] || '',
+          },
+          {
+            label: 'In-Seat Hours',
+            value: totalInSeatHours,
+            suffix: 'h',
+            color: SAGE,
+            icon: Clock,
+            sub: `${totalActivities} activities tracked`,
+          },
+          {
+            label: 'Action Items',
+            value: membersWithRecs,
+            suffix: '',
+            color: GOLD,
+            icon: Lightbulb,
+            sub: 'recommendations',
+          },
         ].map((stat, i) => {
           const Icon = stat.icon;
           return (
-            <div
+            <GlassCard
               key={stat.label}
-              className="animate-fade-in glow-card"
+              className="card-stat"
+              delay={80 + i * 50}
               style={{
-                backgroundColor: `${stat.color}0a`,
-                border: `1px solid ${stat.color}20`,
-                borderRadius: 12,
-                padding: '14px',
-                animationDelay: `${0.05 + i * 0.03}s`,
-                opacity: 0,
-                transition: 'border-color 0.3s, transform 0.2s',
+                padding: '16px 14px',
+                ...(stat.pulse ? { animation: `rd-pulseAlert 3s ease-in-out infinite, rd-fadeUp 0.5s ${EASE} ${80 + i * 50}ms both` } : {}),
               }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.borderColor = `${stat.color}40`;
-                e.currentTarget.style.transform = 'translateY(-2px)';
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.borderColor = `${stat.color}20`;
-                e.currentTarget.style.transform = 'none';
-              }}
+              glow={`${stat.color}15`}
             >
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
-                <Icon size={13} style={{ color: stat.color }} />
-                <span style={{ fontSize: 10, fontWeight: 600, color: stat.color, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
+                <div
+                  style={{
+                    width: 22,
+                    height: 22,
+                    borderRadius: 6,
+                    backgroundColor: `${stat.color}12`,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}
+                >
+                  <Icon size={12} style={{ color: stat.color }} />
+                </div>
+                <span style={{ fontSize: 9, fontWeight: 700, color: DIM, textTransform: 'uppercase', letterSpacing: '0.08em' }}>
                   {stat.label}
                 </span>
               </div>
-              <div style={{ fontSize: 22, fontWeight: 800, color: stat.color, fontFamily: 'monospace' }}>
-                {stat.value}
+              <div style={{ display: 'flex', alignItems: 'baseline', gap: 2 }}>
+                <AnimatedNumber value={stat.value} color={stat.color} size={24} delay={200 + i * 60} />
+                {stat.suffix && (
+                  <span style={{ fontSize: 14, fontWeight: 700, color: stat.color, fontFamily: 'var(--font-mono, monospace)' }}>
+                    {stat.suffix}
+                  </span>
+                )}
               </div>
-              {(stat as { sub?: string }).sub && (
-                <div style={{ fontSize: 10, color: '#6b6358', marginTop: 2 }}>
-                  {(stat as { sub?: string }).sub}
-                </div>
-              )}
-            </div>
+              <div style={{ fontSize: 10, color: DIM, marginTop: 3 }}>
+                {stat.sub}
+              </div>
+            </GlassCard>
           );
         })}
       </div>
 
-      {/* -- Radar Chart + Team Overview Grid -- */}
+      {/* ── Gauge + Radar + Team Overview ── */}
       <div
-        className="animate-fade-in"
         style={{
           display: 'grid',
-          gridTemplateColumns: '240px 1fr',
-          gap: 24,
-          marginBottom: 24,
-          animationDelay: '0.1s',
-          opacity: 0,
+          gridTemplateColumns: '200px 250px 1fr',
+          gap: 16,
+          marginBottom: 28,
         }}
       >
+        {/* Gauge */}
+        <GlassCard className="card-premium" delay={300} hover={false} style={{ padding: '20px 16px', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 12, alignSelf: 'flex-start' }}>
+            <Zap size={12} style={{ color: DIM }} />
+            <span style={{ fontSize: 9, fontWeight: 700, color: DIM, textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+              Drift Gauge
+            </span>
+          </div>
+          <DriftGauge score={avgScore} size={170} />
+          <div style={{ display: 'flex', gap: 16, marginTop: 8 }}>
+            <div style={{ textAlign: 'center' }}>
+              <span style={{ fontSize: 15, fontWeight: 800, color: SAGE, fontFamily: 'var(--font-mono, monospace)' }}>{totalInSeatHours}h</span>
+              <span style={{ fontSize: 8, color: DIM, display: 'block', textTransform: 'uppercase', letterSpacing: '0.06em' }}>In-Seat</span>
+            </div>
+            <div style={{ width: 1, backgroundColor: BORDER }} />
+            <div style={{ textAlign: 'center' }}>
+              <span style={{ fontSize: 15, fontWeight: 800, color: GOLD, fontFamily: 'var(--font-mono, monospace)' }}>{totalOutSeatHours}h</span>
+              <span style={{ fontSize: 8, color: DIM, display: 'block', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Drift</span>
+            </div>
+          </div>
+        </GlassCard>
+
         {/* Radar */}
-        <div
-          className="glow-card"
-          style={{
-            backgroundColor: '#131720',
-            border: '1px solid #1e2638',
-            borderRadius: 16,
-            padding: 16,
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-          }}
-        >
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8, alignSelf: 'flex-start' }}>
-            <BarChart3 size={13} style={{ color: '#6b6358' }} />
-            <span style={{ fontSize: 10, fontWeight: 600, color: '#6b6358', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+        <GlassCard className="card-premium" delay={350} hover={false} style={{ padding: '20px 12px', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4, alignSelf: 'flex-start', paddingLeft: 4 }}>
+            <BarChart3 size={12} style={{ color: DIM }} />
+            <span style={{ fontSize: 9, fontWeight: 700, color: DIM, textTransform: 'uppercase', letterSpacing: '0.08em' }}>
               Focus Radar
             </span>
           </div>
-          <RadarChart data={driftData} size={210} />
-        </div>
+          <RadarChart data={driftData} size={215} />
+          {/* Legend */}
+          <div style={{ display: 'flex', gap: 12, marginTop: 4 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+              <div style={{ width: 12, height: 2, backgroundColor: AMBER, borderRadius: 1 }} />
+              <span style={{ fontSize: 8, color: DIM }}>Current</span>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+              <div style={{ width: 12, height: 2, borderBottom: `1px dashed rgba(255,255,255,0.2)` }} />
+              <span style={{ fontSize: 8, color: DIM }}>Previous</span>
+            </div>
+          </div>
+        </GlassCard>
 
-        {/* Team Drift Overview bars */}
-        <div
-          className="glow-card"
-          style={{
-            backgroundColor: '#131720',
-            border: '1px solid #1e2638',
-            borderRadius: 16,
-            padding: 20,
-          }}
-        >
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+        {/* Team overview bars */}
+        <GlassCard className="card-premium" delay={400} hover={false} style={{ padding: '20px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-              <Users size={13} style={{ color: '#6b6358' }} />
-              <span style={{ fontSize: 10, fontWeight: 600, color: '#6b6358', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-                Team Drift Overview
+              <Users size={12} style={{ color: DIM }} />
+              <span style={{ fontSize: 9, fontWeight: 700, color: DIM, textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+                Team Overview
               </span>
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
                 <div style={{ width: 8, height: 8, borderRadius: 2, backgroundColor: `${SAGE}40` }} />
-                <span style={{ fontSize: 9, color: '#6b6358' }}>In-Seat</span>
+                <span style={{ fontSize: 8, color: DIM }}>In-Seat</span>
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
                 <div style={{ width: 8, height: 8, borderRadius: 2, backgroundColor: `${GOLD}30` }} />
-                <span style={{ fontSize: 9, color: '#6b6358' }}>Drift</span>
+                <span style={{ fontSize: 8, color: DIM }}>Drift</span>
               </div>
             </div>
           </div>
           <TeamDriftOverview data={enrichedData as any} />
-        </div>
+        </GlassCard>
       </div>
 
-      {/* -- Sort Toggle -- */}
+      {/* ── Sort Controls ── */}
       <div
-        className="animate-fade-in"
         style={{
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
-          marginBottom: 16,
-          animationDelay: '0.14s',
-          opacity: 0,
+          marginBottom: 18,
+          animation: `rd-fadeUp 0.5s ${EASE} 450ms both`,
         }}
       >
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          <Users size={13} style={{ color: '#6b6358' }} />
-          <span style={{ fontSize: 10, fontWeight: 600, color: '#6b6358', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-            Team Members ({sorted.length})
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <Layers size={14} style={{ color: AMBER }} />
+          <span style={{ fontSize: 13, fontWeight: 700, color: CREAM }}>
+            Member Drift Cards
+          </span>
+          <span
+            style={{
+              fontSize: 10,
+              fontWeight: 600,
+              padding: '2px 8px',
+              borderRadius: 20,
+              color: MUTED,
+              backgroundColor: 'rgba(255,255,255,0.04)',
+              fontFamily: 'var(--font-mono, monospace)',
+            }}
+          >
+            {sorted.length}
           </span>
         </div>
         <button
@@ -623,16 +1581,25 @@ export function RoleDriftView() {
             display: 'flex',
             alignItems: 'center',
             gap: 6,
-            padding: '6px 12px',
-            borderRadius: 8,
+            padding: '7px 14px',
+            borderRadius: 10,
             fontSize: 11,
             fontWeight: 600,
             cursor: 'pointer',
-            border: '1px solid #1e2638',
-            backgroundColor: '#131720',
-            color: '#a09888',
+            border: `1px solid ${BORDER}`,
+            background: GLASS_BG,
+            backdropFilter: 'blur(12px)',
+            color: MUTED,
             fontFamily: 'inherit',
-            transition: 'all 0.2s',
+            transition: `all 0.3s ${EASE}`,
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.borderColor = `${AMBER}30`;
+            e.currentTarget.style.color = CREAM;
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.borderColor = BORDER;
+            e.currentTarget.style.color = MUTED;
           }}
         >
           <ArrowUpDown size={12} />
@@ -640,305 +1607,413 @@ export function RoleDriftView() {
         </button>
       </div>
 
-      {/* -- Drift Cards -- */}
+      {/* ── Drift Cards Grid ── */}
       <div style={{ display: 'grid', gap: 16, gridTemplateColumns: 'repeat(2, 1fr)' }}>
         {sorted.map((item, i) => {
           const member = item.member!;
           const isWarning = item.driftScore < 50;
+          const isModerate = item.driftScore >= 50 && item.driftScore < 80;
           const inSeat = item.activities.filter((a) => a.type === 'in-seat');
           const outSeat = item.activities.filter((a) => a.type === 'out-of-seat');
           const driftPct = 100 - item.driftScore;
           const isExpanded = expandedCard === item.id;
+          const isHovered = hoveredCard === item.id;
           const trendDiff = item.driftScore - item.prevDriftScore;
+          const color = scoreColor(item.driftScore);
+          const LabelIcon = scoreLabelIcon(item.driftScore);
+          const sparkData = sparklines[item.id] || [];
+          const cardDelay = 500 + i * 70;
 
           return (
             <div
               key={item.id}
-              className="animate-fade-in glow-card"
               style={{
-                backgroundColor: '#131720',
-                border: `1px solid ${isWarning ? 'rgba(224,96,96,0.35)' : isExpanded ? '#2e3a4e' : '#1e2638'}`,
-                borderRadius: 14,
-                animationDelay: `${0.18 + i * 0.04}s`,
-                opacity: 0,
-                transition: 'border-color 0.3s, box-shadow 0.3s',
+                animation: `rd-fadeUp 0.5s ${EASE} ${cardDelay}ms both`,
+                position: 'relative',
               }}
-              onMouseEnter={(e) => {
-                if (!isExpanded && !isWarning) e.currentTarget.style.borderColor = '#2e3a4e';
-                e.currentTarget.style.boxShadow = '0 4px 20px rgba(0,0,0,0.25)';
-              }}
-              onMouseLeave={(e) => {
-                if (!isExpanded && !isWarning) e.currentTarget.style.borderColor = '#1e2638';
-                e.currentTarget.style.boxShadow = 'none';
-              }}
+              onMouseEnter={() => setHoveredCard(item.id)}
+              onMouseLeave={() => setHoveredCard(null)}
             >
-              <div style={{ padding: '18px 20px' }}>
-                {/* Member Header */}
+              {/* Pulsing alert indicator for high-drift */}
+              {isWarning && (
                 <div
-                  style={{ display: 'flex', alignItems: 'start', gap: 12, marginBottom: 12, cursor: 'pointer' }}
-                  onClick={() => setExpandedCard(isExpanded ? null : item.id)}
-                >
-                  {/* Avatar */}
+                  style={{
+                    position: 'absolute',
+                    top: -4,
+                    right: -4,
+                    width: 12,
+                    height: 12,
+                    borderRadius: '50%',
+                    backgroundColor: DANGER,
+                    zIndex: 10,
+                    animation: 'rd-pulseAlert 2s ease-in-out infinite',
+                    border: `2px solid ${BG}`,
+                  }}
+                />
+              )}
+
+              <div
+                className="glow-card card-interactive"
+                style={{
+                  background: GLASS_BG,
+                  backdropFilter: 'blur(20px)',
+                  WebkitBackdropFilter: 'blur(20px)',
+                  border: `1px solid ${isWarning ? 'rgba(224,96,96,0.3)' : isExpanded ? BORDER2 : GLASS_BORDER}`,
+                  borderRadius: 16,
+                  transition: `all 0.4s ${EASE}`,
+                  overflow: 'hidden',
+                  ...(isHovered ? {
+                    borderColor: isWarning ? 'rgba(224,96,96,0.45)' : `${color}30`,
+                    boxShadow: `0 8px 32px rgba(0,0,0,0.3), 0 0 20px ${color}10`,
+                    transform: 'translateY(-3px)',
+                  } : {}),
+                }}
+              >
+                {/* Top colored accent line */}
+                <div
+                  style={{
+                    height: 2,
+                    background: `linear-gradient(90deg, transparent, ${color}60, transparent)`,
+                    opacity: isHovered ? 1 : 0,
+                    transition: `opacity 0.4s ${EASE}`,
+                  }}
+                />
+
+                <div style={{ padding: '20px 22px' }}>
+                  {/* ── Card Header ── */}
                   <div
                     style={{
-                      width: 42,
-                      height: 42,
-                      borderRadius: '50%',
                       display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      fontSize: 12,
-                      fontWeight: 700,
-                      color: '#0b0d14',
-                      background: avatarGradient(member.color),
-                      flexShrink: 0,
+                      alignItems: 'start',
+                      gap: 14,
+                      marginBottom: 14,
+                      cursor: 'pointer',
                     }}
+                    onClick={() => setExpandedCard(isExpanded ? null : item.id)}
                   >
-                    {member.avatar}
-                  </div>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                      <span style={{ fontSize: 14, fontWeight: 600, color: '#f0ebe4' }}>{member.name}</span>
-                      {isWarning && <AlertTriangle size={14} style={{ color: DANGER }} />}
-                      {/* Trend badge */}
-                      {trendDiff !== 0 && (
-                        <span
-                          style={{
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            gap: 2,
-                            fontSize: 9,
-                            fontWeight: 600,
-                            padding: '2px 6px',
-                            borderRadius: 20,
-                            color: trendDiff > 0 ? SAGE : DANGER,
-                            backgroundColor: trendDiff > 0 ? 'rgba(107,143,113,0.12)' : 'rgba(224,96,96,0.12)',
-                          }}
-                        >
-                          {trendDiff > 0 ? <TrendingUp size={9} /> : <TrendingDown size={9} />}
-                          {trendDiff > 0 ? '+' : ''}{trendDiff}
-                        </span>
-                      )}
+                    {/* Avatar with ring */}
+                    <div style={{ position: 'relative' }}>
+                      <DriftRing score={item.driftScore} size={56} strokeWidth={3} delay={cardDelay + 200} showLabel={false} />
+                      <div
+                        style={{
+                          position: 'absolute',
+                          inset: 8,
+                          borderRadius: '50%',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          fontSize: 11,
+                          fontWeight: 700,
+                          color: BG,
+                          background: avatarGradient(member.color),
+                        }}
+                      >
+                        {member.avatar}
+                      </div>
                     </div>
-                    <p style={{ fontSize: 11, color: '#a09888', margin: '2px 0 0' }}>{member.role}</p>
-                  </div>
-                  {/* Score badge */}
-                  <DriftBadge score={item.driftScore} size="large" />
-                </div>
 
-                {/* Role description */}
-                <p style={{ fontSize: 11, color: '#6b6358', lineHeight: 1.5, margin: '0 0 12px', fontStyle: 'italic' }}>
-                  {member.roleOneSentence}
-                </p>
-
-                {/* Drift Meter */}
-                <div style={{ marginBottom: 12 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
-                    <span style={{ fontSize: 10, fontWeight: 600, color: '#6b6358', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-                      Drift Meter
-                    </span>
-                    <span style={{ fontSize: 10, fontWeight: 600, color: scoreColor(item.driftScore) }}>
-                      {driftPct}% out-of-seat
-                    </span>
-                  </div>
-                  <div style={{ width: '100%', height: 8, borderRadius: 4, backgroundColor: '#1c2230', overflow: 'hidden', display: 'flex' }}>
-                    <div
-                      style={{
-                        height: '100%',
-                        width: `${item.driftScore}%`,
-                        backgroundColor: SAGE,
-                        borderRadius: '4px 0 0 4px',
-                        transition: 'width 0.6s ease-out',
-                      }}
-                    />
-                    <div
-                      style={{
-                        height: '100%',
-                        width: `${driftPct}%`,
-                        backgroundColor: item.driftScore < 50 ? DANGER : GOLD,
-                        borderRadius: '0 4px 4px 0',
-                        transition: 'width 0.6s ease-out',
-                      }}
-                    />
-                  </div>
-                </div>
-
-                {/* Activities */}
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-                  {/* In-Seat */}
-                  <div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 6 }}>
-                      <CheckCircle2 size={11} style={{ color: SAGE }} />
-                      <span style={{ fontSize: 10, fontWeight: 600, color: SAGE, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                        In-Seat ({inSeat.length})
-                      </span>
-                    </div>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-                      {inSeat.map((a, j) => (
-                        <div
-                          key={j}
-                          style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'space-between',
-                            fontSize: 11,
-                            padding: '4px 8px',
-                            borderRadius: 6,
-                            backgroundColor: 'rgba(107,143,113,0.08)',
-                            color: '#a09888',
-                          }}
-                        >
-                          <span>{a.label}</span>
-                          <span style={{ fontSize: 10, fontWeight: 600, color: SAGE, fontFamily: 'monospace' }}>
-                            {a.hoursPerWeek}h
-                          </span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* Out-of-Seat */}
-                  <div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 6 }}>
-                      <AlertTriangle size={11} style={{ color: GOLD }} />
-                      <span style={{ fontSize: 10, fontWeight: 600, color: GOLD, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                        Out-of-Seat ({outSeat.length})
-                      </span>
-                    </div>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-                      {outSeat.length === 0 ? (
-                        <div
-                          style={{
-                            fontSize: 11,
-                            padding: '4px 8px',
-                            borderRadius: 6,
-                            backgroundColor: 'rgba(107,143,113,0.06)',
-                            color: '#6b6358',
-                            fontStyle: 'italic',
-                          }}
-                        >
-                          None detected
-                        </div>
-                      ) : (
-                        outSeat.map((a, j) => (
-                          <div
-                            key={j}
+                    {/* Name + role + badges */}
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                        <span style={{ fontSize: 15, fontWeight: 700, color: CREAM }}>{member.name}</span>
+                        {isWarning && <AlertBadge label="High Drift" delay={cardDelay + 300} />}
+                        {trendDiff !== 0 && (
+                          <span
                             style={{
-                              display: 'flex',
+                              display: 'inline-flex',
                               alignItems: 'center',
-                              justifyContent: 'space-between',
-                              fontSize: 11,
-                              padding: '4px 8px',
-                              borderRadius: 6,
-                              backgroundColor: 'rgba(232,180,76,0.08)',
-                              color: '#a09888',
+                              gap: 3,
+                              fontSize: 9,
+                              fontWeight: 700,
+                              padding: '2px 7px',
+                              borderRadius: 20,
+                              color: trendDiff > 0 ? SAGE : DANGER,
+                              backgroundColor: trendDiff > 0 ? 'rgba(107,143,113,0.12)' : 'rgba(224,96,96,0.12)',
+                              animation: `rd-scaleIn 0.3s ${EASE} ${cardDelay + 400}ms both`,
                             }}
                           >
-                            <span>{a.label}</span>
-                            <span style={{ fontSize: 10, fontWeight: 600, color: GOLD, fontFamily: 'monospace' }}>
-                              {a.hoursPerWeek}h
-                            </span>
-                          </div>
-                        ))
-                      )}
-                    </div>
-                  </div>
-                </div>
-
-                {/* Expanded: Activity Bar Chart + Recommendation */}
-                {isExpanded && (
-                  <div style={{ marginTop: 14, paddingTop: 14, borderTop: '1px solid #1e2638' }}>
-                    {/* Activity hours chart */}
-                    <div style={{ marginBottom: 12 }}>
-                      <div style={{ fontSize: 10, fontWeight: 600, color: '#6b6358', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 8 }}>
-                        Weekly Hours Breakdown
+                            {trendDiff > 0 ? <TrendingUp size={9} /> : <TrendingDown size={9} />}
+                            {trendDiff > 0 ? '+' : ''}{trendDiff}
+                          </span>
+                        )}
                       </div>
-                      <ActivityBarChart activities={item.activities} />
+                      <p style={{ fontSize: 11, color: MUTED, margin: '3px 0 0' }}>{member.role}</p>
                     </div>
 
-                    {/* Recommendation card */}
-                    {item.recommendation && (
+                    {/* Score + sparkline column */}
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4, flexShrink: 0 }}>
                       <div
                         style={{
                           display: 'flex',
-                          alignItems: 'flex-start',
-                          gap: 10,
-                          padding: '12px 14px',
-                          borderRadius: 10,
-                          backgroundColor: `rgba(232,180,76,0.06)`,
-                          border: `1px solid rgba(232,180,76,0.2)`,
+                          flexDirection: 'column',
+                          alignItems: 'center',
+                          padding: '8px 14px',
+                          borderRadius: 12,
+                          background: `linear-gradient(135deg, ${color}10, ${color}05)`,
+                          border: `1px solid ${color}20`,
                         }}
                       >
-                        <Lightbulb size={14} style={{ color: GOLD, flexShrink: 0, marginTop: 2 }} />
-                        <div>
-                          <div style={{ fontSize: 10, fontWeight: 600, color: GOLD, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 4 }}>
-                            Recommendation
-                          </div>
-                          <p style={{ fontSize: 12, color: '#d8cfc4', margin: 0, lineHeight: 1.6 }}>
-                            {item.recommendation}
-                          </p>
+                        <AnimatedNumber value={item.driftScore} color={color} size={22} delay={cardDelay + 100} />
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 3, marginTop: 3 }}>
+                          <LabelIcon size={8} style={{ color }} />
+                          <span style={{ fontSize: 8, fontWeight: 700, color, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+                            {scoreLabel(item.driftScore)}
+                          </span>
                         </div>
                       </div>
-                    )}
+                      <Sparkline data={sparkData} width={70} height={22} color={color} delay={cardDelay + 300} />
+                    </div>
                   </div>
-                )}
 
-                {/* Warning Banner */}
-                {isWarning && !isExpanded && (
+                  {/* Role description */}
+                  <p style={{ fontSize: 11, color: DIM, lineHeight: 1.6, margin: '0 0 14px', fontStyle: 'italic' }}>
+                    {member.roleOneSentence}
+                  </p>
+
+                  {/* ── Drift Meter ── */}
+                  <div style={{ marginBottom: 14 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 5 }}>
+                      <span style={{ fontSize: 9, fontWeight: 700, color: DIM, textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+                        Drift Meter
+                      </span>
+                      <span style={{ fontSize: 10, fontWeight: 700, color, fontFamily: 'var(--font-mono, monospace)' }}>
+                        {driftPct}% out-of-seat
+                      </span>
+                    </div>
+                    <div
+                      style={{
+                        width: '100%',
+                        height: 8,
+                        borderRadius: 4,
+                        backgroundColor: 'rgba(255,255,255,0.03)',
+                        overflow: 'hidden',
+                        display: 'flex',
+                        position: 'relative',
+                      }}
+                    >
+                      <div
+                        style={{
+                          height: '100%',
+                          width: `${item.driftScore}%`,
+                          background: `linear-gradient(90deg, ${SAGE}60, ${SAGE}90)`,
+                          borderRadius: '4px 0 0 4px',
+                          transition: `width 0.8s ${EASE}`,
+                          position: 'relative',
+                        }}
+                      >
+                        <div
+                          style={{
+                            position: 'absolute',
+                            inset: 0,
+                            background: `linear-gradient(90deg, transparent, rgba(255,255,255,0.15), transparent)`,
+                            backgroundSize: '200% 100%',
+                            animation: 'rd-shimmer 3s ease-in-out infinite',
+                          }}
+                        />
+                      </div>
+                      <div
+                        style={{
+                          height: '100%',
+                          width: `${driftPct}%`,
+                          background: `linear-gradient(90deg, ${isWarning ? DANGER : GOLD}50, ${isWarning ? DANGER : GOLD}80)`,
+                          borderRadius: '0 4px 4px 0',
+                          transition: `width 0.8s ${EASE}`,
+                        }}
+                      />
+                    </div>
+                  </div>
+
+                  {/* ── Category Domain Tags ── */}
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                    {/* In-Seat */}
+                    <div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginBottom: 8 }}>
+                        <CheckCircle2 size={11} style={{ color: SAGE }} />
+                        <span style={{ fontSize: 9, fontWeight: 700, color: SAGE, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+                          In-Seat ({inSeat.length})
+                        </span>
+                      </div>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                        {inSeat.map((a, j) => (
+                          <DomainTag key={j} label={a.label} type={a.type} hours={a.hoursPerWeek} delay={cardDelay + 200 + j * 40} />
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Out-of-Seat */}
+                    <div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginBottom: 8 }}>
+                        <AlertTriangle size={11} style={{ color: GOLD }} />
+                        <span style={{ fontSize: 9, fontWeight: 700, color: GOLD, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+                          Out-of-Seat ({outSeat.length})
+                        </span>
+                      </div>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                        {outSeat.length === 0 ? (
+                          <div
+                            style={{
+                              fontSize: 11,
+                              padding: '6px 10px',
+                              borderRadius: 8,
+                              background: `linear-gradient(135deg, ${SAGE}06, ${SAGE}02)`,
+                              color: DIM,
+                              fontStyle: 'italic',
+                              border: `1px solid ${SAGE}10`,
+                            }}
+                          >
+                            None detected
+                          </div>
+                        ) : (
+                          outSeat.map((a, j) => (
+                            <DomainTag key={j} label={a.label} type={a.type} hours={a.hoursPerWeek} delay={cardDelay + 200 + j * 40} />
+                          ))
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* ── Expanded Section ── */}
+                  {isExpanded && (
+                    <div
+                      style={{
+                        marginTop: 16,
+                        paddingTop: 16,
+                        borderTop: `1px solid ${BORDER}`,
+                        animation: `rd-expandIn 0.5s ${EASE} both`,
+                        overflow: 'hidden',
+                      }}
+                    >
+                      {/* Role Comparison panels */}
+                      <div style={{ marginBottom: 16 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 10 }}>
+                          <Eye size={11} style={{ color: MUTED }} />
+                          <span style={{ fontSize: 9, fontWeight: 700, color: DIM, textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+                            Role Comparison
+                          </span>
+                        </div>
+                        <RoleComparison member={member} activities={item.activities} delay={100} />
+                      </div>
+
+                      {/* Weekly hours breakdown */}
+                      <div style={{ marginBottom: 16 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 10 }}>
+                          <BarChart3 size={11} style={{ color: MUTED }} />
+                          <span style={{ fontSize: 9, fontWeight: 700, color: DIM, textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+                            Weekly Hours Breakdown
+                          </span>
+                        </div>
+                        <ActivityBarChart activities={item.activities} delay={200} />
+                      </div>
+
+                      {/* Recommendation card */}
+                      {item.recommendation && (
+                        <div
+                          style={{
+                            display: 'flex',
+                            alignItems: 'flex-start',
+                            gap: 12,
+                            padding: '14px 16px',
+                            borderRadius: 12,
+                            background: `linear-gradient(135deg, ${GOLD}08, ${GOLD}03)`,
+                            border: `1px solid ${GOLD}20`,
+                            animation: `rd-fadeUp 0.5s ${EASE} 300ms both`,
+                          }}
+                        >
+                          <div
+                            style={{
+                              width: 28,
+                              height: 28,
+                              borderRadius: 8,
+                              backgroundColor: `${GOLD}15`,
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              flexShrink: 0,
+                            }}
+                          >
+                            <Lightbulb size={14} style={{ color: GOLD }} />
+                          </div>
+                          <div>
+                            <div style={{ fontSize: 9, fontWeight: 700, color: GOLD, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4 }}>
+                              Recommendation
+                            </div>
+                            <p style={{ fontSize: 12, color: '#d8cfc4', margin: 0, lineHeight: 1.6 }}>
+                              {item.recommendation}
+                            </p>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Warning Banner (collapsed) */}
+                  {isWarning && !isExpanded && (
+                    <div
+                      style={{
+                        marginTop: 14,
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 8,
+                        padding: '10px 14px',
+                        borderRadius: 10,
+                        background: 'linear-gradient(135deg, rgba(224,96,96,0.08), rgba(224,96,96,0.03))',
+                        border: '1px solid rgba(224,96,96,0.2)',
+                        animation: `rd-fadeUp 0.4s ${EASE} ${cardDelay + 400}ms both`,
+                      }}
+                    >
+                      <AlertTriangle size={12} style={{ color: DANGER, animation: 'rd-pulseGlow 2s ease-in-out infinite' }} />
+                      <span style={{ fontSize: 11, fontWeight: 600, color: DANGER }}>
+                        Significant role drift detected. Consider role clarity conversation.
+                      </span>
+                    </div>
+                  )}
+
+                  {/* Expand toggle */}
                   <div
                     style={{
                       marginTop: 12,
                       display: 'flex',
-                      alignItems: 'center',
-                      gap: 8,
-                      padding: '8px 12px',
-                      borderRadius: 8,
-                      backgroundColor: 'rgba(224,96,96,0.08)',
-                      border: '1px solid rgba(224,96,96,0.2)',
+                      justifyContent: 'center',
                     }}
                   >
-                    <AlertTriangle size={12} style={{ color: DANGER }} />
-                    <span style={{ fontSize: 11, fontWeight: 500, color: DANGER }}>
-                      Significant role drift detected. Consider role clarity conversation.
-                    </span>
-                  </div>
-                )}
-
-                {/* Expand toggle */}
-                <div
-                  style={{
-                    marginTop: 10,
-                    display: 'flex',
-                    justifyContent: 'center',
-                  }}
-                >
-                  <button
-                    onClick={() => setExpandedCard(isExpanded ? null : item.id)}
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 4,
-                      padding: '4px 12px',
-                      borderRadius: 20,
-                      fontSize: 10,
-                      fontWeight: 600,
-                      cursor: 'pointer',
-                      border: '1px solid #1e2638',
-                      backgroundColor: 'transparent',
-                      color: '#6b6358',
-                      fontFamily: 'inherit',
-                      transition: 'color 0.2s',
-                    }}
-                  >
-                    {isExpanded ? 'Show Less' : 'Details'}
-                    <ChevronRight
-                      size={10}
+                    <button
+                      onClick={() => setExpandedCard(isExpanded ? null : item.id)}
                       style={{
-                        transition: 'transform 0.2s',
-                        transform: isExpanded ? 'rotate(90deg)' : 'none',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 5,
+                        padding: '5px 16px',
+                        borderRadius: 20,
+                        fontSize: 10,
+                        fontWeight: 600,
+                        cursor: 'pointer',
+                        border: `1px solid ${BORDER}`,
+                        background: 'transparent',
+                        color: DIM,
+                        fontFamily: 'inherit',
+                        transition: `all 0.3s ${EASE}`,
                       }}
-                    />
-                  </button>
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.borderColor = `${color}30`;
+                        e.currentTarget.style.color = color;
+                        e.currentTarget.style.backgroundColor = `${color}08`;
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.borderColor = BORDER;
+                        e.currentTarget.style.color = DIM;
+                        e.currentTarget.style.backgroundColor = 'transparent';
+                      }}
+                    >
+                      {isExpanded ? 'Show Less' : 'Full Analysis'}
+                      <ChevronRight
+                        size={10}
+                        style={{
+                          transition: `transform 0.3s ${EASE}`,
+                          transform: isExpanded ? 'rotate(90deg)' : 'none',
+                        }}
+                      />
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>
@@ -946,31 +2021,37 @@ export function RoleDriftView() {
         })}
       </div>
 
-      {/* -- Recommendations Summary -- */}
+      {/* ── Recommendations Summary ── */}
       {enrichedData.filter((d) => d.recommendation).length > 0 && (
-        <div
-          className="animate-fade-in glow-card"
-          style={{
-            backgroundColor: '#131720',
-            border: '1px solid #1e2638',
-            borderRadius: 16,
-            padding: 24,
-            marginTop: 24,
-            animationDelay: '0.4s',
-            opacity: 0,
-          }}
+        <GlassCard
+          delay={800}
+          hover={false}
+          style={{ padding: 24, marginTop: 28 }}
         >
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
-            <Lightbulb size={16} style={{ color: GOLD }} />
-            <span style={{ fontSize: 14, fontWeight: 700, color: '#f0ebe4' }}>Action Recommendations</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 18 }}>
+            <div
+              style={{
+                width: 32,
+                height: 32,
+                borderRadius: 10,
+                background: `linear-gradient(135deg, ${GOLD}20, ${AMBER}15)`,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+            >
+              <Lightbulb size={16} style={{ color: GOLD }} />
+            </div>
+            <span style={{ fontSize: 15, fontWeight: 700, color: CREAM }}>Action Recommendations</span>
             <span
               style={{
                 fontSize: 10,
-                fontWeight: 600,
-                padding: '2px 8px',
+                fontWeight: 700,
+                padding: '3px 10px',
                 borderRadius: 20,
                 color: GOLD,
-                backgroundColor: 'rgba(232,180,76,0.15)',
+                backgroundColor: `${GOLD}15`,
+                fontFamily: 'var(--font-mono, monospace)',
               }}
             >
               {enrichedData.filter((d) => d.recommendation).length}
@@ -980,57 +2061,83 @@ export function RoleDriftView() {
             {enrichedData
               .filter((d) => d.recommendation)
               .sort((a, b) => a.driftScore - b.driftScore)
-              .map((item, i) => (
-                <div
-                  key={item.id}
-                  className="animate-fade-in"
-                  style={{
-                    display: 'flex',
-                    alignItems: 'flex-start',
-                    gap: 14,
-                    padding: '12px 16px',
-                    borderRadius: 10,
-                    backgroundColor: `${scoreColor(item.driftScore)}08`,
-                    border: `1px solid ${scoreColor(item.driftScore)}20`,
-                    animationDelay: `${0.42 + i * 0.04}s`,
-                    opacity: 0,
-                    transition: 'transform 0.2s',
-                  }}
-                  onMouseEnter={(e) => { e.currentTarget.style.transform = 'translateX(4px)'; }}
-                  onMouseLeave={(e) => { e.currentTarget.style.transform = 'none'; }}
-                >
-                  {/* Avatar */}
+              .map((item, i) => {
+                const color = scoreColor(item.driftScore);
+                return (
                   <div
+                    key={item.id}
                     style={{
-                      width: 32,
-                      height: 32,
-                      borderRadius: '50%',
                       display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      fontSize: 9,
-                      fontWeight: 700,
-                      color: '#0b0d14',
-                      background: avatarGradient(item.member!.color),
-                      flexShrink: 0,
+                      alignItems: 'flex-start',
+                      gap: 14,
+                      padding: '14px 18px',
+                      borderRadius: 12,
+                      background: `linear-gradient(135deg, ${color}08, ${color}03)`,
+                      border: `1px solid ${color}15`,
+                      animation: `rd-fadeUp 0.4s ${EASE} ${850 + i * 60}ms both`,
+                      transition: `all 0.3s ${EASE}`,
+                      cursor: 'default',
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.transform = 'translateX(6px)';
+                      e.currentTarget.style.borderColor = `${color}30`;
+                      e.currentTarget.style.boxShadow = `0 4px 16px ${color}10`;
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.transform = 'none';
+                      e.currentTarget.style.borderColor = `${color}15`;
+                      e.currentTarget.style.boxShadow = 'none';
                     }}
                   >
-                    {item.member!.avatar}
-                  </div>
-                  <div style={{ flex: 1 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
-                      <span style={{ fontSize: 12, fontWeight: 600, color: '#f0ebe4' }}>{item.member!.name}</span>
-                      <DriftBadge score={item.driftScore} />
+                    {/* Avatar */}
+                    <div style={{ position: 'relative', flexShrink: 0 }}>
+                      <DriftRing score={item.driftScore} size={40} strokeWidth={2.5} delay={900 + i * 60} showLabel={false} />
+                      <div
+                        style={{
+                          position: 'absolute',
+                          inset: 6,
+                          borderRadius: '50%',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          fontSize: 8,
+                          fontWeight: 700,
+                          color: BG,
+                          background: avatarGradient(item.member!.color),
+                        }}
+                      >
+                        {item.member!.avatar}
+                      </div>
                     </div>
-                    <p style={{ fontSize: 12, color: '#a09888', margin: 0, lineHeight: 1.5 }}>
-                      {item.recommendation}
-                    </p>
+
+                    <div style={{ flex: 1 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                        <span style={{ fontSize: 13, fontWeight: 700, color: CREAM }}>{item.member!.name}</span>
+                        <span
+                          style={{
+                            fontSize: 9,
+                            fontWeight: 700,
+                            padding: '2px 8px',
+                            borderRadius: 20,
+                            color,
+                            backgroundColor: `${color}15`,
+                            fontFamily: 'var(--font-mono, monospace)',
+                          }}
+                        >
+                          {item.driftScore}
+                        </span>
+                      </div>
+                      <p style={{ fontSize: 12, color: MUTED, margin: 0, lineHeight: 1.6 }}>
+                        {item.recommendation}
+                      </p>
+                    </div>
+
+                    <ArrowRight size={14} style={{ color: BORDER2, flexShrink: 0, marginTop: 6 }} />
                   </div>
-                  <ArrowRight size={14} style={{ color: '#2e3a4e', flexShrink: 0, marginTop: 4 }} />
-                </div>
-              ))}
+                );
+              })}
           </div>
-        </div>
+        </GlassCard>
       )}
     </div>
   );

@@ -26,6 +26,8 @@ import {
   Wrench,
   Lightbulb,
   BarChart3,
+  Shield,
+  Activity,
 } from 'lucide-react';
 
 /* ─── Types ─── */
@@ -56,17 +58,53 @@ interface ChangeItem {
   isNew?: boolean;
 }
 
-/* ─── Inline Keyframes ─── */
+/* ─── Scoped Keyframes (wc- prefix) ─── */
 
 const animationStyles = `
-@keyframes timelineReveal {
+@keyframes wc-fadeSlideUp {
   0% {
     opacity: 0;
-    transform: translateY(-16px) scale(0.97);
+    transform: translateY(24px) scale(0.97);
+    filter: blur(4px);
   }
   60% {
     opacity: 1;
-    transform: translateY(2px) scale(1.003);
+    transform: translateY(-2px) scale(1.003);
+    filter: blur(0);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+    filter: blur(0);
+  }
+}
+
+@keyframes wc-cardEntrance {
+  0% {
+    opacity: 0;
+    transform: translateY(20px) scale(0.96);
+    filter: blur(6px);
+  }
+  70% {
+    opacity: 1;
+    transform: translateY(-1px) scale(1.005);
+    filter: blur(0);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+    filter: blur(0);
+  }
+}
+
+@keyframes wc-statEntrance {
+  0% {
+    opacity: 0;
+    transform: translateY(16px) scale(0.92);
+  }
+  70% {
+    opacity: 1;
+    transform: translateY(-2px) scale(1.01);
   }
   100% {
     opacity: 1;
@@ -74,21 +112,21 @@ const animationStyles = `
   }
 }
 
-@keyframes newBadgePulse {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.6; }
+@keyframes wc-newPulse {
+  0%, 100% { opacity: 1; box-shadow: 0 0 0 0 rgba(212, 165, 116, 0.4); }
+  50% { opacity: 0.8; box-shadow: 0 0 0 6px rgba(212, 165, 116, 0); }
 }
 
-@keyframes shimmerHighlight {
+@keyframes wc-shimmerBorder {
   0% { background-position: -200% center; }
   100% { background-position: 200% center; }
 }
 
-@keyframes slideDown {
+@keyframes wc-slideExpand {
   from {
     opacity: 0;
     max-height: 0;
-    transform: translateY(-10px);
+    transform: translateY(-8px);
   }
   to {
     opacity: 1;
@@ -97,39 +135,91 @@ const animationStyles = `
   }
 }
 
-@keyframes statCardEntrance {
+@keyframes wc-trendBounce {
+  0% { transform: translateY(0); }
+  25% { transform: translateY(-3px); }
+  50% { transform: translateY(0); }
+  75% { transform: translateY(-1.5px); }
+  100% { transform: translateY(0); }
+}
+
+@keyframes wc-impactGlow {
+  0%, 100% { box-shadow: 0 0 4px rgba(212, 165, 116, 0.3); }
+  50% { box-shadow: 0 0 12px rgba(212, 165, 116, 0.6); }
+}
+
+@keyframes wc-sparkleRotate {
+  0% { transform: rotate(0deg) scale(1); }
+  25% { transform: rotate(10deg) scale(1.1); }
+  50% { transform: rotate(0deg) scale(1); }
+  75% { transform: rotate(-10deg) scale(1.1); }
+  100% { transform: rotate(0deg) scale(1); }
+}
+
+@keyframes wc-insightShimmer {
+  0% { background-position: -300% center; }
+  100% { background-position: 300% center; }
+}
+
+@keyframes wc-timelineDotPing {
+  0% { transform: scale(1); opacity: 1; }
+  75% { transform: scale(2.2); opacity: 0; }
+  100% { transform: scale(2.2); opacity: 0; }
+}
+
+@keyframes wc-pillGlow {
+  0%, 100% { box-shadow: 0 0 6px rgba(212, 165, 116, 0.2), inset 0 0 6px rgba(212, 165, 116, 0.05); }
+  50% { box-shadow: 0 0 16px rgba(212, 165, 116, 0.4), inset 0 0 10px rgba(212, 165, 116, 0.1); }
+}
+
+@keyframes wc-headerGradient {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+@keyframes wc-counterUp {
   from {
     opacity: 0;
-    transform: translateY(12px) scale(0.95);
+    transform: translateY(12px);
   }
   to {
     opacity: 1;
-    transform: translateY(0) scale(1);
+    transform: translateY(0);
   }
 }
 `;
 
+/* ─── Design Tokens ─── */
+const glass = {
+  bg: 'rgba(19, 23, 32, 0.7)',
+  border: 'rgba(212, 165, 116, 0.08)',
+  blur: 'blur(20px)',
+  hoverBorder: 'rgba(212, 165, 116, 0.18)',
+};
+const ease = 'cubic-bezier(0.16, 1, 0.3, 1)';
+
 /* ─── Config ─── */
 
-const categoryConfig: Record<Category, { label: string; color: string; icon: React.ElementType }> = {
-  membership: { label: 'Membership', color: '#6b8f71', icon: Users },
-  governance: { label: 'Governance', color: '#8b5cf6', icon: Scale },
-  nodes: { label: 'Nodes', color: '#5eaed4', icon: Network },
-  financial: { label: 'Financial', color: '#d4a574', icon: DollarSign },
-  events: { label: 'Events', color: '#e879a0', icon: Calendar },
-  culture: { label: 'Culture', color: '#fb923c', icon: Heart },
+const categoryConfig: Record<Category, { label: string; color: string; bg: string; icon: React.ElementType }> = {
+  membership: { label: 'Membership', color: '#6b8f71', bg: 'rgba(107, 143, 113, 0.12)', icon: Users },
+  governance: { label: 'Governance', color: '#8b5cf6', bg: 'rgba(139, 92, 246, 0.12)', icon: Scale },
+  nodes: { label: 'Nodes', color: '#5eaed4', bg: 'rgba(94, 174, 212, 0.12)', icon: Network },
+  financial: { label: 'Financial', color: '#d4a574', bg: 'rgba(212, 165, 116, 0.12)', icon: DollarSign },
+  events: { label: 'Events', color: '#e879a0', bg: 'rgba(232, 121, 160, 0.12)', icon: Calendar },
+  culture: { label: 'Culture', color: '#fb923c', bg: 'rgba(251, 146, 60, 0.12)', icon: Heart },
 };
 
-const sentimentConfig: Record<Sentiment, { label: string; color: string; bg: string; icon: React.ElementType }> = {
-  positive: { label: 'Positive', color: '#34d399', bg: 'rgba(52, 211, 153, 0.12)', icon: TrendingUp },
-  neutral: { label: 'Neutral', color: '#e8b44c', bg: 'rgba(232, 180, 76, 0.12)', icon: Minus },
-  negative: { label: 'Needs Attention', color: '#f87171', bg: 'rgba(248, 113, 113, 0.12)', icon: TrendingDown },
+const sentimentConfig: Record<Sentiment, { label: string; color: string; bg: string; icon: React.ElementType; borderColor: string }> = {
+  positive: { label: 'Positive', color: '#34d399', bg: 'rgba(52, 211, 153, 0.12)', icon: TrendingUp, borderColor: 'rgba(52, 211, 153, 0.5)' },
+  neutral: { label: 'Neutral', color: '#e8b44c', bg: 'rgba(232, 180, 76, 0.12)', icon: Minus, borderColor: 'rgba(232, 180, 76, 0.35)' },
+  negative: { label: 'Needs Attention', color: '#f87171', bg: 'rgba(248, 113, 113, 0.12)', icon: TrendingDown, borderColor: 'rgba(248, 113, 113, 0.5)' },
 };
 
-const impactConfig: Record<ImpactLevel, { label: string; tag: string; color: string; bg: string }> = {
-  high: { label: 'High Impact', tag: 'MAJOR', color: '#d4a574', bg: 'rgba(212, 165, 116, 0.15)' },
-  medium: { label: 'Medium', tag: 'MINOR', color: '#60a5fa', bg: 'rgba(96, 165, 250, 0.12)' },
-  low: { label: 'Low', tag: 'PATCH', color: '#a09888', bg: 'rgba(160, 152, 136, 0.12)' },
+const impactConfig: Record<ImpactLevel, { label: string; tag: string; color: string; bg: string; glowColor: string; size: number }> = {
+  high: { label: 'High Impact', tag: 'HIGH', color: '#d4a574', bg: 'rgba(212, 165, 116, 0.15)', glowColor: 'rgba(212, 165, 116, 0.5)', size: 28 },
+  medium: { label: 'Medium', tag: 'MED', color: '#60a5fa', bg: 'rgba(96, 165, 250, 0.12)', glowColor: 'rgba(96, 165, 250, 0.3)', size: 22 },
+  low: { label: 'Low', tag: 'LOW', color: '#a09888', bg: 'rgba(160, 152, 136, 0.12)', glowColor: 'rgba(160, 152, 136, 0.2)', size: 18 },
 };
 
 const changeTypeConfig: Record<ChangeType, { label: string; color: string; bg: string; border: string; icon: React.ElementType }> = {
@@ -453,6 +543,253 @@ function groupByTimePeriod(items: ChangeItem[]): { label: string; relative: stri
   return groups;
 }
 
+/* ─── Helper: derive insight from data ─── */
+function deriveInsight(changes: ChangeItem[]): { text: string; type: 'momentum' | 'alert' | 'milestone' } | null {
+  const positive = changes.filter((c) => c.sentiment === 'positive').length;
+  const negative = changes.filter((c) => c.sentiment === 'negative').length;
+  const highImpact = changes.filter((c) => c.impact === 'high');
+  const ratio = changes.length > 0 ? positive / changes.length : 0;
+
+  if (ratio >= 0.7 && changes.length >= 5) {
+    return { text: `Strong momentum: ${Math.round(ratio * 100)}% of changes this period are positive. The ecosystem is accelerating.`, type: 'momentum' };
+  }
+  if (negative >= 2) {
+    return { text: `${negative} items need attention this period. Consider reviewing priorities to keep the roadmap on track.`, type: 'alert' };
+  }
+  if (highImpact.length >= 3) {
+    return { text: `${highImpact.length} high-impact changes landed. Major progress across multiple fronts.`, type: 'milestone' };
+  }
+  return null;
+}
+
+/* ─── Sub-components ─── */
+
+/* Impact Badge: size-coded circle/shield with glow */
+function ImpactBadge({ level }: { level: ImpactLevel }) {
+  const cfg = impactConfig[level];
+  const isHigh = level === 'high';
+  return (
+    <div
+      style={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        width: cfg.size,
+        height: cfg.size,
+        borderRadius: isHigh ? 8 : '50%',
+        backgroundColor: cfg.bg,
+        border: `1.5px solid ${cfg.color}50`,
+        boxShadow: isHigh ? `0 0 10px ${cfg.glowColor}` : `0 0 4px ${cfg.glowColor}`,
+        animation: isHigh ? 'wc-impactGlow 3s ease-in-out infinite' : 'none',
+        position: 'relative',
+        flexShrink: 0,
+      }}
+    >
+      {isHigh ? (
+        <Shield size={14} style={{ color: cfg.color }} />
+      ) : (
+        <div
+          style={{
+            width: level === 'medium' ? 8 : 5,
+            height: level === 'medium' ? 8 : 5,
+            borderRadius: '50%',
+            backgroundColor: cfg.color,
+            opacity: level === 'medium' ? 0.8 : 0.5,
+          }}
+        />
+      )}
+      <span
+        style={{
+          position: 'absolute',
+          bottom: -14,
+          left: '50%',
+          transform: 'translateX(-50%)',
+          fontSize: 8,
+          fontWeight: 700,
+          letterSpacing: '0.06em',
+          color: cfg.color,
+          textTransform: 'uppercase',
+          whiteSpace: 'nowrap',
+          fontFamily: 'monospace',
+        }}
+      >
+        {cfg.tag}
+      </span>
+    </div>
+  );
+}
+
+/* Trend Arrow: animated directional arrow with color coding */
+function TrendArrow({ sentiment }: { sentiment: Sentiment }) {
+  const icons = {
+    positive: ArrowUpRight,
+    neutral: ArrowRight,
+    negative: ArrowDownRight,
+  };
+  const colors = {
+    positive: '#34d399',
+    neutral: '#e8b44c',
+    negative: '#f87171',
+  };
+  const Icon = icons[sentiment];
+  const color = colors[sentiment];
+  return (
+    <div
+      style={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        width: 26,
+        height: 26,
+        borderRadius: 8,
+        backgroundColor: `${color}12`,
+        border: `1px solid ${color}25`,
+        animation: sentiment !== 'neutral' ? 'wc-trendBounce 2.5s ease-in-out infinite' : 'none',
+        flexShrink: 0,
+      }}
+    >
+      <Icon size={14} style={{ color }} />
+    </div>
+  );
+}
+
+/* Category Icon: styled container with category-colored backgrounds */
+function CategoryIcon({ category }: { category: Category }) {
+  const cfg = categoryConfig[category];
+  const Icon = cfg.icon;
+  return (
+    <div
+      style={{
+        width: 32,
+        height: 32,
+        borderRadius: 10,
+        background: `linear-gradient(135deg, ${cfg.bg}, ${cfg.color}08)`,
+        border: `1px solid ${cfg.color}20`,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        flexShrink: 0,
+      }}
+    >
+      <Icon size={15} style={{ color: cfg.color }} />
+    </div>
+  );
+}
+
+/* Insight Callout Card */
+function InsightCallout({ insight }: { insight: { text: string; type: 'momentum' | 'alert' | 'milestone' } }) {
+  const configMap = {
+    momentum: {
+      gradient: 'linear-gradient(135deg, rgba(52, 211, 153, 0.08), rgba(107, 143, 113, 0.06))',
+      borderColor: 'rgba(52, 211, 153, 0.2)',
+      iconColor: '#34d399',
+      accentGradient: 'linear-gradient(90deg, rgba(52, 211, 153, 0.4), rgba(107, 143, 113, 0.2), rgba(52, 211, 153, 0.4))',
+    },
+    alert: {
+      gradient: 'linear-gradient(135deg, rgba(248, 113, 113, 0.08), rgba(251, 146, 60, 0.06))',
+      borderColor: 'rgba(248, 113, 113, 0.2)',
+      iconColor: '#f87171',
+      accentGradient: 'linear-gradient(90deg, rgba(248, 113, 113, 0.4), rgba(251, 146, 60, 0.2), rgba(248, 113, 113, 0.4))',
+    },
+    milestone: {
+      gradient: 'linear-gradient(135deg, rgba(212, 165, 116, 0.08), rgba(139, 92, 246, 0.06))',
+      borderColor: 'rgba(212, 165, 116, 0.2)',
+      iconColor: '#d4a574',
+      accentGradient: 'linear-gradient(90deg, rgba(212, 165, 116, 0.4), rgba(139, 92, 246, 0.2), rgba(212, 165, 116, 0.4))',
+    },
+  };
+  const cfg = configMap[insight.type];
+  const IconComp = insight.type === 'alert' ? AlertTriangle : insight.type === 'momentum' ? Activity : Sparkles;
+
+  return (
+    <div
+      style={{
+        position: 'relative',
+        borderRadius: 14,
+        overflow: 'hidden',
+        marginBottom: 24,
+      }}
+    >
+      {/* Top accent gradient bar */}
+      <div
+        style={{
+          position: 'absolute',
+          top: 0,
+          left: 0,
+          right: 0,
+          height: 2,
+          background: cfg.accentGradient,
+          backgroundSize: '200% 100%',
+          animation: 'wc-insightShimmer 4s linear infinite',
+        }}
+      />
+      <div
+        style={{
+          background: cfg.gradient,
+          backdropFilter: glass.blur,
+          WebkitBackdropFilter: glass.blur,
+          border: `1px solid ${cfg.borderColor}`,
+          borderRadius: 14,
+          padding: '16px 20px',
+          display: 'flex',
+          alignItems: 'flex-start',
+          gap: 14,
+        }}
+      >
+        <div
+          style={{
+            width: 36,
+            height: 36,
+            borderRadius: 10,
+            background: `${cfg.iconColor}15`,
+            border: `1px solid ${cfg.iconColor}25`,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            flexShrink: 0,
+          }}
+        >
+          <IconComp size={18} style={{ color: cfg.iconColor }} />
+        </div>
+        <div style={{ flex: 1 }}>
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 6,
+              marginBottom: 6,
+            }}
+          >
+            <Lightbulb size={12} style={{ color: cfg.iconColor, opacity: 0.7 }} />
+            <span
+              style={{
+                fontSize: 10,
+                fontWeight: 700,
+                textTransform: 'uppercase',
+                letterSpacing: '0.1em',
+                color: cfg.iconColor,
+              }}
+            >
+              Insight
+            </span>
+          </div>
+          <p
+            style={{
+              fontSize: 13,
+              color: '#f0ebe4',
+              lineHeight: 1.6,
+              margin: 0,
+              fontWeight: 400,
+            }}
+          >
+            {insight.text}
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 /* ─── Component ─── */
 
 export function WhatChangedView() {
@@ -516,33 +853,63 @@ export function WhatChangedView() {
     return counts;
   }, [timeFilter]);
 
+  const insight = useMemo(() => deriveInsight(filteredChanges), [filteredChanges]);
+
+  /* Find the most impactful change for the highlighted hero */
+  const mostImpactful = useMemo(() => {
+    const highImpact = filteredChanges.filter((c) => c.impact === 'high');
+    if (highImpact.length === 0) return null;
+    // Prefer new items, then most recent
+    const newHigh = highImpact.filter((c) => c.isNew);
+    return newHigh.length > 0 ? newHigh[0] : highImpact[0];
+  }, [filteredChanges]);
+
   // Running index counter for staggered animations across groups
   let globalItemIndex = 0;
 
   return (
     <div style={{ padding: '32px 40px', maxWidth: 1000, margin: '0 auto' }}>
-      {/* Inject animations */}
+      {/* Inject scoped animations */}
       <style>{animationStyles}</style>
 
-      {/* ── Header ── */}
-      <div className="animate-fade-in" style={{ marginBottom: 32 }}>
+      {/* ── Header with animated gradient ── */}
+      <div
+        style={{
+          marginBottom: 32,
+          animation: mounted ? 'wc-fadeSlideUp 0.6s cubic-bezier(0.16, 1, 0.3, 1) 0.05s both' : 'none',
+          position: 'relative',
+        }}
+      >
+        <div className="noise-overlay" style={{ position: 'absolute', inset: 0, borderRadius: 'inherit', pointerEvents: 'none' }} />
+        <div className="dot-pattern" style={{ position: 'absolute', inset: 0, borderRadius: 'inherit', pointerEvents: 'none', opacity: 0.3 }} />
         <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 8 }}>
           <div
             style={{
-              width: 46,
-              height: 46,
-              borderRadius: 13,
-              background: 'linear-gradient(135deg, rgba(212, 165, 116, 0.2), rgba(139, 92, 246, 0.15))',
+              width: 48,
+              height: 48,
+              borderRadius: 14,
+              background: 'linear-gradient(135deg, rgba(212, 165, 116, 0.25), rgba(139, 92, 246, 0.2), rgba(52, 211, 153, 0.15))',
+              backgroundSize: '300% 300%',
+              animation: 'wc-headerGradient 6s ease infinite',
               border: '1px solid rgba(212, 165, 116, 0.2)',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
+              backdropFilter: glass.blur,
+              WebkitBackdropFilter: glass.blur,
             }}
           >
-            <Sparkles size={24} style={{ color: '#d4a574' }} />
+            <Sparkles
+              size={24}
+              style={{
+                color: '#d4a574',
+                animation: 'wc-sparkleRotate 4s ease-in-out infinite',
+              }}
+            />
           </div>
           <div>
             <h1
+              className="text-glow"
               style={{
                 fontSize: 28,
                 fontWeight: 700,
@@ -560,15 +927,13 @@ export function WhatChangedView() {
         </div>
       </div>
 
-      {/* ── Summary Stats (Changes This Week/Month) ── */}
+      {/* ── Summary Stats: animated key metrics ── */}
       <div
-        className="animate-fade-in"
         style={{
           display: 'grid',
           gridTemplateColumns: 'repeat(4, 1fr)',
           gap: 12,
           marginBottom: 24,
-          animationDelay: '0.03s',
         }}
       >
         {[
@@ -581,64 +946,207 @@ export function WhatChangedView() {
           return (
             <div
               key={stat.label}
-              className="glow-card"
+              className="card-stat"
               style={{
-                backgroundColor: '#131720',
-                border: '1px solid #1e2638',
+                background: glass.bg,
+                backdropFilter: glass.blur,
+                WebkitBackdropFilter: glass.blur,
+                border: `1px solid ${glass.border}`,
                 borderRadius: 14,
-                padding: '14px 18px',
-                animation: mounted ? `statCardEntrance 0.4s ease-out ${0.15 + idx * 0.06}s both` : 'none',
+                padding: '16px 18px',
+                animation: mounted ? `wc-statEntrance 0.5s ${ease} ${0.12 + idx * 0.07}s both` : 'none',
+                transition: `all 0.3s ${ease}`,
+                cursor: 'default',
+                position: 'relative',
+                overflow: 'hidden',
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.borderColor = glass.hoverBorder;
+                e.currentTarget.style.transform = 'translateY(-2px)';
+                e.currentTarget.style.boxShadow = `0 8px 32px rgba(0,0,0,0.3), 0 0 0 1px ${glass.hoverBorder}`;
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.borderColor = glass.border;
+                e.currentTarget.style.transform = 'translateY(0)';
+                e.currentTarget.style.boxShadow = 'none';
               }}
             >
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
+              {/* Subtle gradient overlay on hover */}
+              <div
+                style={{
+                  position: 'absolute',
+                  inset: 0,
+                  background: `radial-gradient(ellipse at top left, ${stat.color}08, transparent 70%)`,
+                  pointerEvents: 'none',
+                }}
+              />
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10, position: 'relative' }}>
                 <div
                   style={{
-                    width: 30,
-                    height: 30,
-                    borderRadius: 8,
-                    backgroundColor: `${stat.color}12`,
+                    width: 32,
+                    height: 32,
+                    borderRadius: 9,
+                    background: `linear-gradient(135deg, ${stat.color}18, ${stat.color}08)`,
+                    border: `1px solid ${stat.color}20`,
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
                   }}
                 >
-                  <Icon size={14} style={{ color: stat.color }} />
+                  <Icon size={15} style={{ color: stat.color }} />
                 </div>
-                <span style={{ fontSize: 10, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#6b6358' }}>
+                <span
+                  style={{
+                    fontSize: 10,
+                    fontWeight: 600,
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.08em',
+                    color: '#6b6358',
+                  }}
+                >
                   {stat.label}
                 </span>
               </div>
-              <div style={{ fontSize: 24, fontWeight: 700, color: '#f0ebe4', letterSpacing: '-0.02em' }}>
+              <div
+                style={{
+                  fontSize: 28,
+                  fontWeight: 700,
+                  color: '#f0ebe4',
+                  letterSpacing: '-0.02em',
+                  position: 'relative',
+                  animation: mounted ? `wc-counterUp 0.6s ${ease} ${0.3 + idx * 0.1}s both` : 'none',
+                }}
+              >
                 {stat.value}
               </div>
-              <div style={{ fontSize: 10, color: '#6b6358', marginTop: 2 }}>{stat.sub}</div>
+              <div style={{ fontSize: 10, color: '#6b6358', marginTop: 3, position: 'relative' }}>{stat.sub}</div>
             </div>
           );
         })}
       </div>
 
-      {/* ── "New Since Your Last Visit" Section ── */}
-      {newSinceLastVisit.length > 0 && (
+      {/* ── Most Impactful Change Highlight ── */}
+      {mostImpactful && (
         <div
-          className="animate-fade-in"
           style={{
             marginBottom: 24,
-            animationDelay: '0.06s',
+            animation: mounted ? `wc-fadeSlideUp 0.5s ${ease} 0.2s both` : 'none',
           }}
         >
           <div
+            className="card-premium"
+            style={{
+              position: 'relative',
+              borderRadius: 16,
+              padding: 1.5,
+              background: 'linear-gradient(135deg, rgba(212, 165, 116, 0.5), rgba(139, 92, 246, 0.35), rgba(52, 211, 153, 0.3))',
+              backgroundSize: '200% 200%',
+              animation: 'wc-shimmerBorder 4s ease-in-out infinite',
+            }}
+          >
+            <div
+              style={{
+                background: glass.bg,
+                backdropFilter: glass.blur,
+                WebkitBackdropFilter: glass.blur,
+                borderRadius: 15,
+                padding: '18px 22px',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+                <div
+                  style={{
+                    width: 28,
+                    height: 28,
+                    borderRadius: 8,
+                    background: 'linear-gradient(135deg, rgba(212, 165, 116, 0.2), rgba(212, 165, 116, 0.08))',
+                    border: '1px solid rgba(212, 165, 116, 0.2)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}
+                >
+                  <Zap size={14} style={{ color: '#d4a574' }} />
+                </div>
+                <span
+                  style={{
+                    fontSize: 10,
+                    fontWeight: 700,
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.1em',
+                    color: '#d4a574',
+                  }}
+                >
+                  Most Impactful Change
+                </span>
+                <TrendArrow sentiment={mostImpactful.sentiment} />
+              </div>
+              <h3
+                style={{
+                  fontSize: 16,
+                  fontWeight: 600,
+                  color: '#f0ebe4',
+                  margin: '0 0 6px 0',
+                  lineHeight: 1.4,
+                }}
+              >
+                {mostImpactful.description}
+              </h3>
+              <p
+                style={{
+                  fontSize: 13,
+                  color: '#a09888',
+                  margin: '0 0 10px 0',
+                  lineHeight: 1.5,
+                }}
+              >
+                {mostImpactful.detail}
+              </p>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                <CategoryIcon category={mostImpactful.category} />
+                <span
+                  style={{
+                    fontSize: 11,
+                    fontWeight: 600,
+                    color: categoryConfig[mostImpactful.category].color,
+                  }}
+                >
+                  {categoryConfig[mostImpactful.category].label}
+                </span>
+                <span style={{ color: '#2e3a4e' }}>|</span>
+                <span style={{ fontSize: 11, color: '#6b6358' }}>
+                  {mostImpactful.timeAgo} by {mostImpactful.triggeredBy}
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── "New Since Your Last Visit" Section ── */}
+      {newSinceLastVisit.length > 0 && (
+        <div
+          style={{
+            marginBottom: 24,
+            animation: mounted ? `wc-fadeSlideUp 0.5s ${ease} 0.25s both` : 'none',
+          }}
+        >
+          <div
+            className="card-premium"
             style={{
               position: 'relative',
               borderRadius: 14,
               padding: 1,
               background: 'linear-gradient(135deg, rgba(212, 165, 116, 0.5), rgba(139, 92, 246, 0.4), rgba(52, 211, 153, 0.3))',
               backgroundSize: '200% 200%',
-              animation: 'shimmerHighlight 4s ease-in-out infinite',
+              animation: 'wc-shimmerBorder 4s ease-in-out infinite',
             }}
           >
             <div
               style={{
-                backgroundColor: '#131720',
+                background: glass.bg,
+                backdropFilter: glass.blur,
+                WebkitBackdropFilter: glass.blur,
                 borderRadius: 13,
                 padding: '16px 20px',
               }}
@@ -668,7 +1176,7 @@ export function WhatChangedView() {
                     color: '#d4a574',
                     borderRadius: 8,
                     padding: '2px 8px',
-                    animation: 'newBadgePulse 2s ease-in-out infinite',
+                    animation: 'wc-newPulse 2s ease-in-out infinite',
                   }}
                 >
                   {newSinceLastVisit.length} new
@@ -682,12 +1190,13 @@ export function WhatChangedView() {
                   return (
                     <div
                       key={change.id}
+                      className="card-interactive"
                       style={{
                         display: 'flex',
                         alignItems: 'center',
                         gap: 10,
                         padding: '8px 12px',
-                        borderRadius: 8,
+                        borderRadius: 10,
                         backgroundColor: change.sentiment === 'positive'
                           ? 'rgba(52, 211, 153, 0.04)'
                           : change.sentiment === 'negative'
@@ -695,11 +1204,12 @@ export function WhatChangedView() {
                             : 'rgba(255,255,255,0.02)',
                         borderLeft: `3px solid ${sentCfg.color}`,
                         cursor: 'pointer',
-                        transition: 'background-color 0.15s',
+                        transition: `all 0.2s ${ease}`,
                       }}
                       onClick={() => toggleExpand(change.id)}
                       onMouseEnter={(e) => {
-                        e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.04)';
+                        e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.05)';
+                        e.currentTarget.style.transform = 'translateX(4px)';
                       }}
                       onMouseLeave={(e) => {
                         e.currentTarget.style.backgroundColor = change.sentiment === 'positive'
@@ -707,12 +1217,14 @@ export function WhatChangedView() {
                           : change.sentiment === 'negative'
                             ? 'rgba(248, 113, 113, 0.04)'
                             : 'rgba(255,255,255,0.02)';
+                        e.currentTarget.style.transform = 'translateX(0)';
                       }}
                     >
                       <CtIcon size={12} style={{ color: ctCfg.color, flexShrink: 0 }} />
                       <span style={{ fontSize: 13, color: '#f0ebe4', fontWeight: 500, flex: 1 }}>
                         {change.description}
                       </span>
+                      <TrendArrow sentiment={change.sentiment} />
                       <span style={{ fontSize: 10, color: '#6b6358', flexShrink: 0 }}>
                         {change.timeAgo}
                       </span>
@@ -725,15 +1237,31 @@ export function WhatChangedView() {
         </div>
       )}
 
-      {/* ── Time Filter ── */}
-      <div className="animate-fade-in" style={{ marginBottom: 20, animationDelay: '0.08s' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
+      {/* ── Time Period Filter: Premium Toggle Pills ── */}
+      <div
+        style={{
+          marginBottom: 20,
+          animation: mounted ? `wc-fadeSlideUp 0.5s ${ease} 0.3s both` : 'none',
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14 }}>
           <Clock size={14} style={{ color: '#6b6358' }} />
           <span style={{ fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#6b6358' }}>
             Time Period
           </span>
         </div>
-        <div style={{ display: 'flex', gap: 8 }}>
+        <div
+          style={{
+            display: 'inline-flex',
+            gap: 0,
+            background: 'rgba(19, 23, 32, 0.5)',
+            borderRadius: 12,
+            border: `1px solid ${glass.border}`,
+            padding: 3,
+            backdropFilter: glass.blur,
+            WebkitBackdropFilter: glass.blur,
+          }}
+        >
           {timeFilters.map((tf) => {
             const isActive = timeFilter === tf.key;
             return (
@@ -741,27 +1269,30 @@ export function WhatChangedView() {
                 key={tf.key}
                 onClick={() => setTimeFilter(tf.key)}
                 style={{
-                  padding: '8px 18px',
+                  padding: '8px 22px',
                   borderRadius: 10,
-                  border: isActive ? '1px solid rgba(212, 165, 116, 0.4)' : '1px solid #1e2638',
+                  border: 'none',
                   cursor: 'pointer',
-                  backgroundColor: isActive ? 'rgba(212, 165, 116, 0.12)' : 'transparent',
+                  backgroundColor: isActive ? 'rgba(212, 165, 116, 0.14)' : 'transparent',
                   color: isActive ? '#d4a574' : '#6b6358',
                   fontSize: 13,
                   fontWeight: isActive ? 600 : 400,
                   fontFamily: 'inherit',
-                  transition: 'all 0.15s',
+                  transition: `all 0.25s ${ease}`,
+                  position: 'relative',
+                  animation: isActive ? 'wc-pillGlow 3s ease-in-out infinite' : 'none',
+                  boxShadow: isActive ? '0 0 12px rgba(212, 165, 116, 0.15), inset 0 0 8px rgba(212, 165, 116, 0.05)' : 'none',
                 }}
                 onMouseEnter={(e) => {
                   if (!isActive) {
-                    e.currentTarget.style.borderColor = '#2e3a4e';
                     e.currentTarget.style.color = '#a09888';
+                    e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.03)';
                   }
                 }}
                 onMouseLeave={(e) => {
                   if (!isActive) {
-                    e.currentTarget.style.borderColor = '#1e2638';
                     e.currentTarget.style.color = '#6b6358';
+                    e.currentTarget.style.backgroundColor = 'transparent';
                   }
                 }}
               >
@@ -773,7 +1304,12 @@ export function WhatChangedView() {
       </div>
 
       {/* ── Category Filter Pills ── */}
-      <div className="animate-fade-in" style={{ marginBottom: 24, animationDelay: '0.1s' }}>
+      <div
+        style={{
+          marginBottom: 24,
+          animation: mounted ? `wc-fadeSlideUp 0.5s ${ease} 0.35s both` : 'none',
+        }}
+      >
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
           <Filter size={14} style={{ color: '#6b6358' }} />
           <span style={{ fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#6b6358' }}>
@@ -785,17 +1321,20 @@ export function WhatChangedView() {
             const isActive = categoryFilter === cat;
             const config = cat === 'all' ? { label: 'All', color: '#a09888' } : categoryConfig[cat];
             const count = categoryCounts[cat] || 0;
+            const CatIcon = cat !== 'all' ? categoryConfig[cat as Category].icon : Sparkles;
 
             return (
               <button
                 key={cat}
                 onClick={() => setCategoryFilter(cat)}
                 style={{
-                  padding: '6px 14px',
+                  padding: '7px 14px',
                   borderRadius: 20,
-                  border: isActive ? `1px solid ${config.color}44` : '1px solid #1e2638',
+                  border: isActive ? `1px solid ${config.color}55` : `1px solid ${glass.border}`,
                   cursor: 'pointer',
                   backgroundColor: isActive ? `${config.color}18` : 'transparent',
+                  backdropFilter: isActive ? glass.blur : 'none',
+                  WebkitBackdropFilter: isActive ? glass.blur : 'none',
                   color: isActive ? config.color : '#6b6358',
                   fontSize: 12,
                   fontWeight: isActive ? 600 : 400,
@@ -803,30 +1342,35 @@ export function WhatChangedView() {
                   display: 'flex',
                   alignItems: 'center',
                   gap: 6,
-                  transition: 'all 0.15s',
+                  transition: `all 0.25s ${ease}`,
+                  boxShadow: isActive ? `0 0 12px ${config.color}20` : 'none',
                 }}
                 onMouseEnter={(e) => {
                   if (!isActive) {
                     e.currentTarget.style.borderColor = '#2e3a4e';
                     e.currentTarget.style.color = '#a09888';
+                    e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.02)';
                   }
                 }}
                 onMouseLeave={(e) => {
                   if (!isActive) {
-                    e.currentTarget.style.borderColor = '#1e2638';
+                    e.currentTarget.style.borderColor = glass.border;
                     e.currentTarget.style.color = '#6b6358';
+                    e.currentTarget.style.backgroundColor = 'transparent';
                   }
                 }}
               >
+                {cat !== 'all' && <CatIcon size={12} />}
                 {config.label}
                 <span
                   style={{
                     fontSize: 10,
                     fontWeight: 700,
-                    backgroundColor: isActive ? `${config.color}22` : '#1e2638',
+                    backgroundColor: isActive ? `${config.color}22` : 'rgba(30, 38, 56, 0.8)',
                     color: isActive ? config.color : '#6b6358',
                     borderRadius: 8,
                     padding: '1px 6px',
+                    transition: `all 0.2s ${ease}`,
                   }}
                 >
                   {count}
@@ -839,24 +1383,33 @@ export function WhatChangedView() {
 
       {/* ── Sentiment Stats Row ── */}
       <div
-        className="animate-fade-in"
         style={{
           display: 'grid',
           gridTemplateColumns: 'repeat(4, 1fr)',
           gap: 12,
           marginBottom: 32,
-          animationDelay: '0.12s',
         }}
       >
         {/* Total */}
         <div
-          className="glow-card"
+          className="card-stat"
           style={{
-            backgroundColor: '#131720',
-            border: '1px solid #1e2638',
+            background: glass.bg,
+            backdropFilter: glass.blur,
+            WebkitBackdropFilter: glass.blur,
+            border: `1px solid ${glass.border}`,
             borderRadius: 14,
             padding: '16px 20px',
-            animation: mounted ? 'statCardEntrance 0.4s ease-out 0.35s both' : 'none',
+            animation: mounted ? `wc-statEntrance 0.5s ${ease} 0.38s both` : 'none',
+            transition: `all 0.3s ${ease}`,
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.borderColor = glass.hoverBorder;
+            e.currentTarget.style.transform = 'translateY(-2px)';
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.borderColor = glass.border;
+            e.currentTarget.style.transform = 'translateY(0)';
           }}
         >
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
@@ -865,7 +1418,8 @@ export function WhatChangedView() {
                 width: 34,
                 height: 34,
                 borderRadius: 10,
-                backgroundColor: 'rgba(160, 152, 136, 0.1)',
+                background: 'linear-gradient(135deg, rgba(160, 152, 136, 0.12), rgba(160, 152, 136, 0.04))',
+                border: '1px solid rgba(160, 152, 136, 0.15)',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
@@ -874,7 +1428,7 @@ export function WhatChangedView() {
               <Sparkles size={16} style={{ color: '#a09888' }} />
             </div>
           </div>
-          <div style={{ fontSize: 26, fontWeight: 700, color: '#f0ebe4', letterSpacing: '-0.02em' }}>
+          <div style={{ fontSize: 28, fontWeight: 700, color: '#f0ebe4', letterSpacing: '-0.02em' }}>
             {stats.total}
           </div>
           <div style={{ fontSize: 11, color: '#6b6358', marginTop: 2 }}>Total Changes</div>
@@ -882,13 +1436,24 @@ export function WhatChangedView() {
 
         {/* Positive */}
         <div
-          className="glow-card"
+          className="card-stat"
           style={{
-            backgroundColor: '#131720',
-            border: '1px solid #1e2638',
+            background: glass.bg,
+            backdropFilter: glass.blur,
+            WebkitBackdropFilter: glass.blur,
+            border: `1px solid ${glass.border}`,
             borderRadius: 14,
             padding: '16px 20px',
-            animation: mounted ? 'statCardEntrance 0.4s ease-out 0.4s both' : 'none',
+            animation: mounted ? `wc-statEntrance 0.5s ${ease} 0.43s both` : 'none',
+            transition: `all 0.3s ${ease}`,
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.borderColor = 'rgba(52, 211, 153, 0.2)';
+            e.currentTarget.style.transform = 'translateY(-2px)';
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.borderColor = glass.border;
+            e.currentTarget.style.transform = 'translateY(0)';
           }}
         >
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
@@ -897,7 +1462,8 @@ export function WhatChangedView() {
                 width: 34,
                 height: 34,
                 borderRadius: 10,
-                backgroundColor: 'rgba(52, 211, 153, 0.1)',
+                background: 'linear-gradient(135deg, rgba(52, 211, 153, 0.12), rgba(52, 211, 153, 0.04))',
+                border: '1px solid rgba(52, 211, 153, 0.15)',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
@@ -905,9 +1471,9 @@ export function WhatChangedView() {
             >
               <TrendingUp size={16} style={{ color: '#34d399' }} />
             </div>
-            <ArrowUpRight size={14} style={{ color: '#34d399' }} />
+            <TrendArrow sentiment="positive" />
           </div>
-          <div style={{ fontSize: 26, fontWeight: 700, color: '#34d399', letterSpacing: '-0.02em' }}>
+          <div style={{ fontSize: 28, fontWeight: 700, color: '#34d399', letterSpacing: '-0.02em' }}>
             {stats.positive}
           </div>
           <div style={{ fontSize: 11, color: '#6b6358', marginTop: 2 }}>Positive</div>
@@ -915,13 +1481,24 @@ export function WhatChangedView() {
 
         {/* Neutral */}
         <div
-          className="glow-card"
+          className="card-stat"
           style={{
-            backgroundColor: '#131720',
-            border: '1px solid #1e2638',
+            background: glass.bg,
+            backdropFilter: glass.blur,
+            WebkitBackdropFilter: glass.blur,
+            border: `1px solid ${glass.border}`,
             borderRadius: 14,
             padding: '16px 20px',
-            animation: mounted ? 'statCardEntrance 0.4s ease-out 0.45s both' : 'none',
+            animation: mounted ? `wc-statEntrance 0.5s ${ease} 0.48s both` : 'none',
+            transition: `all 0.3s ${ease}`,
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.borderColor = 'rgba(232, 180, 76, 0.2)';
+            e.currentTarget.style.transform = 'translateY(-2px)';
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.borderColor = glass.border;
+            e.currentTarget.style.transform = 'translateY(0)';
           }}
         >
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
@@ -930,7 +1507,8 @@ export function WhatChangedView() {
                 width: 34,
                 height: 34,
                 borderRadius: 10,
-                backgroundColor: 'rgba(232, 180, 76, 0.1)',
+                background: 'linear-gradient(135deg, rgba(232, 180, 76, 0.12), rgba(232, 180, 76, 0.04))',
+                border: '1px solid rgba(232, 180, 76, 0.15)',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
@@ -938,9 +1516,9 @@ export function WhatChangedView() {
             >
               <Minus size={16} style={{ color: '#e8b44c' }} />
             </div>
-            <ArrowRight size={14} style={{ color: '#e8b44c' }} />
+            <TrendArrow sentiment="neutral" />
           </div>
-          <div style={{ fontSize: 26, fontWeight: 700, color: '#e8b44c', letterSpacing: '-0.02em' }}>
+          <div style={{ fontSize: 28, fontWeight: 700, color: '#e8b44c', letterSpacing: '-0.02em' }}>
             {stats.neutral}
           </div>
           <div style={{ fontSize: 11, color: '#6b6358', marginTop: 2 }}>Neutral</div>
@@ -948,13 +1526,24 @@ export function WhatChangedView() {
 
         {/* Needs Attention */}
         <div
-          className="glow-card"
+          className="card-stat"
           style={{
-            backgroundColor: '#131720',
-            border: '1px solid #1e2638',
+            background: glass.bg,
+            backdropFilter: glass.blur,
+            WebkitBackdropFilter: glass.blur,
+            border: `1px solid ${glass.border}`,
             borderRadius: 14,
             padding: '16px 20px',
-            animation: mounted ? 'statCardEntrance 0.4s ease-out 0.5s both' : 'none',
+            animation: mounted ? `wc-statEntrance 0.5s ${ease} 0.53s both` : 'none',
+            transition: `all 0.3s ${ease}`,
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.borderColor = 'rgba(248, 113, 113, 0.2)';
+            e.currentTarget.style.transform = 'translateY(-2px)';
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.borderColor = glass.border;
+            e.currentTarget.style.transform = 'translateY(0)';
           }}
         >
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
@@ -963,7 +1552,8 @@ export function WhatChangedView() {
                 width: 34,
                 height: 34,
                 borderRadius: 10,
-                backgroundColor: 'rgba(248, 113, 113, 0.1)',
+                background: 'linear-gradient(135deg, rgba(248, 113, 113, 0.12), rgba(248, 113, 113, 0.04))',
+                border: '1px solid rgba(248, 113, 113, 0.15)',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
@@ -971,14 +1561,21 @@ export function WhatChangedView() {
             >
               <AlertTriangle size={16} style={{ color: '#f87171' }} />
             </div>
-            <ArrowDownRight size={14} style={{ color: '#f87171' }} />
+            <TrendArrow sentiment="negative" />
           </div>
-          <div style={{ fontSize: 26, fontWeight: 700, color: '#f87171', letterSpacing: '-0.02em' }}>
+          <div style={{ fontSize: 28, fontWeight: 700, color: '#f87171', letterSpacing: '-0.02em' }}>
             {stats.negative}
           </div>
           <div style={{ fontSize: 11, color: '#6b6358', marginTop: 2 }}>Needs Attention</div>
         </div>
       </div>
+
+      {/* ── Insight Callout ── */}
+      {insight && (
+        <div style={{ animation: mounted ? `wc-fadeSlideUp 0.5s ${ease} 0.4s both` : 'none' }}>
+          <InsightCallout insight={insight} />
+        </div>
+      )}
 
       {/* ── Changelog Timeline ── */}
       <div style={{ position: 'relative' }}>
@@ -993,10 +1590,10 @@ export function WhatChangedView() {
                 marginBottom: 16,
                 paddingLeft: 20,
                 position: 'relative',
-                animation: mounted ? `timelineReveal 0.45s ease-out ${0.2 + groupIdx * 0.1}s both` : 'none',
+                animation: mounted ? `wc-fadeSlideUp 0.45s ${ease} ${0.45 + groupIdx * 0.1}s both` : 'none',
               }}
             >
-              {/* Timeline dot for group header */}
+              {/* Timeline dot for group header with ping animation */}
               <div
                 style={{
                   position: 'absolute',
@@ -1010,6 +1607,21 @@ export function WhatChangedView() {
                   zIndex: 2,
                 }}
               />
+              {/* Ping ring behind dot */}
+              {groupIdx === 0 && (
+                <div
+                  style={{
+                    position: 'absolute',
+                    left: 0,
+                    width: 12,
+                    height: 12,
+                    borderRadius: '50%',
+                    backgroundColor: 'rgba(212, 165, 116, 0.4)',
+                    zIndex: 1,
+                    animation: 'wc-timelineDotPing 2s cubic-bezier(0, 0, 0.2, 1) infinite',
+                  }}
+                />
+              )}
               <div
                 style={{
                   display: 'flex',
@@ -1073,7 +1685,7 @@ export function WhatChangedView() {
                   top: -8,
                   bottom: -16,
                   width: 2,
-                  backgroundColor: '#1e2638',
+                  background: 'linear-gradient(180deg, rgba(212, 165, 116, 0.2), rgba(30, 38, 56, 0.5))',
                   zIndex: 0,
                 }}
               />
@@ -1088,17 +1700,7 @@ export function WhatChangedView() {
                 const CtIcon = ctCfg.icon;
                 const isExpanded = expandedIds.has(change.id);
 
-                const diffAccentColor = change.sentiment === 'positive'
-                  ? '#34d399'
-                  : change.sentiment === 'negative'
-                    ? '#f87171'
-                    : '#d4a574';
-
-                const diffBorderColor = change.sentiment === 'positive'
-                  ? 'rgba(52, 211, 153, 0.25)'
-                  : change.sentiment === 'negative'
-                    ? 'rgba(248, 113, 113, 0.25)'
-                    : 'rgba(212, 165, 116, 0.15)';
+                const sentimentBorderColor = sentCfg.borderColor;
 
                 const currentGlobalIdx = globalItemIndex++;
 
@@ -1109,7 +1711,7 @@ export function WhatChangedView() {
                       position: 'relative',
                       paddingLeft: 24,
                       animation: mounted
-                        ? `timelineReveal 0.4s ease-out ${0.3 + currentGlobalIdx * 0.05}s both`
+                        ? `wc-cardEntrance 0.5s ${ease} ${0.5 + currentGlobalIdx * 0.06}s both`
                         : 'none',
                     }}
                   >
@@ -1118,7 +1720,7 @@ export function WhatChangedView() {
                       style={{
                         position: 'absolute',
                         left: -1,
-                        top: 18,
+                        top: 20,
                         width: 14,
                         height: 14,
                         borderRadius: '50%',
@@ -1128,6 +1730,7 @@ export function WhatChangedView() {
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
+                        transition: `all 0.3s ${ease}`,
                       }}
                     >
                       <div
@@ -1140,58 +1743,62 @@ export function WhatChangedView() {
                       />
                     </div>
 
-                    {/* Card */}
+                    {/* Glassmorphism Card with sentiment-colored left border */}
                     <div
+                      className="card-interactive"
                       style={{
-                        backgroundColor: '#131720',
-                        border: `1px solid ${diffBorderColor}`,
+                        background: glass.bg,
+                        backdropFilter: glass.blur,
+                        WebkitBackdropFilter: glass.blur,
+                        border: `1px solid ${glass.border}`,
                         borderRadius: 14,
                         padding: '18px 22px',
-                        borderLeftWidth: 3,
-                        borderLeftColor: diffAccentColor,
-                        transition: 'border-color 0.2s, box-shadow 0.2s, transform 0.2s',
+                        borderLeft: `3px solid ${sentimentBorderColor}`,
+                        transition: `all 0.3s ${ease}`,
                         cursor: 'pointer',
                         position: 'relative',
                         overflow: 'hidden',
                       }}
                       onClick={() => toggleExpand(change.id)}
                       onMouseEnter={(e) => {
-                        e.currentTarget.style.borderColor = '#2e3a4e';
-                        e.currentTarget.style.borderLeftColor = diffAccentColor;
-                        e.currentTarget.style.boxShadow = '0 4px 20px rgba(0,0,0,0.2)';
-                        e.currentTarget.style.transform = 'translateX(2px)';
+                        e.currentTarget.style.borderColor = glass.hoverBorder;
+                        e.currentTarget.style.borderLeftColor = sentCfg.color;
+                        e.currentTarget.style.borderLeftWidth = '3px';
+                        e.currentTarget.style.boxShadow = `0 8px 32px rgba(0,0,0,0.3), 0 0 0 1px ${glass.hoverBorder}`;
+                        e.currentTarget.style.transform = 'translateX(4px)';
                       }}
                       onMouseLeave={(e) => {
-                        e.currentTarget.style.borderColor = diffBorderColor;
-                        e.currentTarget.style.borderLeftColor = diffAccentColor;
+                        e.currentTarget.style.borderColor = glass.border;
+                        e.currentTarget.style.borderLeftColor = sentimentBorderColor;
+                        e.currentTarget.style.borderLeftWidth = '3px';
                         e.currentTarget.style.boxShadow = 'none';
                         e.currentTarget.style.transform = 'translateX(0)';
                       }}
                     >
-                      {/* "New" indicator overlay */}
+                      {/* "New" indicator overlay glow */}
                       {change.isNew && (
                         <div
                           style={{
                             position: 'absolute',
                             top: 0,
                             right: 0,
-                            width: 50,
-                            height: 50,
+                            width: 80,
+                            height: 80,
                             background: 'radial-gradient(circle at top right, rgba(212, 165, 116, 0.1), transparent 70%)',
                             pointerEvents: 'none',
                           }}
                         />
                       )}
 
-                      {/* Top row: badges + timestamp */}
+                      {/* Top row: badges + impact badge + timestamp */}
                       <div
                         style={{
                           display: 'flex',
                           alignItems: 'center',
                           justifyContent: 'space-between',
-                          marginBottom: 10,
+                          marginBottom: 12,
                           flexWrap: 'wrap',
-                          gap: 6,
+                          gap: 8,
                         }}
                       >
                         <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
@@ -1211,7 +1818,7 @@ export function WhatChangedView() {
                                 border: '1px solid rgba(212, 165, 116, 0.3)',
                                 borderRadius: 6,
                                 padding: '2px 7px',
-                                animation: 'newBadgePulse 2.5s ease-in-out infinite',
+                                animation: 'wc-newPulse 2.5s ease-in-out infinite',
                               }}
                             >
                               NEW
@@ -1239,7 +1846,7 @@ export function WhatChangedView() {
                             {ctCfg.label}
                           </span>
 
-                          {/* Sentiment indicator */}
+                          {/* Sentiment indicator with trend arrow */}
                           <div
                             style={{
                               display: 'flex',
@@ -1256,7 +1863,7 @@ export function WhatChangedView() {
                             </span>
                           </div>
 
-                          {/* Category badge */}
+                          {/* Category badge with styled icon container */}
                           <span
                             style={{
                               display: 'inline-flex',
@@ -1267,35 +1874,31 @@ export function WhatChangedView() {
                               textTransform: 'uppercase',
                               letterSpacing: '0.06em',
                               color: catCfg.color,
-                              backgroundColor: `${catCfg.color}15`,
+                              backgroundColor: catCfg.bg,
                               borderRadius: 12,
-                              padding: '3px 9px',
+                              padding: '3px 10px',
                             }}
                           >
-                            <CatIcon size={10} />
+                            <div
+                              style={{
+                                width: 16,
+                                height: 16,
+                                borderRadius: 5,
+                                background: `${catCfg.color}20`,
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                              }}
+                            >
+                              <CatIcon size={9} />
+                            </div>
                             {catCfg.label}
-                          </span>
-
-                          {/* Impact badge (major/minor/patch) */}
-                          <span
-                            style={{
-                              fontSize: 9,
-                              fontWeight: 700,
-                              textTransform: 'uppercase',
-                              letterSpacing: '0.06em',
-                              color: impCfg.color,
-                              backgroundColor: impCfg.bg,
-                              borderRadius: 6,
-                              padding: '3px 8px',
-                              fontFamily: 'monospace',
-                            }}
-                          >
-                            {impCfg.tag}
                           </span>
                         </div>
 
-                        {/* Timestamp + expand indicator */}
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        {/* Right side: impact badge + timestamp + expand */}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                          <ImpactBadge level={change.impact} />
                           <span
                             style={{
                               display: 'flex',
@@ -1303,6 +1906,7 @@ export function WhatChangedView() {
                               gap: 4,
                               fontSize: 11,
                               color: '#6b6358',
+                              marginLeft: change.impact === 'high' ? 4 : 0,
                             }}
                           >
                             <Clock size={10} />
@@ -1312,56 +1916,62 @@ export function WhatChangedView() {
                             size={14}
                             style={{
                               color: '#4a443e',
-                              transition: 'transform 0.2s',
+                              transition: `transform 0.3s ${ease}`,
                               transform: isExpanded ? 'rotate(90deg)' : 'rotate(0deg)',
                             }}
                           />
                         </div>
                       </div>
 
-                      {/* Description with diff-style prefix */}
-                      <h3
+                      {/* Description with diff-style prefix and trend arrow */}
+                      <div
                         style={{
-                          fontSize: 15,
-                          fontWeight: 600,
-                          color: '#f0ebe4',
-                          margin: '0 0 6px 0',
-                          lineHeight: 1.4,
                           display: 'flex',
                           alignItems: 'flex-start',
-                          gap: 8,
+                          gap: 10,
+                          marginBottom: 6,
                         }}
                       >
-                        <span
+                        <TrendArrow sentiment={change.sentiment} />
+                        <h3
                           style={{
-                            fontSize: 14,
-                            fontWeight: 700,
-                            color: change.sentiment === 'positive' ? '#34d399'
-                              : change.sentiment === 'negative' ? '#f87171'
-                              : '#d4a574',
-                            fontFamily: 'monospace',
-                            flexShrink: 0,
-                            width: 16,
-                            textAlign: 'center',
-                            opacity: 0.7,
+                            fontSize: 15,
+                            fontWeight: 600,
+                            color: '#f0ebe4',
+                            margin: 0,
+                            lineHeight: 1.5,
+                            flex: 1,
                           }}
                         >
-                          {change.sentiment === 'positive' ? '+' : change.sentiment === 'negative' ? '!' : '~'}
-                        </span>
-                        <span
-                          style={{
-                            backgroundColor: change.sentiment === 'positive'
-                              ? 'rgba(52, 211, 153, 0.06)'
-                              : change.sentiment === 'negative'
-                                ? 'rgba(248, 113, 113, 0.06)'
-                                : 'rgba(212, 165, 116, 0.06)',
-                            borderRadius: 4,
-                            padding: '1px 4px',
-                          }}
-                        >
-                          {change.description}
-                        </span>
-                      </h3>
+                          <span
+                            style={{
+                              fontFamily: 'monospace',
+                              fontSize: 14,
+                              fontWeight: 700,
+                              color: change.sentiment === 'positive' ? '#34d399'
+                                : change.sentiment === 'negative' ? '#f87171'
+                                : '#d4a574',
+                              marginRight: 6,
+                              opacity: 0.7,
+                            }}
+                          >
+                            {change.sentiment === 'positive' ? '+' : change.sentiment === 'negative' ? '!' : '~'}
+                          </span>
+                          <span
+                            style={{
+                              backgroundColor: change.sentiment === 'positive'
+                                ? 'rgba(52, 211, 153, 0.06)'
+                                : change.sentiment === 'negative'
+                                  ? 'rgba(248, 113, 113, 0.06)'
+                                  : 'rgba(212, 165, 116, 0.06)',
+                              borderRadius: 4,
+                              padding: '1px 4px',
+                            }}
+                          >
+                            {change.description}
+                          </span>
+                        </h3>
+                      </div>
 
                       {/* Collapsed preview */}
                       {!isExpanded && (
@@ -1370,11 +1980,11 @@ export function WhatChangedView() {
                             fontSize: 13,
                             color: '#6b6358',
                             lineHeight: 1.5,
-                            margin: '0 0 8px 24px',
+                            margin: '0 0 8px 36px',
                             overflow: 'hidden',
                             textOverflow: 'ellipsis',
                             whiteSpace: 'nowrap',
-                            maxWidth: '90%',
+                            maxWidth: '85%',
                           }}
                         >
                           {change.detail}
@@ -1385,22 +1995,22 @@ export function WhatChangedView() {
                       {isExpanded && (
                         <div
                           style={{
-                            marginLeft: 24,
-                            animation: 'slideDown 0.3s ease-out both',
+                            marginLeft: 36,
+                            animation: `wc-slideExpand 0.35s ${ease} both`,
                           }}
                         >
                           <p
                             style={{
                               fontSize: 13,
                               color: '#a09888',
-                              lineHeight: 1.6,
-                              margin: '0 0 12px 0',
+                              lineHeight: 1.7,
+                              margin: '0 0 14px 0',
                             }}
                           >
                             {change.detail}
                           </p>
 
-                          {/* Affected areas */}
+                          {/* Affected areas as colored tag pills */}
                           {change.affectedAreas.length > 0 && (
                             <div
                               style={{
@@ -1412,7 +2022,15 @@ export function WhatChangedView() {
                               }}
                             >
                               <Tag size={10} style={{ color: '#4a443e' }} />
-                              <span style={{ fontSize: 10, fontWeight: 600, color: '#4a443e', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+                              <span
+                                style={{
+                                  fontSize: 10,
+                                  fontWeight: 600,
+                                  color: '#4a443e',
+                                  textTransform: 'uppercase',
+                                  letterSpacing: '0.06em',
+                                }}
+                              >
                                 Affected:
                               </span>
                               {change.affectedAreas.map((area, areaIdx) => (
@@ -1421,11 +2039,21 @@ export function WhatChangedView() {
                                   style={{
                                     fontSize: 10,
                                     fontWeight: 500,
-                                    color: '#8b7a6b',
-                                    backgroundColor: 'rgba(255,255,255,0.04)',
-                                    border: '1px solid rgba(255,255,255,0.06)',
-                                    borderRadius: 6,
-                                    padding: '2px 8px',
+                                    color: catCfg.color,
+                                    backgroundColor: `${catCfg.color}10`,
+                                    border: `1px solid ${catCfg.color}20`,
+                                    borderRadius: 10,
+                                    padding: '3px 10px',
+                                    transition: `all 0.2s ${ease}`,
+                                    cursor: 'default',
+                                  }}
+                                  onMouseEnter={(e) => {
+                                    e.currentTarget.style.backgroundColor = `${catCfg.color}20`;
+                                    e.currentTarget.style.borderColor = `${catCfg.color}40`;
+                                  }}
+                                  onMouseLeave={(e) => {
+                                    e.currentTarget.style.backgroundColor = `${catCfg.color}10`;
+                                    e.currentTarget.style.borderColor = `${catCfg.color}20`;
                                   }}
                                 >
                                   {area}
@@ -1444,7 +2072,7 @@ export function WhatChangedView() {
                           gap: 6,
                           fontSize: 11,
                           color: '#6b6358',
-                          marginLeft: 24,
+                          marginLeft: 36,
                         }}
                       >
                         <Zap size={10} style={{ color: '#4a443e' }} />
@@ -1466,14 +2094,16 @@ export function WhatChangedView() {
         {/* Empty state */}
         {filteredChanges.length === 0 && (
           <div
-            className="animate-fade-in"
             style={{
               textAlign: 'center',
               padding: '60px 40px',
               color: '#6b6358',
-              backgroundColor: '#131720',
-              border: '1px solid #1e2638',
+              background: glass.bg,
+              backdropFilter: glass.blur,
+              WebkitBackdropFilter: glass.blur,
+              border: `1px solid ${glass.border}`,
               borderRadius: 14,
+              animation: mounted ? `wc-fadeSlideUp 0.5s ${ease} 0.3s both` : 'none',
             }}
           >
             <Filter size={36} style={{ marginBottom: 12, opacity: 0.3 }} />

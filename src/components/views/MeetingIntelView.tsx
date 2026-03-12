@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   Brain,
   Calendar,
@@ -22,8 +22,6 @@ import {
   CheckSquare,
   BarChart3,
   Zap,
-  AlertCircle,
-  TrendingUp,
 } from 'lucide-react';
 import { teamMembers } from '@/lib/data';
 
@@ -155,6 +153,69 @@ const tailwindToHex: Record<string, string> = {
   'bg-slate-400': '#94a3b8',
 };
 
+// ─── Scoped Keyframes ───
+
+const miKeyframes = `
+@keyframes mi-fadeUp {
+  from { opacity: 0; transform: translateY(14px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes mi-slideDown {
+  from { opacity: 0; max-height: 0; transform: translateY(-8px); }
+  to { opacity: 1; max-height: 2000px; transform: translateY(0); }
+}
+@keyframes mi-scaleIn {
+  from { opacity: 0; transform: scale(0.92); }
+  to { opacity: 1; transform: scale(1); }
+}
+@keyframes mi-countUp {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes mi-shimmer {
+  0% { background-position: -200% center; }
+  100% { background-position: 200% center; }
+}
+@keyframes mi-pulseGlow {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(139, 92, 246, 0); }
+  50% { box-shadow: 0 0 16px 2px rgba(139, 92, 246, 0.15); }
+}
+@keyframes mi-sparkle {
+  0%, 100% { opacity: 1; transform: scale(1) rotate(0deg); }
+  50% { opacity: 0.7; transform: scale(1.15) rotate(8deg); }
+}
+@keyframes mi-checkPop {
+  0% { transform: scale(1); }
+  40% { transform: scale(1.25); }
+  100% { transform: scale(1); }
+}
+@keyframes mi-borderFlow {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+@keyframes mi-float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-3px); }
+}
+@keyframes mi-ringPulse {
+  0% { box-shadow: 0 0 0 0px rgba(var(--ring-color), 0.4); }
+  100% { box-shadow: 0 0 0 4px rgba(var(--ring-color), 0); }
+}
+@keyframes mi-connectLine {
+  from { height: 0; }
+  to { height: 100%; }
+}
+@keyframes mi-numberReveal {
+  from { opacity: 0; transform: scale(0.5) rotate(-10deg); }
+  to { opacity: 1; transform: scale(1) rotate(0deg); }
+}
+@keyframes mi-insightGlow {
+  0%, 100% { opacity: 0.5; }
+  50% { opacity: 1; }
+}
+`;
+
 // ─── Helpers ───
 
 function getMember(id: string) {
@@ -189,6 +250,48 @@ function getRelativeDate(dateStr: string): string {
   if (diffDays > 1 && diffDays <= 7) return `In ${diffDays} days`;
   if (diffDays < -1 && diffDays >= -7) return `${Math.abs(diffDays)} days ago`;
   return '';
+}
+
+function parseCalendarDate(dateStr: string): { month: string; day: string; weekday: string } {
+  const date = new Date(dateStr);
+  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  const weekdays = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+  return {
+    month: months[date.getMonth()] ?? '',
+    day: String(date.getDate()),
+    weekday: weekdays[date.getDay()] ?? '',
+  };
+}
+
+// ─── Animated Number ───
+
+function AnimatedNumber({ value, suffix = '' }: { value: number | string; suffix?: string }) {
+  const [displayed, setDisplayed] = useState(0);
+  const numericValue = typeof value === 'string' ? parseInt(value, 10) : value;
+  const isNumeric = !isNaN(numericValue);
+
+  useEffect(() => {
+    if (!isNumeric) return;
+    let start = 0;
+    const end = numericValue;
+    const duration = 800;
+    const startTime = performance.now();
+
+    function animate(currentTime: number) {
+      const elapsed = currentTime - startTime;
+      const progress = Math.min(elapsed / duration, 1);
+      const eased = 1 - Math.pow(1 - progress, 3);
+      const current = Math.round(start + (end - start) * eased);
+      setDisplayed(current);
+      if (progress < 1) {
+        requestAnimationFrame(animate);
+      }
+    }
+    requestAnimationFrame(animate);
+  }, [numericValue, isNumeric]);
+
+  if (!isNumeric) return <>{value}</>;
+  return <>{displayed}{suffix}</>;
 }
 
 // ─── Sentiment Gauge SVG ───
@@ -528,6 +631,11 @@ export function MeetingIntelView() {
   const [activeFilter, setActiveFilter] = useState<MeetingType | 'all'>('all');
   const [activeSection, setActiveSection] = useState<Record<string, string>>({});
   const [viewTab, setViewTab] = useState<FilterTab>('all');
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   // Derived state
   const filteredMeetings = useMemo(() => {
@@ -601,42 +709,66 @@ export function MeetingIntelView() {
     setActiveSection((prev) => ({ ...prev, [meetingId]: section }));
   }
 
+  const ease = 'cubic-bezier(0.16, 1, 0.3, 1)';
+
   // ─── Render ───
 
   return (
     <div style={{ padding: '32px 40px', maxWidth: 1000, margin: '0 auto' }}>
+      {/* Inject scoped keyframes */}
+      <style dangerouslySetInnerHTML={{ __html: miKeyframes }} />
+
       {/* Header */}
-      <div className="animate-fade-in" style={{ marginBottom: 32 }}>
+      <div
+        style={{
+          marginBottom: 32,
+          opacity: mounted ? 1 : 0,
+          transform: mounted ? 'translateY(0)' : 'translateY(14px)',
+          transition: `all 0.6s ${ease}`,
+          position: 'relative',
+        }}
+      >
+        <div className="noise-overlay" style={{ position: 'absolute', inset: 0, borderRadius: 'inherit', pointerEvents: 'none' }} />
+        <div className="dot-pattern" style={{ position: 'absolute', inset: 0, borderRadius: 'inherit', pointerEvents: 'none', opacity: 0.3 }} />
         <div
           style={{
             display: 'flex',
             alignItems: 'center',
-            gap: 14,
+            gap: 16,
             marginBottom: 8,
           }}
         >
           <div
             style={{
-              width: 46,
-              height: 46,
-              borderRadius: 13,
-              background: 'linear-gradient(135deg, rgba(139, 92, 246, 0.2), rgba(139, 92, 246, 0.05))',
-              border: '1px solid rgba(139, 92, 246, 0.25)',
+              width: 50,
+              height: 50,
+              borderRadius: 14,
+              background: 'linear-gradient(135deg, rgba(139, 92, 246, 0.25), rgba(212, 165, 116, 0.1))',
+              backdropFilter: 'blur(20px)',
+              WebkitBackdropFilter: 'blur(20px)',
+              border: '1px solid rgba(139, 92, 246, 0.2)',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
+              animation: 'mi-pulseGlow 3s ease-in-out infinite',
+              boxShadow: '0 0 20px rgba(139, 92, 246, 0.1)',
             }}
           >
-            <Brain size={24} style={{ color: '#8b5cf6' }} />
+            <Brain size={26} style={{ color: '#8b5cf6' }} />
           </div>
           <div>
             <h1
+              className="text-glow"
               style={{
                 fontSize: 28,
                 fontWeight: 700,
                 color: '#f0ebe4',
                 margin: 0,
-                letterSpacing: '-0.01em',
+                letterSpacing: '-0.02em',
+                background: 'linear-gradient(135deg, #f0ebe4, #d4a574)',
+                WebkitBackgroundClip: 'text',
+                WebkitTextFillColor: 'transparent',
+                backgroundClip: 'text',
               }}
             >
               Meeting Intelligence
@@ -646,6 +778,7 @@ export function MeetingIntelView() {
                 fontSize: 14,
                 color: '#a09888',
                 margin: 0,
+                marginTop: 2,
               }}
             >
               AI-curated agendas, pre-reads, and action tracking for coherent decision-making.
@@ -656,13 +789,11 @@ export function MeetingIntelView() {
 
       {/* Stats Row */}
       <div
-        className="animate-fade-in"
         style={{
           display: 'grid',
           gridTemplateColumns: 'repeat(4, 1fr)',
-          gap: 12,
-          marginBottom: 24,
-          animationDelay: '0.05s',
+          gap: 14,
+          marginBottom: 28,
         }}
       >
         {[
@@ -674,53 +805,82 @@ export function MeetingIntelView() {
           const Icon = stat.icon;
           return (
             <div
+              className="card-stat"
               key={stat.label}
-              className="glow-card animate-fade-in"
               style={{
-                backgroundColor: '#131720',
-                border: '1px solid #1e2638',
-                borderRadius: 14,
-                padding: '16px 20px',
-                animationDelay: `${0.08 + idx * 0.04}s`,
-                opacity: 0,
+                background: 'rgba(19, 23, 32, 0.7)',
+                backdropFilter: 'blur(20px)',
+                WebkitBackdropFilter: 'blur(20px)',
+                border: '1px solid rgba(212, 165, 116, 0.08)',
+                borderRadius: 16,
+                padding: '18px 22px',
+                position: 'relative',
+                overflow: 'hidden',
+                opacity: mounted ? 1 : 0,
+                transform: mounted ? 'translateY(0)' : 'translateY(14px)',
+                transition: `all 0.6s ${ease} ${0.1 + idx * 0.06}s`,
+                cursor: 'default',
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.borderColor = `${stat.color}30`;
+                e.currentTarget.style.boxShadow = `0 8px 32px ${stat.color}10, inset 0 1px 0 ${stat.color}10`;
+                e.currentTarget.style.transform = 'translateY(-2px)';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.borderColor = 'rgba(212, 165, 116, 0.08)';
+                e.currentTarget.style.boxShadow = 'none';
+                e.currentTarget.style.transform = 'translateY(0)';
               }}
             >
+              {/* Subtle gradient accent top */}
+              <div
+                style={{
+                  position: 'absolute',
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  height: 2,
+                  background: `linear-gradient(90deg, transparent, ${stat.color}40, transparent)`,
+                  borderRadius: '16px 16px 0 0',
+                }}
+              />
               <div
                 style={{
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'space-between',
-                  marginBottom: 10,
+                  marginBottom: 12,
                 }}
               >
                 <div
                   style={{
-                    width: 34,
-                    height: 34,
+                    width: 36,
+                    height: 36,
                     borderRadius: 10,
-                    backgroundColor: `${stat.color}15`,
+                    background: `linear-gradient(135deg, ${stat.color}20, ${stat.color}08)`,
+                    border: `1px solid ${stat.color}15`,
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
                   }}
                 >
-                  <Icon size={16} style={{ color: stat.color }} />
+                  <Icon size={17} style={{ color: stat.color }} />
                 </div>
                 {stat.label === 'Completion Rate' && (
-                  <div style={{ width: 44, height: 44, position: 'relative' }}>
-                    <svg width="44" height="44" viewBox="0 0 44 44">
-                      <circle cx="22" cy="22" r="18" fill="none" stroke="#1e2638" strokeWidth="3" />
+                  <div style={{ width: 46, height: 46, position: 'relative' }}>
+                    <svg width="46" height="46" viewBox="0 0 46 46">
+                      <circle cx="23" cy="23" r="18" fill="none" stroke="#1e2638" strokeWidth="3" />
                       <circle
-                        cx="22"
-                        cy="22"
+                        cx="23"
+                        cy="23"
                         r="18"
                         fill="none"
                         stroke={stat.color}
                         strokeWidth="3"
                         strokeLinecap="round"
                         strokeDasharray={`${(stats.completionRate / 100) * 113} 113`}
-                        transform="rotate(-90 22 22)"
-                        style={{ transition: 'stroke-dasharray 0.6s ease-out' }}
+                        transform="rotate(-90 23 23)"
+                        style={{ transition: `stroke-dasharray 1s ${ease}` }}
                       />
                     </svg>
                   </div>
@@ -728,31 +888,43 @@ export function MeetingIntelView() {
               </div>
               <div
                 style={{
-                  fontSize: 26,
+                  fontSize: 28,
                   fontWeight: 700,
                   color: '#f0ebe4',
                   fontVariantNumeric: 'tabular-nums',
                   letterSpacing: '-0.02em',
+                  animation: mounted ? 'mi-countUp 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards' : 'none',
                 }}
               >
-                {stat.value}
+                {typeof stat.value === 'number' ? (
+                  <AnimatedNumber value={stat.value} />
+                ) : (
+                  stat.value
+                )}
               </div>
-              <div style={{ fontSize: 11, color: '#6b6358', marginTop: 2 }}>{stat.label}</div>
-              <div style={{ fontSize: 10, color: stat.subColor, marginTop: 2 }}>{stat.sub}</div>
+              <div style={{ fontSize: 11, color: '#6b6358', marginTop: 3, fontWeight: 500, textTransform: 'uppercase', letterSpacing: '0.04em' }}>{stat.label}</div>
+              <div style={{ fontSize: 11, color: stat.subColor, marginTop: 3, fontWeight: 500 }}>{stat.sub}</div>
             </div>
           );
         })}
       </div>
 
-      {/* View Tabs (All, This Week, By Node, Action Items) */}
+      {/* View Tabs (All, This Week, By Node, Action Items) - Premium Pill Style */}
       <div
-        className="animate-fade-in"
         style={{
           display: 'flex',
-          gap: 6,
+          gap: 4,
           marginBottom: 16,
-          animationDelay: '0.12s',
-          opacity: 0,
+          padding: 4,
+          borderRadius: 14,
+          background: 'rgba(19, 23, 32, 0.5)',
+          backdropFilter: 'blur(12px)',
+          WebkitBackdropFilter: 'blur(12px)',
+          border: '1px solid rgba(212, 165, 116, 0.06)',
+          width: 'fit-content',
+          opacity: mounted ? 1 : 0,
+          transform: mounted ? 'translateY(0)' : 'translateY(10px)',
+          transition: `all 0.5s ${ease} 0.3s`,
         }}
       >
         {([
@@ -770,27 +942,31 @@ export function MeetingIntelView() {
               style={{
                 display: 'flex',
                 alignItems: 'center',
-                gap: 6,
-                padding: '8px 16px',
+                gap: 7,
+                padding: '9px 18px',
                 borderRadius: 10,
-                border: isActive ? '1px solid rgba(212, 165, 116, 0.35)' : '1px solid #1e2638',
-                backgroundColor: isActive ? 'rgba(212, 165, 116, 0.1)' : 'transparent',
+                border: 'none',
+                backgroundColor: isActive ? 'rgba(212, 165, 116, 0.12)' : 'transparent',
                 color: isActive ? '#d4a574' : '#6b6358',
                 fontSize: 12,
                 fontWeight: isActive ? 600 : 500,
                 cursor: 'pointer',
-                transition: 'all 0.2s',
+                transition: `all 0.25s ${ease}`,
                 fontFamily: 'inherit',
+                position: 'relative',
+                boxShadow: isActive
+                  ? '0 0 16px rgba(212, 165, 116, 0.08), inset 0 1px 0 rgba(212, 165, 116, 0.1)'
+                  : 'none',
               }}
               onMouseEnter={(e) => {
                 if (!isActive) {
-                  e.currentTarget.style.borderColor = '#2e3a4e';
+                  e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.03)';
                   e.currentTarget.style.color = '#a09888';
                 }
               }}
               onMouseLeave={(e) => {
                 if (!isActive) {
-                  e.currentTarget.style.borderColor = '#1e2638';
+                  e.currentTarget.style.backgroundColor = 'transparent';
                   e.currentTarget.style.color = '#6b6358';
                 }
               }}
@@ -804,15 +980,15 @@ export function MeetingIntelView() {
 
       {/* Type Filter Pills */}
       <div
-        className="animate-fade-in"
         style={{
           display: 'flex',
           alignItems: 'center',
-          gap: 6,
-          marginBottom: 24,
+          gap: 8,
+          marginBottom: 28,
           flexWrap: 'wrap',
-          animationDelay: '0.15s',
-          opacity: 0,
+          opacity: mounted ? 1 : 0,
+          transform: mounted ? 'translateY(0)' : 'translateY(10px)',
+          transition: `all 0.5s ${ease} 0.35s`,
         }}
       >
         {(['all', 'wisdom-council', 'node-sync', 'board', 'standup', 'external'] as const).map((filterKey) => {
@@ -823,6 +999,7 @@ export function MeetingIntelView() {
           const count = filterKey === 'all'
             ? meetings.length
             : meetings.filter((m) => m.type === filterKey).length;
+          const FilterIcon = filterKey === 'all' ? null : config!.icon;
 
           return (
             <button
@@ -831,42 +1008,47 @@ export function MeetingIntelView() {
               style={{
                 display: 'flex',
                 alignItems: 'center',
-                gap: 6,
-                padding: '6px 14px',
+                gap: 7,
+                padding: '7px 16px',
                 borderRadius: 20,
-                border: isActive ? `1px solid ${color}44` : '1px solid #1e2638',
-                backgroundColor: isActive ? `${color}15` : 'transparent',
+                border: isActive ? `1px solid ${color}40` : '1px solid rgba(30, 38, 56, 0.8)',
+                backgroundColor: isActive ? `${color}12` : 'transparent',
                 color: isActive ? color : '#6b6358',
                 fontSize: 12,
                 fontWeight: isActive ? 600 : 400,
                 cursor: 'pointer',
-                transition: 'all 0.15s',
+                transition: `all 0.2s ${ease}`,
                 fontFamily: 'inherit',
+                boxShadow: isActive ? `0 0 12px ${color}10` : 'none',
               }}
               onMouseEnter={(e) => {
                 if (!isActive) {
-                  e.currentTarget.style.borderColor = '#2e3a4e';
-                  e.currentTarget.style.color = '#a09888';
+                  e.currentTarget.style.borderColor = `${color}25`;
+                  e.currentTarget.style.color = color;
+                  e.currentTarget.style.backgroundColor = `${color}08`;
                 }
               }}
               onMouseLeave={(e) => {
                 if (!isActive) {
-                  e.currentTarget.style.borderColor = '#1e2638';
+                  e.currentTarget.style.borderColor = 'rgba(30, 38, 56, 0.8)';
                   e.currentTarget.style.color = '#6b6358';
+                  e.currentTarget.style.backgroundColor = 'transparent';
                 }
               }}
             >
+              {FilterIcon && <FilterIcon size={12} />}
               {label}
               <span
                 style={{
                   fontSize: 10,
                   fontWeight: 700,
-                  backgroundColor: isActive ? `${color}25` : '#1e2638',
+                  backgroundColor: isActive ? `${color}20` : 'rgba(30, 38, 56, 0.6)',
                   color: isActive ? color : '#6b6358',
-                  borderRadius: 8,
-                  padding: '1px 7px',
-                  minWidth: 18,
+                  borderRadius: 10,
+                  padding: '2px 8px',
+                  minWidth: 20,
                   textAlign: 'center',
+                  transition: `all 0.2s ${ease}`,
                 }}
               >
                 {count}
@@ -877,7 +1059,7 @@ export function MeetingIntelView() {
       </div>
 
       {/* Meeting Cards */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
         {filteredMeetings.map((meeting, meetingIdx) => {
           const isExpanded = expandedId === meeting.id;
           const typeConfig = meetingTypeConfig[meeting.type];
@@ -888,42 +1070,58 @@ export function MeetingIntelView() {
           const totalActions = meeting.actionItems.length;
           const relDate = getRelativeDate(meeting.date);
           const durationMin = parseDurationMinutes(meeting.duration);
+          const calDate = parseCalendarDate(meeting.date);
 
           return (
             <div
+              className="card-interactive card-premium"
               key={meeting.id}
-              className="animate-fade-in"
               style={{
-                backgroundColor: meeting.status === 'upcoming'
-                  ? 'rgba(212, 165, 116, 0.03)'
-                  : '#131720',
-                border: meeting.status === 'upcoming'
-                  ? '1px solid rgba(212, 165, 116, 0.15)'
-                  : '1px solid #1e2638',
+                background: 'rgba(19, 23, 32, 0.7)',
+                backdropFilter: 'blur(20px)',
+                WebkitBackdropFilter: 'blur(20px)',
+                border: `1px solid rgba(212, 165, 116, 0.08)`,
                 borderRadius: 16,
                 overflow: 'hidden',
-                transition: 'border-color 0.2s, box-shadow 0.2s',
-                boxShadow: meeting.status === 'upcoming'
-                  ? '0 0 24px rgba(212, 165, 116, 0.04)'
+                transition: `all 0.35s ${ease}`,
+                boxShadow: isExpanded
+                  ? `0 8px 40px rgba(0,0,0,0.3), 0 0 0 1px ${typeConfig.color}15`
                   : 'none',
-                animationDelay: `${0.2 + meetingIdx * 0.06}s`,
-                opacity: 0,
+                position: 'relative',
+                opacity: mounted ? 1 : 0,
+                transform: mounted ? 'translateY(0)' : 'translateY(16px)',
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                ['--card-delay' as any]: `${0.4 + meetingIdx * 0.07}s`,
+                transitionDelay: `${0.4 + meetingIdx * 0.07}s`,
               }}
               onMouseEnter={(e) => {
-                e.currentTarget.style.borderColor = meeting.status === 'upcoming'
-                  ? 'rgba(212, 165, 116, 0.3)'
-                  : '#2e3a4e';
-                e.currentTarget.style.boxShadow = '0 4px 24px rgba(0,0,0,0.25)';
+                if (!isExpanded) {
+                  e.currentTarget.style.borderColor = `${typeConfig.color}25`;
+                  e.currentTarget.style.boxShadow = `0 4px 24px rgba(0,0,0,0.2), 0 0 0 1px ${typeConfig.color}10`;
+                  e.currentTarget.style.transform = 'translateY(-1px)';
+                }
               }}
               onMouseLeave={(e) => {
-                e.currentTarget.style.borderColor = meeting.status === 'upcoming'
-                  ? 'rgba(212, 165, 116, 0.15)'
-                  : '#1e2638';
-                e.currentTarget.style.boxShadow = meeting.status === 'upcoming'
-                  ? '0 0 24px rgba(212, 165, 116, 0.04)'
-                  : 'none';
+                if (!isExpanded) {
+                  e.currentTarget.style.borderColor = 'rgba(212, 165, 116, 0.08)';
+                  e.currentTarget.style.boxShadow = 'none';
+                  e.currentTarget.style.transform = 'translateY(0)';
+                }
               }}
             >
+              {/* Type-colored left accent bar */}
+              <div
+                style={{
+                  position: 'absolute',
+                  top: 0,
+                  left: 0,
+                  width: 3,
+                  height: '100%',
+                  background: `linear-gradient(180deg, ${typeConfig.color}, ${typeConfig.color}40)`,
+                  borderRadius: '16px 0 0 16px',
+                }}
+              />
+
               {/* Card Header (clickable) */}
               <button
                 onClick={() => toggleExpand(meeting.id)}
@@ -932,34 +1130,89 @@ export function MeetingIntelView() {
                   alignItems: 'center',
                   gap: 16,
                   width: '100%',
-                  padding: '18px 22px',
+                  padding: '18px 22px 18px 18px',
                   border: 'none',
                   backgroundColor: 'transparent',
                   cursor: 'pointer',
                   textAlign: 'left',
                   fontFamily: 'inherit',
+                  transition: `background-color 0.2s ${ease}`,
                 }}
               >
-                {/* Expand icon */}
-                <div style={{ flexShrink: 0, color: '#6b6358', transition: 'transform 0.2s' }}>
-                  {isExpanded ? <ChevronDown size={18} /> : <ChevronRight size={18} />}
-                </div>
-
-                {/* Type icon */}
+                {/* Calendar Date Badge */}
                 <div
                   style={{
-                    width: 42,
-                    height: 42,
-                    borderRadius: 12,
-                    backgroundColor: typeConfig.bg,
-                    border: typeConfig.border,
+                    width: 52,
+                    minWidth: 52,
+                    textAlign: 'center',
                     display: 'flex',
+                    flexDirection: 'column',
                     alignItems: 'center',
-                    justifyContent: 'center',
+                    borderRadius: 12,
+                    overflow: 'hidden',
+                    background: meeting.status === 'upcoming'
+                      ? `linear-gradient(180deg, ${typeConfig.color}15, ${typeConfig.color}05)`
+                      : 'rgba(255,255,255,0.02)',
+                    border: meeting.status === 'upcoming'
+                      ? `1px solid ${typeConfig.color}20`
+                      : '1px solid rgba(255,255,255,0.04)',
                     flexShrink: 0,
                   }}
                 >
-                  <TypeIcon size={20} style={{ color: typeConfig.color }} />
+                  {/* Month header */}
+                  <div
+                    style={{
+                      fontSize: 9,
+                      fontWeight: 700,
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.08em',
+                      color: meeting.status === 'upcoming' ? typeConfig.color : '#6b6358',
+                      padding: '4px 0 2px',
+                      width: '100%',
+                      background: meeting.status === 'upcoming'
+                        ? `${typeConfig.color}10`
+                        : 'rgba(255,255,255,0.02)',
+                    }}
+                  >
+                    {calDate.month}
+                  </div>
+                  {/* Day number */}
+                  <div
+                    style={{
+                      fontSize: 20,
+                      fontWeight: 700,
+                      color: meeting.status === 'upcoming' ? '#f0ebe4' : '#a09888',
+                      lineHeight: 1.1,
+                      padding: '2px 0',
+                    }}
+                  >
+                    {calDate.day}
+                  </div>
+                  {/* Weekday */}
+                  <div
+                    style={{
+                      fontSize: 8,
+                      fontWeight: 600,
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.06em',
+                      color: '#6b6358',
+                      paddingBottom: 4,
+                    }}
+                  >
+                    {calDate.weekday}
+                  </div>
+                </div>
+
+                {/* Expand icon */}
+                <div
+                  style={{
+                    flexShrink: 0,
+                    color: '#6b6358',
+                    transition: `transform 0.3s ${ease}`,
+                    transform: isExpanded ? 'rotate(0deg)' : 'rotate(0deg)',
+                  }}
+                >
+                  {isExpanded ? <ChevronDown size={18} /> : <ChevronRight size={18} />}
                 </div>
 
                 {/* Info */}
@@ -969,7 +1222,7 @@ export function MeetingIntelView() {
                       display: 'flex',
                       alignItems: 'center',
                       gap: 8,
-                      marginBottom: 6,
+                      marginBottom: 7,
                       flexWrap: 'wrap',
                     }}
                   >
@@ -979,24 +1232,32 @@ export function MeetingIntelView() {
                         fontWeight: 600,
                         color: '#f0ebe4',
                         margin: 0,
+                        letterSpacing: '-0.01em',
                       }}
                     >
                       {meeting.title}
                     </h3>
+                    {/* Meeting type badge - color-coded pill */}
                     <span
                       style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: 4,
                         fontSize: 10,
                         fontWeight: 600,
                         textTransform: 'uppercase',
                         letterSpacing: '0.06em',
                         color: typeConfig.color,
-                        backgroundColor: typeConfig.bg,
+                        background: `linear-gradient(135deg, ${typeConfig.color}15, ${typeConfig.color}08)`,
+                        border: `1px solid ${typeConfig.color}25`,
                         borderRadius: 12,
-                        padding: '2px 10px',
+                        padding: '3px 10px',
                       }}
                     >
+                      <TypeIcon size={10} />
                       {typeConfig.label}
                     </span>
+                    {/* Status badge */}
                     <span
                       style={{
                         fontSize: 10,
@@ -1007,7 +1268,7 @@ export function MeetingIntelView() {
                         backgroundColor: statConfig.bg,
                         border: statConfig.border,
                         borderRadius: 12,
-                        padding: '2px 10px',
+                        padding: '3px 10px',
                       }}
                     >
                       {statConfig.label}
@@ -1020,7 +1281,7 @@ export function MeetingIntelView() {
                           color: meeting.status === 'upcoming' ? '#d4a574' : '#6b6358',
                           backgroundColor: meeting.status === 'upcoming' ? 'rgba(212, 165, 116, 0.1)' : 'rgba(255,255,255,0.03)',
                           borderRadius: 12,
-                          padding: '2px 10px',
+                          padding: '3px 10px',
                         }}
                       >
                         {relDate}
@@ -1036,10 +1297,6 @@ export function MeetingIntelView() {
                       color: '#6b6358',
                     }}
                   >
-                    <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                      <Calendar size={11} />
-                      {meeting.date}
-                    </span>
                     <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
                       <Clock size={11} />
                       {meeting.time}
@@ -1069,16 +1326,18 @@ export function MeetingIntelView() {
                       style={{
                         display: 'flex',
                         alignItems: 'center',
-                        gap: 4,
+                        gap: 5,
                         fontSize: 11,
                         color: '#8b5cf6',
-                        backgroundColor: 'rgba(139, 92, 246, 0.08)',
-                        borderRadius: 8,
-                        padding: '3px 8px',
+                        background: 'linear-gradient(135deg, rgba(139, 92, 246, 0.12), rgba(139, 92, 246, 0.04))',
+                        border: '1px solid rgba(139, 92, 246, 0.2)',
+                        borderRadius: 10,
+                        padding: '4px 10px',
+                        fontWeight: 600,
                       }}
                       title="AI Insights"
                     >
-                      <Sparkles size={11} />
+                      <Sparkles size={12} style={{ animation: 'mi-sparkle 2s ease-in-out infinite' }} />
                       {meeting.aiInsights.length}
                     </div>
                   )}
@@ -1090,6 +1349,7 @@ export function MeetingIntelView() {
                         alignItems: 'center',
                         gap: 5,
                         fontSize: 11,
+                        fontWeight: 600,
                         color: doneCount === totalActions ? '#6b8f71' : '#a09888',
                       }}
                     >
@@ -1105,6 +1365,7 @@ export function MeetingIntelView() {
                         alignItems: 'center',
                         gap: 5,
                         fontSize: 11,
+                        fontWeight: 600,
                         color: '#8b5cf6',
                       }}
                     >
@@ -1113,7 +1374,7 @@ export function MeetingIntelView() {
                     </div>
                   )}
 
-                  {/* Attendee avatars (stacked) */}
+                  {/* Attendee avatars (stacked with glow rings) */}
                   <div style={{ display: 'flex', marginLeft: 4 }}>
                     {meeting.attendees.slice(0, 4).map((id, idx) => {
                       const avatar = getMemberAvatar(id);
@@ -1121,22 +1382,34 @@ export function MeetingIntelView() {
                         <div
                           key={id}
                           style={{
-                            width: 28,
-                            height: 28,
+                            width: 30,
+                            height: 30,
                             borderRadius: '50%',
-                            backgroundColor: avatar.hex,
+                            background: `linear-gradient(135deg, ${avatar.hex}, ${avatar.hex}cc)`,
                             display: 'flex',
                             alignItems: 'center',
                             justifyContent: 'center',
                             fontSize: 9,
                             fontWeight: 700,
                             color: '#fff',
-                            marginLeft: idx > 0 ? -8 : 0,
-                            border: '2px solid #131720',
+                            marginLeft: idx > 0 ? -9 : 0,
+                            border: '2px solid rgba(19, 23, 32, 0.9)',
                             zIndex: meeting.attendees.length - idx,
                             position: 'relative',
+                            boxShadow: `0 0 8px ${avatar.hex}30`,
+                            transition: `all 0.2s ${ease}`,
                           }}
                           title={getMemberName(id)}
+                          onMouseEnter={(e) => {
+                            e.currentTarget.style.transform = 'scale(1.15)';
+                            e.currentTarget.style.zIndex = '20';
+                            e.currentTarget.style.boxShadow = `0 0 12px ${avatar.hex}50`;
+                          }}
+                          onMouseLeave={(e) => {
+                            e.currentTarget.style.transform = 'scale(1)';
+                            e.currentTarget.style.zIndex = String(meeting.attendees.length - idx);
+                            e.currentTarget.style.boxShadow = `0 0 8px ${avatar.hex}30`;
+                          }}
                         >
                           {avatar.initials}
                         </div>
@@ -1145,8 +1418,8 @@ export function MeetingIntelView() {
                     {meeting.attendees.length > 4 && (
                       <div
                         style={{
-                          width: 28,
-                          height: 28,
+                          width: 30,
+                          height: 30,
                           borderRadius: '50%',
                           backgroundColor: '#2a3040',
                           display: 'flex',
@@ -1155,8 +1428,8 @@ export function MeetingIntelView() {
                           fontSize: 9,
                           fontWeight: 700,
                           color: '#a09888',
-                          marginLeft: -8,
-                          border: '2px solid #131720',
+                          marginLeft: -9,
+                          border: '2px solid rgba(19, 23, 32, 0.9)',
                           position: 'relative',
                         }}
                       >
@@ -1169,11 +1442,17 @@ export function MeetingIntelView() {
 
               {/* Expanded Content */}
               {isExpanded && (
-                <div style={{ borderTop: '1px solid #1e2638' }}>
+                <div
+                  style={{
+                    borderTop: `1px solid ${typeConfig.color}15`,
+                    animation: `mi-slideDown 0.4s ${ease} forwards`,
+                    overflow: 'hidden',
+                  }}
+                >
                   {/* Top row: Sentiment gauge + AI Insights */}
                   <div
                     style={{
-                      padding: '16px 22px',
+                      padding: '18px 24px',
                       borderBottom: '1px solid rgba(255,255,255,0.03)',
                       display: 'flex',
                       gap: 24,
@@ -1184,15 +1463,17 @@ export function MeetingIntelView() {
                     {/* Sentiment Gauge */}
                     {meeting.sentiment && (
                       <div
-                        className="animate-fade-in"
                         style={{
-                          backgroundColor: 'rgba(255,255,255,0.02)',
-                          border: '1px solid rgba(255,255,255,0.05)',
-                          borderRadius: 12,
-                          padding: '10px 16px',
+                          background: 'rgba(19, 23, 32, 0.5)',
+                          backdropFilter: 'blur(12px)',
+                          WebkitBackdropFilter: 'blur(12px)',
+                          border: '1px solid rgba(255,255,255,0.06)',
+                          borderRadius: 14,
+                          padding: '12px 18px',
                           display: 'flex',
                           flexDirection: 'column',
                           gap: 4,
+                          animation: `mi-scaleIn 0.3s ${ease} forwards`,
                         }}
                       >
                         <span style={{ fontSize: 10, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#6b6358' }}>
@@ -1202,16 +1483,28 @@ export function MeetingIntelView() {
                       </div>
                     )}
 
-                    {/* AI Insights */}
+                    {/* AI Insights - Highlighted cards with sparkle icon and gradient accent */}
                     {meeting.aiInsights && meeting.aiInsights.length > 0 && (
-                      <div className="animate-fade-in" style={{ flex: 1, minWidth: 240, animationDelay: '0.1s' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
-                          <Sparkles size={13} style={{ color: '#8b5cf6' }} />
-                          <span style={{ fontSize: 10, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#8b5cf6' }}>
+                      <div style={{ flex: 1, minWidth: 240 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 10 }}>
+                          <div
+                            style={{
+                              width: 22,
+                              height: 22,
+                              borderRadius: 7,
+                              background: 'linear-gradient(135deg, rgba(139, 92, 246, 0.25), rgba(139, 92, 246, 0.08))',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                            }}
+                          >
+                            <Sparkles size={12} style={{ color: '#8b5cf6', animation: 'mi-sparkle 2.5s ease-in-out infinite' }} />
+                          </div>
+                          <span style={{ fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#8b5cf6' }}>
                             AI Insights
                           </span>
                         </div>
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                           {meeting.aiInsights.map((insight, idx) => {
                             const pc = insightPriorityConfig[insight.priority];
                             return (
@@ -1220,25 +1513,43 @@ export function MeetingIntelView() {
                                 style={{
                                   display: 'flex',
                                   alignItems: 'flex-start',
-                                  gap: 8,
-                                  padding: '8px 12px',
-                                  backgroundColor: pc.bg,
+                                  gap: 10,
+                                  padding: '10px 14px',
+                                  background: `linear-gradient(135deg, ${pc.bg}, transparent)`,
                                   border: `1px solid ${pc.border}`,
-                                  borderRadius: 10,
+                                  borderRadius: 12,
+                                  position: 'relative',
+                                  overflow: 'hidden',
+                                  animation: `mi-fadeUp 0.3s ${ease} ${idx * 0.08}s both`,
                                 }}
                               >
+                                {/* Gradient accent background glow */}
                                 <div
                                   style={{
-                                    width: 6,
-                                    height: 6,
+                                    position: 'absolute',
+                                    top: 0,
+                                    left: 0,
+                                    width: 3,
+                                    height: '100%',
+                                    background: `linear-gradient(180deg, ${pc.color}, ${pc.color}30)`,
+                                    borderRadius: '12px 0 0 12px',
+                                  }}
+                                />
+                                <div
+                                  style={{
+                                    width: 7,
+                                    height: 7,
                                     borderRadius: '50%',
                                     backgroundColor: pc.color,
                                     marginTop: 5,
                                     flexShrink: 0,
+                                    marginLeft: 6,
+                                    boxShadow: `0 0 6px ${pc.color}40`,
+                                    animation: insight.priority === 'high' ? 'mi-insightGlow 2s ease-in-out infinite' : 'none',
                                   }}
                                 />
                                 <div style={{ flex: 1, minWidth: 0 }}>
-                                  <span style={{ fontSize: 12, color: '#c8bfb4', lineHeight: 1.5 }}>
+                                  <span style={{ fontSize: 12, color: '#c8bfb4', lineHeight: 1.55 }}>
                                     {insight.text}
                                   </span>
                                 </div>
@@ -1251,6 +1562,9 @@ export function MeetingIntelView() {
                                     color: pc.color,
                                     flexShrink: 0,
                                     marginTop: 2,
+                                    padding: '2px 7px',
+                                    borderRadius: 6,
+                                    background: `${pc.color}12`,
                                   }}
                                 >
                                   {insight.priority}
@@ -1263,24 +1577,22 @@ export function MeetingIntelView() {
                     )}
                   </div>
 
-                  {/* Attendees row */}
+                  {/* Attendees row - Stacked with glow rings */}
                   <div
-                    className="animate-fade-in"
                     style={{
-                      padding: '14px 22px',
+                      padding: '14px 24px',
                       borderBottom: '1px solid rgba(255,255,255,0.03)',
                       display: 'flex',
                       alignItems: 'center',
                       gap: 8,
                       flexWrap: 'wrap',
-                      animationDelay: '0.08s',
                     }}
                   >
                     <Users size={13} style={{ color: '#6b6358' }} />
                     <span style={{ fontSize: 11, color: '#6b6358', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
                       Attendees:
                     </span>
-                    {meeting.attendees.map((id) => {
+                    {meeting.attendees.map((id, idx) => {
                       const avatar = getMemberAvatar(id);
                       const member = getMember(id);
                       return (
@@ -1290,29 +1602,42 @@ export function MeetingIntelView() {
                             display: 'flex',
                             alignItems: 'center',
                             gap: 6,
-                            backgroundColor: 'rgba(255,255,255,0.03)',
-                            border: '1px solid rgba(255,255,255,0.05)',
+                            background: 'rgba(19, 23, 32, 0.4)',
+                            backdropFilter: 'blur(8px)',
+                            WebkitBackdropFilter: 'blur(8px)',
+                            border: '1px solid rgba(255,255,255,0.06)',
                             borderRadius: 20,
-                            padding: '3px 10px 3px 3px',
+                            padding: '3px 12px 3px 3px',
+                            animation: `mi-fadeUp 0.25s ${ease} ${idx * 0.04}s both`,
+                            transition: `all 0.2s ${ease}`,
+                          }}
+                          onMouseEnter={(e) => {
+                            e.currentTarget.style.borderColor = `${avatar.hex}40`;
+                            e.currentTarget.style.boxShadow = `0 0 10px ${avatar.hex}15`;
+                          }}
+                          onMouseLeave={(e) => {
+                            e.currentTarget.style.borderColor = 'rgba(255,255,255,0.06)';
+                            e.currentTarget.style.boxShadow = 'none';
                           }}
                         >
                           <div
                             style={{
-                              width: 22,
-                              height: 22,
+                              width: 24,
+                              height: 24,
                               borderRadius: '50%',
-                              backgroundColor: avatar.hex,
+                              background: `linear-gradient(135deg, ${avatar.hex}, ${avatar.hex}bb)`,
                               display: 'flex',
                               alignItems: 'center',
                               justifyContent: 'center',
                               fontSize: 8,
                               fontWeight: 700,
                               color: '#fff',
+                              boxShadow: `0 0 6px ${avatar.hex}30`,
                             }}
                           >
                             {avatar.initials}
                           </div>
-                          <span style={{ fontSize: 12, color: '#c8bfb4' }}>
+                          <span style={{ fontSize: 12, color: '#c8bfb4', fontWeight: 500 }}>
                             {member?.name ?? id}
                           </span>
                           <span style={{ fontSize: 10, color: '#6b6358' }}>
@@ -1328,8 +1653,9 @@ export function MeetingIntelView() {
                     style={{
                       display: 'flex',
                       gap: 0,
-                      borderBottom: '1px solid #1e2638',
-                      padding: '0 22px',
+                      borderBottom: '1px solid rgba(30, 38, 56, 0.8)',
+                      padding: '0 24px',
+                      background: 'rgba(19, 23, 32, 0.3)',
                     }}
                   >
                     {[
@@ -1350,16 +1676,27 @@ export function MeetingIntelView() {
                             display: 'flex',
                             alignItems: 'center',
                             gap: 5,
-                            padding: '10px 14px',
+                            padding: '11px 16px',
                             border: 'none',
-                            borderBottom: isActiveTab ? '2px solid #d4a574' : '2px solid transparent',
+                            borderBottom: isActiveTab ? `2px solid ${typeConfig.color}` : '2px solid transparent',
                             backgroundColor: 'transparent',
-                            color: isActiveTab ? '#d4a574' : '#6b6358',
+                            color: isActiveTab ? typeConfig.color : '#6b6358',
                             fontSize: 12,
                             fontWeight: 600,
                             cursor: 'pointer',
-                            transition: 'color 0.15s, border-color 0.15s',
+                            transition: `all 0.2s ${ease}`,
                             fontFamily: 'inherit',
+                            position: 'relative',
+                          }}
+                          onMouseEnter={(e) => {
+                            if (!isActiveTab) {
+                              e.currentTarget.style.color = '#a09888';
+                            }
+                          }}
+                          onMouseLeave={(e) => {
+                            if (!isActiveTab) {
+                              e.currentTarget.style.color = '#6b6358';
+                            }
                           }}
                         >
                           <TabIcon size={13} />
@@ -1369,12 +1706,13 @@ export function MeetingIntelView() {
                               style={{
                                 fontSize: 9,
                                 fontWeight: 700,
-                                backgroundColor: isActiveTab ? 'rgba(212, 165, 116, 0.2)' : 'rgba(255,255,255,0.04)',
-                                color: isActiveTab ? '#d4a574' : '#4a443e',
+                                backgroundColor: isActiveTab ? `${typeConfig.color}20` : 'rgba(255,255,255,0.04)',
+                                color: isActiveTab ? typeConfig.color : '#4a443e',
                                 borderRadius: 6,
-                                padding: '1px 5px',
+                                padding: '2px 6px',
                                 minWidth: 14,
                                 textAlign: 'center',
+                                transition: `all 0.2s ${ease}`,
                               }}
                             >
                               {tab.count}
@@ -1386,12 +1724,24 @@ export function MeetingIntelView() {
                   </div>
 
                   {/* Section Content */}
-                  <div style={{ padding: '18px 22px' }}>
-                    {/* Agenda */}
+                  <div style={{ padding: '20px 24px' }}>
+                    {/* Agenda - Numbered list with connecting lines */}
                     {section === 'agenda' && (
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
-                          <Sparkles size={14} style={{ color: '#8b5cf6' }} />
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 14 }}>
+                          <div
+                            style={{
+                              width: 22,
+                              height: 22,
+                              borderRadius: 7,
+                              background: 'linear-gradient(135deg, rgba(139, 92, 246, 0.2), rgba(139, 92, 246, 0.06))',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                            }}
+                          >
+                            <Sparkles size={12} style={{ color: '#8b5cf6' }} />
+                          </div>
                           <span style={{ fontSize: 12, fontWeight: 600, color: '#8b5cf6' }}>
                             Auto-Generated Agenda
                           </span>
@@ -1402,65 +1752,129 @@ export function MeetingIntelView() {
                         {meeting.agenda.map((item, idx) => (
                           <div
                             key={idx}
-                            className="animate-fade-in"
                             style={{
                               display: 'flex',
-                              gap: 14,
-                              padding: '12px 16px',
-                              backgroundColor: 'rgba(255,255,255,0.02)',
-                              border: '1px solid rgba(255,255,255,0.04)',
-                              borderRadius: 10,
-                              animationDelay: `${idx * 0.05}s`,
-                              opacity: 0,
-                              transition: 'background-color 0.15s',
+                              gap: 0,
+                              position: 'relative',
+                              animation: `mi-fadeUp 0.3s ${ease} ${idx * 0.06}s both`,
                             }}
-                            onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.04)'; }}
-                            onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.02)'; }}
                           >
+                            {/* Timeline column: number + connecting line */}
                             <div
                               style={{
-                                width: 24,
-                                height: 24,
-                                borderRadius: 7,
-                                backgroundColor: 'rgba(139, 92, 246, 0.12)',
                                 display: 'flex',
+                                flexDirection: 'column',
                                 alignItems: 'center',
-                                justifyContent: 'center',
-                                fontSize: 11,
-                                fontWeight: 700,
-                                color: '#8b5cf6',
+                                width: 40,
                                 flexShrink: 0,
                               }}
                             >
-                              {idx + 1}
-                            </div>
-                            <div style={{ flex: 1, minWidth: 0 }}>
-                              <div style={{ fontSize: 13, color: '#f0ebe4', fontWeight: 500, marginBottom: 4 }}>
-                                {item.text}
-                              </div>
-                              <div style={{ display: 'flex', alignItems: 'center', gap: 12, fontSize: 11, color: '#6b6358' }}>
-                                <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                                  <FileText size={10} />
-                                  {item.source}
-                                </span>
-                              </div>
-                            </div>
-                            {item.duration && (
                               <div
                                 style={{
-                                  fontSize: 10,
-                                  fontWeight: 600,
-                                  color: '#8b5cf6',
-                                  backgroundColor: 'rgba(139, 92, 246, 0.08)',
+                                  width: 28,
+                                  height: 28,
                                   borderRadius: 8,
-                                  padding: '2px 8px',
+                                  background: `linear-gradient(135deg, ${typeConfig.color}25, ${typeConfig.color}10)`,
+                                  border: `1px solid ${typeConfig.color}30`,
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  fontSize: 11,
+                                  fontWeight: 700,
+                                  color: typeConfig.color,
                                   flexShrink: 0,
-                                  alignSelf: 'center',
+                                  zIndex: 1,
                                 }}
                               >
-                                {item.duration}
+                                {idx + 1}
                               </div>
-                            )}
+                              {/* Connecting line */}
+                              {idx < meeting.agenda.length - 1 && (
+                                <div
+                                  style={{
+                                    width: 1,
+                                    flex: 1,
+                                    minHeight: 8,
+                                    background: `linear-gradient(180deg, ${typeConfig.color}30, ${typeConfig.color}08)`,
+                                  }}
+                                />
+                              )}
+                            </div>
+                            {/* Content */}
+                            <div
+                              style={{
+                                flex: 1,
+                                minWidth: 0,
+                                padding: '6px 16px 16px 12px',
+                                marginLeft: 4,
+                                borderRadius: 10,
+                                transition: `background-color 0.15s ${ease}`,
+                                cursor: 'default',
+                              }}
+                              onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.02)'; }}
+                              onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent'; }}
+                            >
+                              <div
+                                style={{
+                                  display: 'flex',
+                                  alignItems: 'flex-start',
+                                  justifyContent: 'space-between',
+                                  gap: 12,
+                                }}
+                              >
+                                <div style={{ flex: 1 }}>
+                                  <div style={{ fontSize: 13, color: '#f0ebe4', fontWeight: 500, marginBottom: 5, lineHeight: 1.4 }}>
+                                    {item.text}
+                                  </div>
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                                    {/* Source attribution badge */}
+                                    <span
+                                      style={{
+                                        display: 'inline-flex',
+                                        alignItems: 'center',
+                                        gap: 4,
+                                        fontSize: 10,
+                                        color: item.source.startsWith('Auto-generated') ? '#8b5cf6' : item.source.startsWith('Requested') ? '#d4a574' : '#6b6358',
+                                        background: item.source.startsWith('Auto-generated')
+                                          ? 'rgba(139, 92, 246, 0.08)'
+                                          : item.source.startsWith('Requested')
+                                            ? 'rgba(212, 165, 116, 0.08)'
+                                            : 'rgba(255,255,255,0.03)',
+                                        borderRadius: 8,
+                                        padding: '2px 8px',
+                                        fontWeight: 500,
+                                      }}
+                                    >
+                                      {item.source.startsWith('Auto-generated') ? (
+                                        <Sparkles size={9} />
+                                      ) : item.source.startsWith('Requested') ? (
+                                        <Users size={9} />
+                                      ) : (
+                                        <FileText size={9} />
+                                      )}
+                                      {item.source}
+                                    </span>
+                                  </div>
+                                </div>
+                                {item.duration && (
+                                  <div
+                                    style={{
+                                      fontSize: 10,
+                                      fontWeight: 600,
+                                      color: typeConfig.color,
+                                      background: `${typeConfig.color}10`,
+                                      border: `1px solid ${typeConfig.color}15`,
+                                      borderRadius: 8,
+                                      padding: '3px 10px',
+                                      flexShrink: 0,
+                                      whiteSpace: 'nowrap',
+                                    }}
+                                  >
+                                    {item.duration}
+                                  </div>
+                                )}
+                              </div>
+                            </div>
                           </div>
                         ))}
                       </div>
@@ -1470,30 +1884,33 @@ export function MeetingIntelView() {
                     {section === 'prereads' && (
                       <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
                         {meeting.preReads.length === 0 ? (
-                          <div style={{ fontSize: 13, color: '#6b6358', padding: 20, textAlign: 'center' }}>
+                          <div style={{ fontSize: 13, color: '#6b6358', padding: 24, textAlign: 'center', background: 'rgba(255,255,255,0.02)', borderRadius: 12, border: '1px dashed rgba(255,255,255,0.06)' }}>
                             No pre-reads for this meeting
                           </div>
                         ) : (
                           meeting.preReads.map((pr, idx) => (
                             <div
+                              className="card-interactive"
                               key={idx}
-                              className="animate-fade-in"
                               style={{
-                                padding: '16px 18px',
-                                backgroundColor: 'rgba(255,255,255,0.02)',
-                                border: '1px solid rgba(255,255,255,0.04)',
-                                borderRadius: 10,
-                                animationDelay: `${idx * 0.06}s`,
-                                opacity: 0,
+                                padding: '18px 20px',
+                                background: 'linear-gradient(135deg, rgba(212, 165, 116, 0.04), transparent)',
+                                border: '1px solid rgba(212, 165, 116, 0.1)',
+                                borderRadius: 12,
+                                position: 'relative',
+                                overflow: 'hidden',
+                                animation: `mi-fadeUp 0.3s ${ease} ${idx * 0.08}s both`,
                               }}
                             >
-                              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-                                <BookOpen size={14} style={{ color: '#d4a574' }} />
+                              {/* Left accent */}
+                              <div style={{ position: 'absolute', top: 0, left: 0, width: 3, height: '100%', background: 'linear-gradient(180deg, #d4a574, #d4a57430)', borderRadius: '12px 0 0 12px' }} />
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8, paddingLeft: 8 }}>
+                                <BookOpen size={15} style={{ color: '#d4a574' }} />
                                 <span style={{ fontSize: 14, fontWeight: 600, color: '#e8c9a0' }}>
                                   {pr.title}
                                 </span>
                               </div>
-                              <p style={{ fontSize: 13, color: '#a09888', lineHeight: 1.6, margin: 0 }}>
+                              <p style={{ fontSize: 13, color: '#a09888', lineHeight: 1.65, margin: 0, paddingLeft: 8 }}>
                                 {pr.summary}
                               </p>
                             </div>
@@ -1505,29 +1922,39 @@ export function MeetingIntelView() {
                     {/* Suggested Outcomes */}
                     {section === 'outcomes' && (
                       <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
-                          <Lightbulb size={14} style={{ color: '#d4a574' }} />
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 6 }}>
+                          <div
+                            style={{
+                              width: 22,
+                              height: 22,
+                              borderRadius: 7,
+                              background: 'linear-gradient(135deg, rgba(212, 165, 116, 0.2), rgba(212, 165, 116, 0.06))',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                            }}
+                          >
+                            <Lightbulb size={12} style={{ color: '#d4a574' }} />
+                          </div>
                           <span style={{ fontSize: 12, fontWeight: 600, color: '#d4a574' }}>Suggested Outcomes</span>
                         </div>
                         {meeting.suggestedOutcomes.length === 0 ? (
-                          <div style={{ fontSize: 13, color: '#6b6358', padding: 20, textAlign: 'center' }}>
+                          <div style={{ fontSize: 13, color: '#6b6358', padding: 24, textAlign: 'center', background: 'rgba(255,255,255,0.02)', borderRadius: 12, border: '1px dashed rgba(255,255,255,0.06)' }}>
                             No suggested outcomes yet
                           </div>
                         ) : (
                           meeting.suggestedOutcomes.map((outcome, idx) => (
                             <div
                               key={idx}
-                              className="animate-fade-in"
                               style={{
                                 display: 'flex',
                                 alignItems: 'flex-start',
                                 gap: 10,
-                                padding: '10px 14px',
-                                backgroundColor: 'rgba(212, 165, 116, 0.04)',
+                                padding: '11px 15px',
+                                background: 'linear-gradient(135deg, rgba(212, 165, 116, 0.05), transparent)',
                                 border: '1px solid rgba(212, 165, 116, 0.1)',
-                                borderRadius: 10,
-                                animationDelay: `${idx * 0.05}s`,
-                                opacity: 0,
+                                borderRadius: 12,
+                                animation: `mi-fadeUp 0.3s ${ease} ${idx * 0.06}s both`,
                               }}
                             >
                               <Lightbulb size={14} style={{ color: '#d4a574', marginTop: 2, flexShrink: 0 }} />
@@ -1541,8 +1968,20 @@ export function MeetingIntelView() {
                     {/* Decisions */}
                     {section === 'decisions' && (
                       <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
-                          <Gavel size={14} style={{ color: '#8b5cf6' }} />
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 6 }}>
+                          <div
+                            style={{
+                              width: 22,
+                              height: 22,
+                              borderRadius: 7,
+                              background: 'linear-gradient(135deg, rgba(139, 92, 246, 0.2), rgba(139, 92, 246, 0.06))',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                            }}
+                          >
+                            <Gavel size={12} style={{ color: '#8b5cf6' }} />
+                          </div>
                           <span style={{ fontSize: 12, fontWeight: 600, color: '#8b5cf6' }}>Decisions Captured</span>
                         </div>
                         {meeting.decisions.length === 0 ? (
@@ -1550,10 +1989,10 @@ export function MeetingIntelView() {
                             style={{
                               fontSize: 13,
                               color: '#6b6358',
-                              padding: 20,
+                              padding: 24,
                               textAlign: 'center',
-                              backgroundColor: 'rgba(255,255,255,0.02)',
-                              borderRadius: 10,
+                              background: 'rgba(255,255,255,0.02)',
+                              borderRadius: 12,
                               border: '1px dashed rgba(255,255,255,0.06)',
                             }}
                           >
@@ -1565,64 +2004,93 @@ export function MeetingIntelView() {
                           meeting.decisions.map((decision, idx) => (
                             <div
                               key={idx}
-                              className="animate-fade-in"
                               style={{
                                 display: 'flex',
                                 alignItems: 'flex-start',
                                 gap: 10,
-                                padding: '12px 16px',
-                                backgroundColor: 'rgba(139, 92, 246, 0.06)',
+                                padding: '13px 16px',
+                                background: 'linear-gradient(135deg, rgba(139, 92, 246, 0.08), rgba(139, 92, 246, 0.02))',
                                 border: '1px solid rgba(139, 92, 246, 0.15)',
-                                borderRadius: 10,
-                                animationDelay: `${idx * 0.05}s`,
-                                opacity: 0,
+                                borderRadius: 12,
+                                position: 'relative',
+                                overflow: 'hidden',
+                                animation: `mi-fadeUp 0.3s ${ease} ${idx * 0.06}s both`,
                               }}
                             >
+                              {/* Left accent */}
+                              <div style={{ position: 'absolute', top: 0, left: 0, width: 3, height: '100%', background: 'linear-gradient(180deg, #8b5cf6, #8b5cf630)', borderRadius: '12px 0 0 12px' }} />
                               <div
                                 style={{
-                                  width: 22,
-                                  height: 22,
+                                  width: 24,
+                                  height: 24,
                                   borderRadius: '50%',
-                                  backgroundColor: 'rgba(139, 92, 246, 0.15)',
+                                  background: 'linear-gradient(135deg, rgba(139, 92, 246, 0.2), rgba(139, 92, 246, 0.08))',
                                   display: 'flex',
                                   alignItems: 'center',
                                   justifyContent: 'center',
                                   flexShrink: 0,
                                   marginTop: 1,
+                                  marginLeft: 4,
                                 }}
                               >
                                 <Gavel size={11} style={{ color: '#8b5cf6' }} />
                               </div>
-                              <span style={{ fontSize: 13, color: '#d8cfc4', lineHeight: 1.5 }}>{decision}</span>
+                              <span style={{ fontSize: 13, color: '#d8cfc4', lineHeight: 1.55 }}>{decision}</span>
                             </div>
                           ))
                         )}
                       </div>
                     )}
 
-                    {/* Action Items */}
+                    {/* Action Items - Checkbox style with assignee avatars & priority colors */}
                     {section === 'actions' && (
                       <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                            <Target size={14} style={{ color: '#6b8f71' }} />
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+                            <div
+                              style={{
+                                width: 22,
+                                height: 22,
+                                borderRadius: 7,
+                                background: 'linear-gradient(135deg, rgba(107, 143, 113, 0.2), rgba(107, 143, 113, 0.06))',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                              }}
+                            >
+                              <Target size={12} style={{ color: '#6b8f71' }} />
+                            </div>
                             <span style={{ fontSize: 12, fontWeight: 600, color: '#6b8f71' }}>Action Items</span>
                           </div>
                           {totalActions > 0 && (
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                              <div style={{ width: 80, height: 4, borderRadius: 2, backgroundColor: '#1e2638', overflow: 'hidden' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                              <div
+                                className="progress-bar-animated"
+                                style={{
+                                  width: 90,
+                                  height: 5,
+                                  borderRadius: 3,
+                                  backgroundColor: 'rgba(30, 38, 56, 0.8)',
+                                  overflow: 'hidden',
+                                }}
+                              >
                                 <div
                                   style={{
                                     width: `${(doneCount / totalActions) * 100}%`,
                                     height: '100%',
-                                    borderRadius: 2,
-                                    backgroundColor: doneCount === totalActions ? '#6b8f71' : '#d4a574',
-                                    transition: 'width 0.3s ease-out',
+                                    borderRadius: 3,
+                                    background: doneCount === totalActions
+                                      ? 'linear-gradient(90deg, #6b8f71, #34d399)'
+                                      : 'linear-gradient(90deg, #d4a574, #e8c9a0)',
+                                    transition: `width 0.5s ${ease}`,
+                                    boxShadow: doneCount === totalActions
+                                      ? '0 0 8px rgba(107, 143, 113, 0.3)'
+                                      : '0 0 6px rgba(212, 165, 116, 0.2)',
                                   }}
                                 />
                               </div>
-                              <span style={{ fontSize: 11, color: '#6b6358' }}>
-                                {doneCount} of {totalActions} complete
+                              <span style={{ fontSize: 11, color: '#6b6358', fontWeight: 500 }}>
+                                {doneCount} of {totalActions}
                               </span>
                             </div>
                           )}
@@ -1632,10 +2100,10 @@ export function MeetingIntelView() {
                             style={{
                               fontSize: 13,
                               color: '#6b6358',
-                              padding: 20,
+                              padding: 24,
                               textAlign: 'center',
-                              backgroundColor: 'rgba(255,255,255,0.02)',
-                              borderRadius: 10,
+                              background: 'rgba(255,255,255,0.02)',
+                              borderRadius: 12,
                               border: '1px dashed rgba(255,255,255,0.06)',
                             }}
                           >
@@ -1647,54 +2115,79 @@ export function MeetingIntelView() {
                             const prioColor = action.priority === 'high' ? '#e06060' : action.priority === 'medium' ? '#e8b44c' : '#60a5fa';
                             return (
                               <div
+                                className="card-interactive"
                                 key={idx}
-                                className="animate-fade-in"
                                 style={{
                                   display: 'flex',
                                   alignItems: 'center',
                                   gap: 12,
-                                  padding: '10px 14px',
-                                  backgroundColor: action.done ? 'rgba(107, 143, 113, 0.06)' : 'rgba(255,255,255,0.02)',
-                                  border: action.done ? '1px solid rgba(107, 143, 113, 0.15)' : '1px solid rgba(255,255,255,0.04)',
-                                  borderRadius: 10,
-                                  transition: 'all 0.15s',
-                                  animationDelay: `${idx * 0.04}s`,
-                                  opacity: 0,
+                                  padding: '11px 16px',
+                                  background: action.done
+                                    ? 'linear-gradient(135deg, rgba(107, 143, 113, 0.06), transparent)'
+                                    : 'rgba(255,255,255,0.02)',
+                                  border: action.done
+                                    ? '1px solid rgba(107, 143, 113, 0.15)'
+                                    : '1px solid rgba(255,255,255,0.05)',
+                                  borderRadius: 12,
+                                  transition: `all 0.25s ${ease}`,
+                                  animation: `mi-fadeUp 0.3s ${ease} ${idx * 0.05}s both`,
+                                  position: 'relative',
+                                  overflow: 'hidden',
                                 }}
                               >
+                                {/* Priority left accent bar */}
+                                {action.priority && !action.done && (
+                                  <div
+                                    style={{
+                                      position: 'absolute',
+                                      top: 0,
+                                      left: 0,
+                                      width: 3,
+                                      height: '100%',
+                                      background: `linear-gradient(180deg, ${prioColor}, ${prioColor}30)`,
+                                      borderRadius: '12px 0 0 12px',
+                                    }}
+                                  />
+                                )}
+
+                                {/* Checkbox button */}
                                 <button
                                   onClick={() => toggleActionItem(meeting.id, idx)}
                                   style={{
                                     display: 'flex',
                                     alignItems: 'center',
                                     justifyContent: 'center',
-                                    width: 22,
-                                    height: 22,
-                                    borderRadius: 6,
-                                    border: 'none',
-                                    backgroundColor: 'transparent',
+                                    width: 24,
+                                    height: 24,
+                                    borderRadius: 7,
+                                    border: action.done
+                                      ? '2px solid #6b8f71'
+                                      : `2px solid ${prioColor}50`,
+                                    backgroundColor: action.done
+                                      ? 'rgba(107, 143, 113, 0.15)'
+                                      : 'transparent',
                                     cursor: 'pointer',
                                     padding: 0,
                                     flexShrink: 0,
                                     color: action.done ? '#6b8f71' : '#4a443e',
-                                    transition: 'color 0.15s',
+                                    transition: `all 0.2s ${ease}`,
+                                    marginLeft: action.priority && !action.done ? 4 : 0,
+                                  }}
+                                  onMouseEnter={(e) => {
+                                    if (!action.done) {
+                                      e.currentTarget.style.borderColor = prioColor;
+                                      e.currentTarget.style.backgroundColor = `${prioColor}10`;
+                                    }
+                                  }}
+                                  onMouseLeave={(e) => {
+                                    if (!action.done) {
+                                      e.currentTarget.style.borderColor = `${prioColor}50`;
+                                      e.currentTarget.style.backgroundColor = 'transparent';
+                                    }
                                   }}
                                 >
-                                  {action.done ? <CheckCircle2 size={18} /> : <Circle size={18} />}
+                                  {action.done ? <CheckCircle2 size={16} /> : <Circle size={16} />}
                                 </button>
-
-                                {action.priority && !action.done && (
-                                  <div
-                                    style={{
-                                      width: 6,
-                                      height: 6,
-                                      borderRadius: '50%',
-                                      backgroundColor: prioColor,
-                                      flexShrink: 0,
-                                    }}
-                                    title={`${action.priority} priority`}
-                                  />
-                                )}
 
                                 <span
                                   style={{
@@ -1703,6 +2196,7 @@ export function MeetingIntelView() {
                                     color: action.done ? '#6b6358' : '#c8bfb4',
                                     textDecoration: action.done ? 'line-through' : 'none',
                                     lineHeight: 1.4,
+                                    transition: `all 0.2s ${ease}`,
                                   }}
                                 >
                                   {action.text}
@@ -1716,9 +2210,10 @@ export function MeetingIntelView() {
                                       textTransform: 'uppercase',
                                       letterSpacing: '0.04em',
                                       color: prioColor,
-                                      backgroundColor: `${prioColor}15`,
-                                      borderRadius: 6,
-                                      padding: '2px 6px',
+                                      background: `${prioColor}12`,
+                                      border: `1px solid ${prioColor}20`,
+                                      borderRadius: 8,
+                                      padding: '3px 8px',
                                       flexShrink: 0,
                                     }}
                                   >
@@ -1726,13 +2221,16 @@ export function MeetingIntelView() {
                                   </span>
                                 )}
 
-                                <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
+                                {/* Assignee avatar + name */}
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 7, flexShrink: 0 }}>
                                   <div
                                     style={{
-                                      width: 24,
-                                      height: 24,
+                                      width: 26,
+                                      height: 26,
                                       borderRadius: '50%',
-                                      backgroundColor: action.done ? '#2a3040' : ownerAvatar.hex,
+                                      background: action.done
+                                        ? '#2a3040'
+                                        : `linear-gradient(135deg, ${ownerAvatar.hex}, ${ownerAvatar.hex}bb)`,
                                       display: 'flex',
                                       alignItems: 'center',
                                       justifyContent: 'center',
@@ -1740,11 +2238,12 @@ export function MeetingIntelView() {
                                       fontWeight: 700,
                                       color: '#fff',
                                       border: action.done ? '1px solid #3a4050' : 'none',
+                                      boxShadow: action.done ? 'none' : `0 0 6px ${ownerAvatar.hex}25`,
                                     }}
                                   >
                                     {ownerAvatar.initials}
                                   </div>
-                                  <span style={{ fontSize: 11, color: action.done ? '#4a443e' : '#6b6358' }}>
+                                  <span style={{ fontSize: 11, color: action.done ? '#4a443e' : '#6b6358', fontWeight: 500 }}>
                                     {getMemberName(action.owner).split(' ')[0]}
                                   </span>
                                 </div>
@@ -1758,8 +2257,20 @@ export function MeetingIntelView() {
                     {/* Notes */}
                     {section === 'notes' && (
                       <div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 10 }}>
-                          <MessageSquare size={14} style={{ color: '#a09888' }} />
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 12 }}>
+                          <div
+                            style={{
+                              width: 22,
+                              height: 22,
+                              borderRadius: 7,
+                              background: 'linear-gradient(135deg, rgba(160, 152, 136, 0.2), rgba(160, 152, 136, 0.06))',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                            }}
+                          >
+                            <MessageSquare size={12} style={{ color: '#a09888' }} />
+                          </div>
                           <span style={{ fontSize: 12, fontWeight: 600, color: '#a09888' }}>Meeting Notes</span>
                         </div>
                         <textarea
@@ -1771,10 +2282,12 @@ export function MeetingIntelView() {
                           style={{
                             width: '100%',
                             minHeight: 120,
-                            padding: '14px 16px',
-                            backgroundColor: 'rgba(255,255,255,0.02)',
+                            padding: '16px 18px',
+                            background: 'rgba(19, 23, 32, 0.4)',
+                            backdropFilter: 'blur(8px)',
+                            WebkitBackdropFilter: 'blur(8px)',
                             border: '1px solid rgba(255,255,255,0.06)',
-                            borderRadius: 10,
+                            borderRadius: 12,
                             outline: 'none',
                             color: '#c8bfb4',
                             fontSize: 13,
@@ -1782,9 +2295,16 @@ export function MeetingIntelView() {
                             fontFamily: 'inherit',
                             resize: 'vertical',
                             boxSizing: 'border-box',
+                            transition: `all 0.2s ${ease}`,
                           }}
-                          onFocus={(e) => { e.currentTarget.style.borderColor = 'rgba(212, 165, 116, 0.3)'; }}
-                          onBlur={(e) => { e.currentTarget.style.borderColor = 'rgba(255,255,255,0.06)'; }}
+                          onFocus={(e) => {
+                            e.currentTarget.style.borderColor = 'rgba(212, 165, 116, 0.3)';
+                            e.currentTarget.style.boxShadow = '0 0 16px rgba(212, 165, 116, 0.05)';
+                          }}
+                          onBlur={(e) => {
+                            e.currentTarget.style.borderColor = 'rgba(255,255,255,0.06)';
+                            e.currentTarget.style.boxShadow = 'none';
+                          }}
                         />
                         {meeting.notes && (
                           <div style={{ marginTop: 8, fontSize: 11, color: '#4a443e', textAlign: 'right' }}>
@@ -1802,17 +2322,19 @@ export function MeetingIntelView() {
 
         {filteredMeetings.length === 0 && (
           <div
-            className="animate-fade-in"
             style={{
-              padding: 48,
+              padding: 56,
               textAlign: 'center',
               color: '#6b6358',
-              backgroundColor: '#131720',
+              background: 'rgba(19, 23, 32, 0.7)',
+              backdropFilter: 'blur(20px)',
+              WebkitBackdropFilter: 'blur(20px)',
               borderRadius: 16,
-              border: '1px solid #1e2638',
+              border: '1px solid rgba(212, 165, 116, 0.08)',
+              animation: `mi-fadeUp 0.4s ${ease} forwards`,
             }}
           >
-            <Calendar size={32} style={{ marginBottom: 12, opacity: 0.3 }} />
+            <Calendar size={36} style={{ marginBottom: 14, opacity: 0.3, color: '#d4a574' }} />
             <p style={{ fontSize: 14, margin: '0 0 4px', color: '#a09888' }}>No meetings match this filter</p>
             <p style={{ fontSize: 12, margin: 0 }}>Try adjusting the view or type filters above.</p>
           </div>

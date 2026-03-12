@@ -7,6 +7,7 @@ import {
   useState,
   useCallback,
   useMemo,
+  useRef,
   Component,
   type ReactNode,
   type ErrorInfo,
@@ -63,18 +64,44 @@ async function resolveTeamMemberId(
 // Clerk Auth Provider (when Clerk IS configured)
 // ═══════════════════════════════════════════
 function ClerkAuthProvider({ children }: { children: ReactNode }) {
-  const { getToken, signOut: clerkSignOut } = useClerkAuth();
+  const { signOut: clerkSignOut } = useClerkAuth();
   const { user: clerkUser, isLoaded } = useUser();
 
   const [teamMemberId, setTeamMemberId] = useState<string | null>(null);
   const [profileChecked, setProfileChecked] = useState(false);
 
-  // Build authenticated Supabase client (re-created when getToken changes)
+  // ─── Server-side token exchange ───
+  // Instead of relying on a Clerk JWT template (which requires HS256 +
+  // custom signing key — only configurable via Clerk Dashboard UI),
+  // we fetch an HS256 JWT from our own API route that mints tokens
+  // signed with the Supabase JWT secret.
+  const tokenCache = useRef<{ token: string; expiresAt: number } | null>(null);
+
+  const getSupabaseToken = useCallback(async (): Promise<string | null> => {
+    // Return cached token if still valid (with 10s buffer)
+    if (
+      tokenCache.current &&
+      Date.now() < tokenCache.current.expiresAt - 10_000
+    ) {
+      return tokenCache.current.token;
+    }
+
+    try {
+      const res = await fetch('/api/supabase-token');
+      if (!res.ok) return null;
+      const { token, expiresAt } = await res.json();
+      tokenCache.current = { token, expiresAt };
+      return token;
+    } catch {
+      console.warn('[Auth] Failed to fetch Supabase token');
+      return null;
+    }
+  }, []);
+
+  // Build authenticated Supabase client using server-minted tokens
   const supabase = useMemo(() => {
-    return createClerkSupabaseClient(() =>
-      getToken({ template: 'supabase' })
-    );
-  }, [getToken]);
+    return createClerkSupabaseClient(getSupabaseToken);
+  }, [getSupabaseToken]);
 
   // Resolve teamMemberId from team_members table after login
   useEffect(() => {

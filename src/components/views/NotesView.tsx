@@ -33,6 +33,72 @@ import {
   BookmarkCheck,
 } from 'lucide-react';
 
+// ─── Scoped Keyframes (nt- prefix) ──────────────────────────────────────────
+
+const scopedKeyframes = `
+@keyframes nt-fade-up {
+  from { opacity: 0; transform: translateY(18px) scale(0.97); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+@keyframes nt-shimmer {
+  0%   { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+@keyframes nt-glow-pulse {
+  0%, 100% { box-shadow: 0 0 8px rgba(212,165,116,0.15); }
+  50%      { box-shadow: 0 0 20px rgba(212,165,116,0.3); }
+}
+@keyframes nt-pin-glow {
+  0%, 100% { filter: drop-shadow(0 0 3px rgba(212,165,116,0.3)); }
+  50%      { filter: drop-shadow(0 0 8px rgba(212,165,116,0.6)); }
+}
+@keyframes nt-float-in {
+  from { opacity: 0; transform: translateY(24px) scale(0.92); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+@keyframes nt-fab-entrance {
+  from { opacity: 0; transform: scale(0.5) rotate(-20deg); }
+  to   { opacity: 1; transform: scale(1) rotate(0deg); }
+}
+@keyframes nt-fab-pulse {
+  0%, 100% { box-shadow: 0 4px 20px rgba(212,165,116,0.25), 0 0 40px rgba(212,165,116,0.1); }
+  50%      { box-shadow: 0 6px 30px rgba(212,165,116,0.4), 0 0 60px rgba(212,165,116,0.15); }
+}
+@keyframes nt-border-glow {
+  0%, 100% { border-color: rgba(212,165,116,0.15); }
+  50%      { border-color: rgba(212,165,116,0.35); }
+}
+@keyframes nt-slide-down {
+  from { opacity: 0; transform: translateY(-8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes nt-card-shine {
+  0%   { left: -100%; }
+  100% { left: 200%; }
+}
+@keyframes nt-empty-float {
+  0%, 100% { transform: translateY(0); }
+  50%      { transform: translateY(-8px); }
+}
+@keyframes nt-dot-pulse {
+  0%, 100% { opacity: 0.6; transform: scale(1); }
+  50%      { opacity: 1; transform: scale(1.3); }
+}
+@keyframes nt-action-reveal {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes nt-ring-spin {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+@keyframes nt-loading-bar {
+  0%   { transform: translateX(-100%); }
+  50%  { transform: translateX(0%); }
+  100% { transform: translateX(100%); }
+}
+`;
+
 // ─── Types ───────────────────────────────────────────────────────────────────
 
 type Category = 'All' | 'General' | 'Blue Spirit' | 'Governance' | 'Nodes' | 'Finance' | 'Personal';
@@ -103,6 +169,29 @@ const TAG_COLORS: Record<string, string> = {
 function getTagColor(tag: string): string {
   return TAG_COLORS[tag] || '#8b5cf6';
 }
+
+// ─── Design Tokens ───────────────────────────────────────────────────────────
+
+const DS = {
+  bg:       '#0b0d14',
+  surface:  '#0f1219',
+  glass:    'rgba(19,23,32,0.7)',
+  glassBorder: 'rgba(212,165,116,0.08)',
+  gold:     '#d4a574',
+  purple:   '#8b5cf6',
+  green:    '#6b8f71',
+  cream:    '#f0ebe4',
+  muted:    '#a09888',
+  dim:      '#6b6358',
+  faint:    '#4a443e',
+  darker:   '#3a352f',
+  line:     '#1e2638',
+  panelBg:  '#131720',
+  ease:     'cubic-bezier(0.16,1,0.3,1)',
+  radius:   12,
+  radiusLg: 16,
+  blur:     'blur(20px)',
+};
 
 const DEFAULT_NOTES: Note[] = [
   {
@@ -275,8 +364,8 @@ function AnimatedCard({ children, delay = 0, style, ...props }: {
     <div
       style={{
         opacity: visible ? 1 : 0,
-        transform: visible ? 'translateY(0)' : 'translateY(12px)',
-        transition: 'opacity 0.4s ease-out, transform 0.4s ease-out',
+        transform: visible ? 'translateY(0) scale(1)' : 'translateY(14px) scale(0.97)',
+        transition: `opacity 0.5s ${DS.ease}, transform 0.5s ${DS.ease}`,
         ...style,
       }}
       {...props}
@@ -297,13 +386,13 @@ function CharCountRing({ count, max = 5000 }: { count: number; max?: number }) {
 
   return (
     <svg width="36" height="36" viewBox="0 0 36 36" style={{ flexShrink: 0 }}>
-      <circle cx="18" cy="18" r={radius} fill="none" stroke="#1e2638" strokeWidth="2.5" />
+      <circle cx="18" cy="18" r={radius} fill="none" stroke="rgba(30,38,56,0.5)" strokeWidth="2.5" />
       <circle
         cx="18" cy="18" r={radius} fill="none" stroke={color} strokeWidth="2.5"
         strokeDasharray={circumference} strokeDashoffset={offset}
         strokeLinecap="round"
         transform="rotate(-90 18 18)"
-        style={{ transition: 'stroke-dashoffset 0.3s ease, stroke 0.3s ease' }}
+        style={{ transition: `stroke-dashoffset 0.5s ${DS.ease}, stroke 0.3s ease` }}
       />
       <text x="18" y="18" textAnchor="middle" dominantBaseline="central"
         style={{ fontSize: 8, fill: color, fontWeight: 600 }}>
@@ -313,7 +402,7 @@ function CharCountRing({ count, max = 5000 }: { count: number; max?: number }) {
   );
 }
 
-// ─── Formatting Toolbar Hints ─────────────────────────────────────────────────
+// ─── Formatting Toolbar ─────────────────────────────────────────────────────
 
 function FormattingToolbar({ onInsert }: { onInsert: (text: string) => void }) {
   const tools = [
@@ -326,8 +415,8 @@ function FormattingToolbar({ onInsert }: { onInsert: (text: string) => void }) {
 
   return (
     <div style={{
-      display: 'flex', alignItems: 'center', gap: 2, padding: '6px 0',
-      borderBottom: '1px solid #1e2638', marginBottom: 8,
+      display: 'flex', alignItems: 'center', gap: 2, padding: '8px 0',
+      borderBottom: `1px solid ${DS.line}`, marginBottom: 10,
     }}>
       {tools.map((tool) => {
         const Icon = tool.icon;
@@ -338,19 +427,22 @@ function FormattingToolbar({ onInsert }: { onInsert: (text: string) => void }) {
             onClick={() => onInsert(tool.insert)}
             style={{
               display: 'flex', alignItems: 'center', justifyContent: 'center',
-              width: 30, height: 28, borderRadius: 6,
+              width: 32, height: 30, borderRadius: 8,
               background: 'transparent', border: '1px solid transparent',
-              color: '#4a443e', cursor: 'pointer', transition: 'all 0.15s',
+              color: DS.faint, cursor: 'pointer',
+              transition: `all 0.2s ${DS.ease}`,
             }}
             onMouseEnter={(e) => {
               e.currentTarget.style.background = 'rgba(212,165,116,0.08)';
-              e.currentTarget.style.color = '#d4a574';
+              e.currentTarget.style.color = DS.gold;
               e.currentTarget.style.borderColor = 'rgba(212,165,116,0.15)';
+              e.currentTarget.style.transform = 'translateY(-1px)';
             }}
             onMouseLeave={(e) => {
               e.currentTarget.style.background = 'transparent';
-              e.currentTarget.style.color = '#4a443e';
+              e.currentTarget.style.color = DS.faint;
               e.currentTarget.style.borderColor = 'transparent';
+              e.currentTarget.style.transform = 'translateY(0)';
             }}
           >
             <Icon size={14} />
@@ -359,7 +451,7 @@ function FormattingToolbar({ onInsert }: { onInsert: (text: string) => void }) {
       })}
       <div style={{ flex: 1 }} />
       <div style={{
-        display: 'flex', alignItems: 'center', gap: 4, fontSize: 10, color: '#3a352f',
+        display: 'flex', alignItems: 'center', gap: 4, fontSize: 10, color: DS.darker,
         padding: '0 6px',
       }}>
         <Type size={10} />
@@ -369,36 +461,87 @@ function FormattingToolbar({ onInsert }: { onInsert: (text: string) => void }) {
   );
 }
 
-// ─── Empty State Illustration (pure SVG) ─────────────────────────────────────
+// ─── Empty State Illustration (enhanced SVG) ──────────────────────────────────
 
 function EmptyStateIllustration() {
   return (
-    <svg width="180" height="160" viewBox="0 0 180 160" fill="none" xmlns="http://www.w3.org/2000/svg">
-      <ellipse cx="90" cy="130" rx="70" ry="12" fill="rgba(212,165,116,0.06)" />
-      <rect x="40" y="20" width="100" height="120" rx="8" fill="#131720" stroke="#1e2638" strokeWidth="1.5" />
-      <rect x="56" y="20" width="2" height="120" fill="#1e2638" />
-      {[35, 50, 65, 80, 95, 110, 125].map((y) => (
-        <circle key={y} cx="57" cy={y} r="4" fill="none" stroke="#2e3a4e" strokeWidth="1.2" />
+    <svg width="200" height="180" viewBox="0 0 200 180" fill="none" xmlns="http://www.w3.org/2000/svg"
+      style={{ animation: 'nt-empty-float 4s ease-in-out infinite' }}>
+      <defs>
+        <linearGradient id="nt-noteGrad" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0%" stopColor={DS.gold} stopOpacity="0.15" />
+          <stop offset="100%" stopColor={DS.purple} stopOpacity="0.08" />
+        </linearGradient>
+        <linearGradient id="nt-penGrad" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor={DS.purple} />
+          <stop offset="100%" stopColor={DS.gold} />
+        </linearGradient>
+        <filter id="nt-softGlow">
+          <feGaussianBlur stdDeviation="3" result="blur" />
+          <feMerge>
+            <feMergeNode in="blur" />
+            <feMergeNode in="SourceGraphic" />
+          </feMerge>
+        </filter>
+      </defs>
+      <ellipse cx="100" cy="150" rx="75" ry="14" fill="rgba(212,165,116,0.04)" />
+      <rect x="45" y="22" width="110" height="130" rx="10" fill="#131720" stroke={DS.line} strokeWidth="1.5" />
+      <rect x="45" y="22" width="110" height="130" rx="10" fill="url(#nt-noteGrad)" />
+      <rect x="63" y="22" width="2" height="130" fill="rgba(30,38,56,0.4)" />
+      {[38, 54, 70, 86, 102, 118, 134].map((y) => (
+        <circle key={y} cx="64" cy={y} r="3.5" fill="none" stroke="rgba(46,58,78,0.5)" strokeWidth="1" />
       ))}
-      <line x1="68" y1="42" x2="125" y2="42" stroke="#1e2638" strokeWidth="1" />
-      <line x1="68" y1="55" x2="120" y2="55" stroke="#1e2638" strokeWidth="1" />
-      <line x1="68" y1="68" x2="115" y2="68" stroke="#1e2638" strokeWidth="1" />
-      <line x1="68" y1="81" x2="122" y2="81" stroke="#1e2638" strokeWidth="1" />
-      <line x1="68" y1="94" x2="108" y2="94" stroke="#1e2638" strokeWidth="1" />
-      <line x1="68" y1="42" x2="100" y2="42" stroke="#d4a574" strokeWidth="1.5" strokeLinecap="round" opacity="0.6" />
-      <g transform="translate(115, 15) rotate(25)">
-        <rect x="0" y="0" width="6" height="50" rx="3" fill="#8b5cf6" opacity="0.8" />
-        <polygon points="0,50 6,50 3,60" fill="#d4a574" opacity="0.8" />
+      <line x1="75" y1="45" x2="138" y2="45" stroke={DS.line} strokeWidth="1" />
+      <line x1="75" y1="58" x2="130" y2="58" stroke={DS.line} strokeWidth="1" />
+      <line x1="75" y1="71" x2="125" y2="71" stroke={DS.line} strokeWidth="1" />
+      <line x1="75" y1="84" x2="135" y2="84" stroke={DS.line} strokeWidth="1" />
+      <line x1="75" y1="97" x2="115" y2="97" stroke={DS.line} strokeWidth="1" />
+      <line x1="75" y1="45" x2="110" y2="45" stroke={DS.gold} strokeWidth="1.5" strokeLinecap="round" opacity="0.5" />
+      <g transform="translate(125, 18) rotate(25)" filter="url(#nt-softGlow)">
+        <rect x="0" y="0" width="7" height="52" rx="3.5" fill="url(#nt-penGrad)" opacity="0.85" />
+        <polygon points="0,52 7,52 3.5,62" fill={DS.gold} opacity="0.8" />
       </g>
-      <g transform="translate(135, 25)">
-        <path d="M0,-6 L1.5,0 L0,6 L-1.5,0 Z" fill="#d4a574" opacity="0.5" />
-        <path d="M-6,0 L0,-1.5 L6,0 L0,1.5 Z" fill="#d4a574" opacity="0.5" />
+      <g transform="translate(148, 28)">
+        <path d="M0,-6 L1.5,0 L0,6 L-1.5,0 Z" fill={DS.gold} opacity="0.4">
+          <animate attributeName="opacity" values="0.2;0.6;0.2" dur="2.5s" repeatCount="indefinite" />
+        </path>
+        <path d="M-6,0 L0,-1.5 L6,0 L0,1.5 Z" fill={DS.gold} opacity="0.4">
+          <animate attributeName="opacity" values="0.2;0.6;0.2" dur="2.5s" begin="0.5s" repeatCount="indefinite" />
+        </path>
       </g>
-      <g transform="translate(30, 100)">
-        <path d="M0,-4 L1,0 L0,4 L-1,0 Z" fill="#8b5cf6" opacity="0.4" />
-        <path d="M-4,0 L0,-1 L4,0 L0,1 Z" fill="#8b5cf6" opacity="0.4" />
+      <g transform="translate(32, 110)">
+        <path d="M0,-4 L1,0 L0,4 L-1,0 Z" fill={DS.purple} opacity="0.3">
+          <animate attributeName="opacity" values="0.15;0.5;0.15" dur="3s" repeatCount="indefinite" />
+        </path>
+        <path d="M-4,0 L0,-1 L4,0 L0,1 Z" fill={DS.purple} opacity="0.3">
+          <animate attributeName="opacity" values="0.15;0.5;0.15" dur="3s" begin="0.8s" repeatCount="indefinite" />
+        </path>
       </g>
     </svg>
+  );
+}
+
+// ─── Author Avatar with Gradient Ring ────────────────────────────────────────
+
+function AuthorAvatar({ category, size = 24 }: { category: string; size?: number }) {
+  const color = CATEGORY_COLORS[category] || DS.muted;
+  const initials = category.split(' ').map(w => w[0]).join('').slice(0, 2);
+  return (
+    <div style={{
+      width: size, height: size, borderRadius: '50%',
+      background: `conic-gradient(from 0deg, ${color}, ${DS.gold}, ${DS.purple}, ${color})`,
+      padding: 2, flexShrink: 0,
+    }}>
+      <div style={{
+        width: '100%', height: '100%', borderRadius: '50%',
+        background: DS.panelBg,
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        fontSize: size * 0.38, fontWeight: 700, color,
+        letterSpacing: '-0.02em',
+      }}>
+        {initials}
+      </div>
+    </div>
   );
 }
 
@@ -415,8 +558,24 @@ export function NotesView() {
   const [showTagSuggestions, setShowTagSuggestions] = useState(false);
   const [mounted, setMounted] = useState(false);
   const [viewMode, setViewMode] = useState<'list' | 'grid'>('list');
+  const [hoveredCardId, setHoveredCardId] = useState<string | null>(null);
+  const [searchFocused, setSearchFocused] = useState(false);
   const searchRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const stylesInjected = useRef(false);
+
+  // ── Inject scoped keyframes ───────────────────────────────────────────────
+  useEffect(() => {
+    if (stylesInjected.current) return;
+    stylesInjected.current = true;
+    const styleEl = document.createElement('style');
+    styleEl.setAttribute('data-nt-keyframes', 'true');
+    styleEl.textContent = scopedKeyframes;
+    document.head.appendChild(styleEl);
+    return () => {
+      if (styleEl.parentNode) styleEl.parentNode.removeChild(styleEl);
+    };
+  }, []);
 
   // ── Load on mount ────────────────────────────────────────────────────────
   useEffect(() => {
@@ -587,202 +746,313 @@ export function NotesView() {
     return TAG_SUGGESTIONS.filter((t) => t.includes(q) && !existing.includes(t)).slice(0, 8);
   }, [tagInput, selectedNote]);
 
+  // ── Glassmorphism Card Style Builder ───────────────────────────────────────
+
+  const glassCard = (isActive: boolean, catColor: string): React.CSSProperties => ({
+    background: isActive
+      ? `linear-gradient(135deg, rgba(19,23,32,0.85), rgba(19,23,32,0.65))`
+      : DS.glass,
+    backdropFilter: DS.blur,
+    WebkitBackdropFilter: DS.blur,
+    border: isActive
+      ? `1px solid rgba(212,165,116,0.25)`
+      : `1px solid ${DS.glassBorder}`,
+    borderRadius: DS.radiusLg,
+    position: 'relative' as const,
+    overflow: 'hidden' as const,
+    transition: `all 0.35s ${DS.ease}`,
+  });
+
   // ── Render Helpers ─────────────────────────────────────────────────────
 
   const iconBtn = (active?: boolean): React.CSSProperties => ({
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
-    padding: 6,
-    borderRadius: 6,
+    padding: 7,
+    borderRadius: 8,
     background: active ? 'rgba(212,165,116,0.12)' : 'transparent',
     border: '1px solid transparent',
-    color: active ? '#d4a574' : '#6b6358',
+    color: active ? DS.gold : DS.dim,
     cursor: 'pointer',
-    transition: 'all 0.15s',
+    transition: `all 0.2s ${DS.ease}`,
   });
 
   const renderNoteCard = (note: Note, index: number, isPinned: boolean) => {
     const isActive = selectedId === note.id;
-    const catColor = CATEGORY_COLORS[note.category] || '#a09888';
+    const isHovered = hoveredCardId === note.id;
+    const catColor = CATEGORY_COLORS[note.category] || DS.muted;
     const wordCount = getWordCount(note.content);
 
     if (viewMode === 'grid') {
       return (
-        <AnimatedCard key={note.id} delay={index * 50}>
+        <AnimatedCard key={note.id} delay={index * 60}>
           <div
+            className="card-interactive"
             onClick={() => { setSelectedId(note.id); setPreviewMode(false); }}
+            onMouseEnter={() => setHoveredCardId(note.id)}
+            onMouseLeave={() => setHoveredCardId(null)}
             style={{
-              background: isActive ? '#131720' : '#0f1219',
-              border: isActive ? '1px solid rgba(212,165,116,0.3)' : '1px solid #1e2638',
-              borderLeft: `3px solid ${catColor}`,
-              borderRadius: 12,
-              padding: 16,
+              ...glassCard(isActive, catColor),
+              padding: 0,
               cursor: 'pointer',
-              transition: 'all 0.2s ease',
-              position: 'relative',
-              overflow: 'hidden',
-              minHeight: 160,
+              minHeight: 200,
               display: 'flex',
               flexDirection: 'column',
-            }}
-            onMouseEnter={(e) => {
-              if (!isActive) {
-                e.currentTarget.style.borderColor = '#2e3a4e';
-                e.currentTarget.style.borderLeftColor = catColor;
-                e.currentTarget.style.transform = 'translateY(-2px)';
-                e.currentTarget.style.boxShadow = `0 8px 24px rgba(0,0,0,0.2), inset 3px 0 0 ${catColor}`;
-              }
-            }}
-            onMouseLeave={(e) => {
-              if (!isActive) {
-                e.currentTarget.style.borderColor = '#1e2638';
-                e.currentTarget.style.borderLeftColor = catColor;
-                e.currentTarget.style.transform = 'translateY(0)';
-                e.currentTarget.style.boxShadow = 'none';
-              }
+              transform: isHovered && !isActive ? 'translateY(-4px)' : 'translateY(0)',
+              boxShadow: isActive
+                ? `0 0 0 1px rgba(212,165,116,0.2), 0 8px 32px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.03)`
+                : isHovered
+                  ? `0 12px 40px rgba(0,0,0,0.35), 0 0 20px ${catColor}15, inset 0 1px 0 rgba(255,255,255,0.03)`
+                  : `0 2px 8px rgba(0,0,0,0.15), inset 0 1px 0 rgba(255,255,255,0.02)`,
             }}
           >
-            {/* Pin + Bookmark indicators */}
+            {/* Color-coded top accent strip */}
             <div style={{
-              position: 'absolute', top: 8, right: 8,
-              display: 'flex', gap: 4,
-            }}>
-              {note.bookmarked && (
-                <BookmarkCheck size={12} style={{ color: '#8b5cf6', opacity: 0.7 }} />
-              )}
-              {isPinned && (
-                <Pin size={12} style={{ color: '#d4a574', opacity: 0.6 }} />
-              )}
-            </div>
+              height: 3,
+              background: `linear-gradient(90deg, ${catColor}, ${catColor}88, transparent)`,
+              borderRadius: `${DS.radiusLg}px ${DS.radiusLg}px 0 0`,
+              opacity: isActive || isHovered ? 1 : 0.6,
+              transition: `opacity 0.3s ${DS.ease}`,
+            }} />
 
-            {/* Category pill */}
-            <div style={{
-              display: 'inline-flex', alignItems: 'center', gap: 4,
-              fontSize: 10, fontWeight: 600, padding: '2px 8px', borderRadius: 20,
-              background: `${catColor}15`, color: catColor,
-              marginBottom: 10, alignSelf: 'flex-start',
-              letterSpacing: '0.02em',
-            }}>
-              <span style={{
-                width: 5, height: 5, borderRadius: '50%', background: catColor,
+            {/* Shine effect on hover */}
+            {isHovered && (
+              <div style={{
+                position: 'absolute', top: 0, left: '-100%', width: '60%', height: '100%',
+                background: 'linear-gradient(90deg, transparent, rgba(255,255,255,0.03), transparent)',
+                animation: 'nt-card-shine 0.8s ease-out forwards',
+                pointerEvents: 'none',
               }} />
-              {note.category}
-            </div>
-
-            {/* Title */}
-            <div style={{
-              fontSize: 14, fontWeight: 600, color: '#f0ebe4', marginBottom: 6,
-              lineHeight: 1.4, overflow: 'hidden', textOverflow: 'ellipsis',
-              display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical',
-            }}>
-              {note.title || 'Untitled'}
-            </div>
-
-            {/* Content preview */}
-            <div style={{
-              fontSize: 12, color: '#6b6358', lineHeight: 1.5, flex: 1,
-              overflow: 'hidden', textOverflow: 'ellipsis',
-              display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical',
-              marginBottom: 12,
-            }}>
-              {getContentPreview(note.content)}
-            </div>
-
-            {/* Tags */}
-            {note.tags.length > 0 && (
-              <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginBottom: 10 }}>
-                {note.tags.slice(0, 3).map((tag) => (
-                  <span key={tag} style={{
-                    fontSize: 10, padding: '2px 8px', borderRadius: 20,
-                    background: `${getTagColor(tag)}15`, color: getTagColor(tag),
-                    fontWeight: 500,
-                  }}>
-                    {tag}
-                  </span>
-                ))}
-                {note.tags.length > 3 && (
-                  <span style={{
-                    fontSize: 10, padding: '2px 8px', borderRadius: 20,
-                    background: 'rgba(107,99,88,0.15)', color: '#6b6358',
-                  }}>
-                    +{note.tags.length - 3}
-                  </span>
-                )}
-              </div>
             )}
 
-            {/* Footer */}
-            <div style={{
-              display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-              fontSize: 10, color: '#4a443e', borderTop: '1px solid #1e2638',
-              paddingTop: 8, marginTop: 'auto',
-            }}>
-              <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                <Clock size={10} />
-                {formatRelativeDate(note.updatedAt)}
-              </span>
-              <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <span style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
-                  <Hash size={9} />
-                  {wordCount}w
+            <div style={{ padding: '14px 16px 16px', display: 'flex', flexDirection: 'column', flex: 1 }}>
+              {/* Top row: Category + Pin/Bookmark */}
+              <div style={{
+                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                marginBottom: 12,
+              }}>
+                {/* Category indicator: colored dot + label */}
+                <div style={{
+                  display: 'inline-flex', alignItems: 'center', gap: 5,
+                  fontSize: 10, fontWeight: 600, padding: '3px 10px', borderRadius: 20,
+                  background: `${catColor}12`, color: catColor,
+                  letterSpacing: '0.03em', textTransform: 'uppercase',
+                }}>
+                  <span style={{
+                    width: 6, height: 6, borderRadius: '50%', background: catColor,
+                    boxShadow: `0 0 6px ${catColor}50`,
+                    animation: isPinned ? 'nt-dot-pulse 2s ease-in-out infinite' : 'none',
+                  }} />
+                  {note.category}
+                </div>
+
+                <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
+                  {note.bookmarked && (
+                    <BookmarkCheck size={13} style={{
+                      color: DS.purple, opacity: 0.8,
+                      filter: `drop-shadow(0 0 3px ${DS.purple}40)`,
+                    }} />
+                  )}
+                  {isPinned && (
+                    <Pin size={13} style={{
+                      color: DS.gold,
+                      animation: 'nt-pin-glow 2.5s ease-in-out infinite',
+                    }} />
+                  )}
+                </div>
+              </div>
+
+              {/* Title */}
+              <div style={{
+                fontSize: 14, fontWeight: 700, color: DS.cream, marginBottom: 8,
+                lineHeight: 1.4, overflow: 'hidden', textOverflow: 'ellipsis',
+                display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical',
+                letterSpacing: '-0.01em',
+              }}>
+                {note.title || 'Untitled'}
+              </div>
+
+              {/* Rich text preview */}
+              <div style={{
+                fontSize: 12, color: DS.dim, lineHeight: 1.6, flex: 1,
+                overflow: 'hidden', textOverflow: 'ellipsis',
+                display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical',
+                marginBottom: 14,
+              }}>
+                {getContentPreview(note.content, 140)}
+              </div>
+
+              {/* Tags */}
+              {note.tags.length > 0 && (
+                <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap', marginBottom: 12 }}>
+                  {note.tags.slice(0, 3).map((tag) => (
+                    <span key={tag} style={{
+                      fontSize: 10, padding: '3px 9px', borderRadius: 20,
+                      background: `${getTagColor(tag)}12`, color: getTagColor(tag),
+                      fontWeight: 500, border: `1px solid ${getTagColor(tag)}15`,
+                    }}>
+                      {tag}
+                    </span>
+                  ))}
+                  {note.tags.length > 3 && (
+                    <span style={{
+                      fontSize: 10, padding: '3px 9px', borderRadius: 20,
+                      background: 'rgba(107,99,88,0.1)', color: DS.dim,
+                      border: '1px solid rgba(107,99,88,0.1)',
+                    }}>
+                      +{note.tags.length - 3}
+                    </span>
+                  )}
+                </div>
+              )}
+
+              {/* Footer: Timestamp + Author Avatar */}
+              <div style={{
+                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                fontSize: 10, color: DS.faint,
+                borderTop: `1px solid ${DS.glassBorder}`,
+                paddingTop: 10, marginTop: 'auto',
+              }}>
+                <span
+                  title={`Updated: ${formatDate(note.updatedAt)}\nCreated: ${formatDate(note.createdAt)}`}
+                  style={{ display: 'flex', alignItems: 'center', gap: 4, cursor: 'default' }}
+                >
+                  <Clock size={10} />
+                  {formatRelativeDate(note.updatedAt)}
                 </span>
-                <span style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
-                  <AlignLeft size={9} />
-                  {getCharCount(note.content)}c
-                </span>
-              </span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <span style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
+                    <Hash size={9} />
+                    {wordCount}w
+                  </span>
+                  <AuthorAvatar category={note.category} size={22} />
+                </div>
+              </div>
+
+              {/* Hover action buttons overlay */}
+              {isHovered && (
+                <div style={{
+                  position: 'absolute', bottom: 44, right: 14,
+                  display: 'flex', gap: 4,
+                  animation: 'nt-action-reveal 0.25s ease-out forwards',
+                }}>
+                  <button
+                    onClick={(e) => { e.stopPropagation(); setSelectedId(note.id); setPreviewMode(false); }}
+                    title="Edit"
+                    style={{
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      width: 28, height: 28, borderRadius: 8,
+                      background: 'rgba(19,23,32,0.9)', border: `1px solid ${DS.glassBorder}`,
+                      backdropFilter: DS.blur, color: DS.muted, cursor: 'pointer',
+                      transition: `all 0.15s ${DS.ease}`,
+                    }}
+                    onMouseEnter={(e) => { e.currentTarget.style.color = DS.gold; e.currentTarget.style.borderColor = `${DS.gold}40`; }}
+                    onMouseLeave={(e) => { e.currentTarget.style.color = DS.muted; e.currentTarget.style.borderColor = DS.glassBorder; }}
+                  >
+                    <Edit3 size={12} />
+                  </button>
+                  <button
+                    onClick={(e) => { e.stopPropagation(); togglePin(note.id); }}
+                    title={note.pinned ? 'Unpin' : 'Pin'}
+                    style={{
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      width: 28, height: 28, borderRadius: 8,
+                      background: 'rgba(19,23,32,0.9)', border: `1px solid ${DS.glassBorder}`,
+                      backdropFilter: DS.blur,
+                      color: note.pinned ? DS.gold : DS.muted, cursor: 'pointer',
+                      transition: `all 0.15s ${DS.ease}`,
+                    }}
+                    onMouseEnter={(e) => { e.currentTarget.style.color = DS.gold; e.currentTarget.style.borderColor = `${DS.gold}40`; }}
+                    onMouseLeave={(e) => { e.currentTarget.style.color = note.pinned ? DS.gold : DS.muted; e.currentTarget.style.borderColor = DS.glassBorder; }}
+                  >
+                    {note.pinned ? <PinOff size={12} /> : <Pin size={12} />}
+                  </button>
+                  <button
+                    onClick={(e) => { e.stopPropagation(); deleteNote(note.id); }}
+                    title="Delete"
+                    style={{
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      width: 28, height: 28, borderRadius: 8,
+                      background: 'rgba(19,23,32,0.9)', border: `1px solid ${DS.glassBorder}`,
+                      backdropFilter: DS.blur, color: DS.muted, cursor: 'pointer',
+                      transition: `all 0.15s ${DS.ease}`,
+                    }}
+                    onMouseEnter={(e) => { e.currentTarget.style.color = '#e07a5f'; e.currentTarget.style.borderColor = 'rgba(224,122,95,0.3)'; }}
+                    onMouseLeave={(e) => { e.currentTarget.style.color = DS.muted; e.currentTarget.style.borderColor = DS.glassBorder; }}
+                  >
+                    <Trash2 size={12} />
+                  </button>
+                </div>
+              )}
             </div>
           </div>
         </AnimatedCard>
       );
     }
 
-    // List view
+    // ── List view ─────────────────────────────────────────────────────────────
     return (
-      <AnimatedCard key={note.id} delay={index * 35}>
+      <AnimatedCard key={note.id} delay={index * 40}>
         <div
+          className="card-interactive"
           onClick={() => { setSelectedId(note.id); setPreviewMode(false); }}
+          onMouseEnter={() => setHoveredCardId(note.id)}
+          onMouseLeave={() => setHoveredCardId(null)}
           style={{
-            display: 'flex', gap: 14, padding: '14px 16px', borderRadius: 10,
+            display: 'flex', gap: 14, padding: '14px 16px',
+            borderRadius: DS.radius,
             cursor: 'pointer',
-            background: isActive ? 'rgba(212,165,116,0.06)' : 'transparent',
-            border: isActive ? '1px solid rgba(212,165,116,0.15)' : '1px solid transparent',
-            transition: 'all 0.15s',
+            background: isActive
+              ? 'rgba(212,165,116,0.06)'
+              : isHovered
+                ? 'rgba(212,165,116,0.025)'
+                : 'transparent',
+            border: isActive
+              ? '1px solid rgba(212,165,116,0.18)'
+              : isHovered
+                ? `1px solid ${DS.glassBorder}`
+                : '1px solid transparent',
+            transition: `all 0.25s ${DS.ease}`,
             position: 'relative',
-          }}
-          onMouseEnter={(e) => {
-            if (!isActive) {
-              e.currentTarget.style.background = 'rgba(212,165,116,0.03)';
-              e.currentTarget.style.border = '1px solid #1e2638';
-            }
-          }}
-          onMouseLeave={(e) => {
-            if (!isActive) {
-              e.currentTarget.style.background = 'transparent';
-              e.currentTarget.style.border = '1px solid transparent';
-            }
+            backdropFilter: isActive || isHovered ? DS.blur : 'none',
+            transform: isHovered && !isActive ? 'translateX(2px)' : 'translateX(0)',
           }}
         >
-          {/* Left color bar */}
+          {/* Left color bar with glow */}
           <div style={{
             width: 3, borderRadius: 2, flexShrink: 0,
-            background: isActive ? '#d4a574' : catColor,
-            opacity: isActive ? 1 : 0.5,
-            transition: 'opacity 0.15s',
-            boxShadow: isActive ? `0 0 8px ${catColor}40` : 'none',
+            background: isActive ? DS.gold : catColor,
+            opacity: isActive ? 1 : isHovered ? 0.8 : 0.4,
+            transition: `all 0.25s ${DS.ease}`,
+            boxShadow: isActive
+              ? `0 0 10px ${DS.gold}50, 0 0 3px ${DS.gold}30`
+              : isHovered
+                ? `0 0 6px ${catColor}30`
+                : 'none',
           }} />
 
           {/* Content */}
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{
-              display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4,
+              display: 'flex', alignItems: 'center', gap: 6, marginBottom: 5,
             }}>
-              {isPinned && <Pin size={11} style={{ color: '#d4a574', flexShrink: 0 }} />}
-              {note.bookmarked && <BookmarkCheck size={11} style={{ color: '#8b5cf6', flexShrink: 0 }} />}
+              {isPinned && (
+                <Pin size={11} style={{
+                  color: DS.gold, flexShrink: 0,
+                  animation: 'nt-pin-glow 2.5s ease-in-out infinite',
+                }} />
+              )}
+              {note.bookmarked && (
+                <BookmarkCheck size={11} style={{
+                  color: DS.purple, flexShrink: 0,
+                  filter: `drop-shadow(0 0 2px ${DS.purple}30)`,
+                }} />
+              )}
               <span style={{
-                fontSize: 13, fontWeight: 600, color: '#f0ebe4',
+                fontSize: 13, fontWeight: 600, color: DS.cream,
                 overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                letterSpacing: '-0.01em',
               }}>
                 {note.title || 'Untitled'}
               </span>
@@ -790,7 +1060,7 @@ export function NotesView() {
 
             {/* Preview text */}
             <div style={{
-              fontSize: 12, color: '#6b6358', lineHeight: 1.5, marginBottom: 6,
+              fontSize: 12, color: DS.dim, lineHeight: 1.5, marginBottom: 7,
               overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
             }}>
               {getContentPreview(note.content, 80)}
@@ -798,38 +1068,87 @@ export function NotesView() {
 
             {/* Bottom row */}
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+              {/* Category indicator with dot */}
               <span style={{
-                fontSize: 10, fontWeight: 600, padding: '1px 7px', borderRadius: 4,
-                background: `${catColor}15`, color: catColor,
+                fontSize: 10, fontWeight: 600, padding: '2px 8px', borderRadius: 20,
+                background: `${catColor}12`, color: catColor,
+                display: 'inline-flex', alignItems: 'center', gap: 4,
               }}>
+                <span style={{
+                  width: 5, height: 5, borderRadius: '50%', background: catColor,
+                  boxShadow: `0 0 4px ${catColor}40`,
+                }} />
                 {note.category}
               </span>
               {note.tags.slice(0, 2).map((tag) => (
                 <span key={tag} style={{
-                  fontSize: 10, padding: '1px 6px', borderRadius: 4,
-                  background: `${getTagColor(tag)}12`, color: getTagColor(tag),
+                  fontSize: 10, padding: '2px 7px', borderRadius: 20,
+                  background: `${getTagColor(tag)}10`, color: getTagColor(tag),
+                  border: `1px solid ${getTagColor(tag)}12`,
                 }}>
                   {tag}
                 </span>
               ))}
               {note.tags.length > 2 && (
-                <span style={{ fontSize: 10, color: '#4a443e' }}>+{note.tags.length - 2}</span>
+                <span style={{ fontSize: 10, color: DS.faint }}>+{note.tags.length - 2}</span>
               )}
               <span style={{
-                fontSize: 10, color: '#4a443e', marginLeft: 'auto',
+                fontSize: 10, color: DS.faint, marginLeft: 'auto',
                 display: 'flex', alignItems: 'center', gap: 8,
               }}>
                 <span style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
                   <AlignLeft size={9} />
                   {getCharCount(note.content)}
                 </span>
-                <span style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
+                <span
+                  title={`Updated: ${formatDate(note.updatedAt)}\nCreated: ${formatDate(note.createdAt)}`}
+                  style={{ display: 'flex', alignItems: 'center', gap: 3, cursor: 'default' }}
+                >
                   <Clock size={9} />
                   {formatRelativeDate(note.updatedAt)}
                 </span>
               </span>
             </div>
           </div>
+
+          {/* Hover action buttons for list view */}
+          {isHovered && (
+            <div style={{
+              display: 'flex', alignItems: 'center', gap: 3,
+              animation: 'nt-action-reveal 0.2s ease-out forwards',
+            }}>
+              <button
+                onClick={(e) => { e.stopPropagation(); togglePin(note.id); }}
+                title={note.pinned ? 'Unpin' : 'Pin'}
+                style={{
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  width: 26, height: 26, borderRadius: 6,
+                  background: 'rgba(19,23,32,0.8)', border: `1px solid ${DS.glassBorder}`,
+                  color: note.pinned ? DS.gold : DS.dim, cursor: 'pointer',
+                  transition: `all 0.15s ${DS.ease}`,
+                }}
+                onMouseEnter={(e) => { e.currentTarget.style.color = DS.gold; }}
+                onMouseLeave={(e) => { e.currentTarget.style.color = note.pinned ? DS.gold : DS.dim; }}
+              >
+                {note.pinned ? <PinOff size={11} /> : <Pin size={11} />}
+              </button>
+              <button
+                onClick={(e) => { e.stopPropagation(); deleteNote(note.id); }}
+                title="Delete"
+                style={{
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  width: 26, height: 26, borderRadius: 6,
+                  background: 'rgba(19,23,32,0.8)', border: `1px solid ${DS.glassBorder}`,
+                  color: DS.dim, cursor: 'pointer',
+                  transition: `all 0.15s ${DS.ease}`,
+                }}
+                onMouseEnter={(e) => { e.currentTarget.style.color = '#e07a5f'; }}
+                onMouseLeave={(e) => { e.currentTarget.style.color = DS.dim; }}
+              >
+                <Trash2 size={11} />
+              </button>
+            </div>
+          )}
         </div>
       </AnimatedCard>
     );
@@ -837,67 +1156,102 @@ export function NotesView() {
 
   // ── Date badge component ─────────────────────────────────────────────────
 
-  const DateBadge = ({ label, value, icon: Icon, color = '#6b6358' }: {
+  const DateBadge = ({ label, value, icon: Icon, color = DS.dim }: {
     label: string; value: string; icon: React.ElementType; color?: string;
   }) => (
     <div style={{
-      display: 'flex', alignItems: 'center', gap: 5, padding: '3px 10px',
-      background: 'rgba(30,38,56,0.3)', borderRadius: 6,
-      border: '1px solid rgba(30,38,56,0.5)',
+      display: 'flex', alignItems: 'center', gap: 5, padding: '4px 12px',
+      background: DS.glass, borderRadius: 8,
+      border: `1px solid ${DS.glassBorder}`,
+      backdropFilter: DS.blur,
     }}>
-      <Icon size={10} style={{ color: '#4a443e' }} />
-      <span style={{ fontSize: 10, color: '#4a443e', fontWeight: 500 }}>{label}</span>
+      <Icon size={10} style={{ color: DS.faint }} />
+      <span style={{ fontSize: 10, color: DS.faint, fontWeight: 500 }}>{label}</span>
       <span style={{ fontSize: 11, color, fontWeight: 500 }}>{value}</span>
     </div>
   );
 
-  // ── Render ───────────────────────────────────────────────────────────────
+  // ── Loading state ─────────────────────────────────────────────────────────
 
   if (!mounted) {
     return (
       <div style={{
-        display: 'flex', height: '100%', background: '#0b0d14', color: '#f0ebe4',
+        display: 'flex', height: '100%', background: DS.bg, color: DS.cream,
         fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
         alignItems: 'center', justifyContent: 'center',
       }}>
         <div style={{
-          display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12, color: '#4a443e',
+          display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16, color: DS.faint,
         }}>
           <div style={{
-            width: 56, height: 56, borderRadius: 16, background: 'rgba(212,165,116,0.06)',
+            width: 64, height: 64, borderRadius: 20,
+            background: DS.glass, border: `1px solid ${DS.glassBorder}`,
+            backdropFilter: DS.blur,
             display: 'flex', alignItems: 'center', justifyContent: 'center',
+            position: 'relative', overflow: 'hidden',
           }}>
-            <FileText size={24} color="#4a443e" />
+            <FileText size={26} color={DS.faint} />
+            <div style={{
+              position: 'absolute', bottom: 0, left: 0, right: 0, height: 3,
+              background: `linear-gradient(90deg, transparent, ${DS.gold}40, transparent)`,
+              animation: 'nt-loading-bar 1.5s ease-in-out infinite',
+            }} />
           </div>
-          <span style={{ fontSize: 14, color: '#6b6358' }}>Loading notes...</span>
+          <span style={{ fontSize: 14, color: DS.dim, fontWeight: 500 }}>Loading notes...</span>
         </div>
       </div>
     );
   }
 
+  // ── Main Render ─────────────────────────────────────────────────────────────
+
   return (
     <div style={{
-      display: 'flex', height: '100%', background: '#0b0d14', color: '#f0ebe4',
+      display: 'flex', height: '100%', background: DS.bg, color: DS.cream,
       fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
-      overflow: 'hidden',
+      overflow: 'hidden', position: 'relative',
     }}>
       {/* ═══════════════════════════════════════════════════════════════════ */}
       {/* SIDEBAR                                                           */}
       {/* ═══════════════════════════════════════════════════════════════════ */}
       <div style={{
-        width: 360, minWidth: 360, background: '#0f1219',
-        borderRight: '1px solid #1e2638', display: 'flex', flexDirection: 'column', overflow: 'hidden',
+        width: 380, minWidth: 380, background: DS.surface,
+        borderRight: `1px solid ${DS.line}`,
+        display: 'flex', flexDirection: 'column', overflow: 'hidden',
+        position: 'relative',
       }}>
+        {/* Subtle top gradient glow */}
+        <div style={{
+          position: 'absolute', top: 0, left: 0, right: 0, height: 120,
+          background: `radial-gradient(ellipse at 50% 0%, ${DS.gold}06 0%, transparent 70%)`,
+          pointerEvents: 'none', zIndex: 0,
+        }} />
+
         {/* Sidebar Header */}
-        <div style={{ padding: '16px 16px 12px', borderBottom: '1px solid #1e2638' }}>
+        <div style={{ padding: '18px 18px 14px', borderBottom: `1px solid ${DS.line}`, position: 'relative', zIndex: 1 }}>
+          <div className="noise-overlay" style={{ position: 'absolute', inset: 0, borderRadius: 'inherit', pointerEvents: 'none' }} />
+          <div className="dot-pattern" style={{ position: 'absolute', inset: 0, borderRadius: 'inherit', pointerEvents: 'none', opacity: 0.3 }} />
           {/* Title row */}
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-            <span style={{ fontSize: 16, fontWeight: 700, color: '#f0ebe4', display: 'flex', alignItems: 'center', gap: 8 }}>
-              <FileText size={18} color="#d4a574" />
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
+            <span className="text-glow" style={{
+              fontSize: 17, fontWeight: 700, color: DS.cream,
+              display: 'flex', alignItems: 'center', gap: 8,
+              letterSpacing: '-0.02em',
+            }}>
+              <div style={{
+                width: 30, height: 30, borderRadius: 9,
+                background: `linear-gradient(135deg, ${DS.gold}18, ${DS.gold}08)`,
+                border: `1px solid ${DS.gold}20`,
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+              }}>
+                <FileText size={16} color={DS.gold} />
+              </div>
               Notes
               <span style={{
-                fontSize: 11, fontWeight: 500, color: '#4a443e',
-                background: 'rgba(30,38,56,0.4)', padding: '1px 7px', borderRadius: 8,
+                fontSize: 11, fontWeight: 600, color: DS.faint,
+                background: DS.glass, padding: '2px 9px', borderRadius: 10,
+                border: `1px solid ${DS.glassBorder}`,
+                backdropFilter: DS.blur,
               }}>
                 {notes.length}
               </span>
@@ -909,8 +1263,10 @@ export function NotesView() {
                 title="List view"
                 style={{
                   ...iconBtn(viewMode === 'list'),
-                  padding: 5,
+                  padding: 6,
                 }}
+                onMouseEnter={(e) => { if (viewMode !== 'list') e.currentTarget.style.color = DS.muted; }}
+                onMouseLeave={(e) => { if (viewMode !== 'list') e.currentTarget.style.color = DS.dim; }}
               >
                 <List size={14} />
               </button>
@@ -919,27 +1275,34 @@ export function NotesView() {
                 title="Grid view"
                 style={{
                   ...iconBtn(viewMode === 'grid'),
-                  padding: 5,
+                  padding: 6,
                 }}
+                onMouseEnter={(e) => { if (viewMode !== 'grid') e.currentTarget.style.color = DS.muted; }}
+                onMouseLeave={(e) => { if (viewMode !== 'grid') e.currentTarget.style.color = DS.dim; }}
               >
                 <LayoutGrid size={14} />
               </button>
-              <div style={{ width: 1, height: 16, background: '#1e2638', margin: '0 4px' }} />
+              <div style={{ width: 1, height: 18, background: DS.line, margin: '0 5px' }} />
               <button
                 onClick={createNote}
                 title="New Note"
                 style={{
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  padding: '5px 10px', borderRadius: 6, gap: 4,
-                  background: 'rgba(212,165,116,0.1)', border: '1px solid rgba(212,165,116,0.2)',
-                  color: '#d4a574', cursor: 'pointer', fontSize: 12, fontWeight: 500,
-                  fontFamily: 'inherit', transition: 'all 0.15s',
+                  padding: '6px 12px', borderRadius: 8, gap: 5,
+                  background: `linear-gradient(135deg, ${DS.gold}14, ${DS.gold}08)`,
+                  border: `1px solid ${DS.gold}25`,
+                  color: DS.gold, cursor: 'pointer', fontSize: 12, fontWeight: 600,
+                  fontFamily: 'inherit', transition: `all 0.25s ${DS.ease}`,
                 }}
                 onMouseEnter={(e) => {
-                  e.currentTarget.style.background = 'rgba(212,165,116,0.18)';
+                  e.currentTarget.style.background = `linear-gradient(135deg, ${DS.gold}22, ${DS.gold}12)`;
+                  e.currentTarget.style.transform = 'translateY(-1px)';
+                  e.currentTarget.style.boxShadow = `0 4px 12px ${DS.gold}15`;
                 }}
                 onMouseLeave={(e) => {
-                  e.currentTarget.style.background = 'rgba(212,165,116,0.1)';
+                  e.currentTarget.style.background = `linear-gradient(135deg, ${DS.gold}14, ${DS.gold}08)`;
+                  e.currentTarget.style.transform = 'translateY(0)';
+                  e.currentTarget.style.boxShadow = 'none';
                 }}
               >
                 <Plus size={14} />
@@ -948,22 +1311,35 @@ export function NotesView() {
             </div>
           </div>
 
-          {/* Search bar with icon and clear */}
+          {/* Search bar with glassmorphism and gold focus ring */}
           <div style={{
-            display: 'flex', alignItems: 'center', background: '#131720',
-            border: '1px solid #1e2638', borderRadius: 10, padding: '8px 12px', gap: 8,
-            transition: 'border-color 0.15s',
-            marginBottom: 10,
+            display: 'flex', alignItems: 'center',
+            background: DS.glass,
+            backdropFilter: DS.blur,
+            border: searchFocused
+              ? `1px solid ${DS.gold}40`
+              : `1px solid ${DS.glassBorder}`,
+            borderRadius: DS.radius,
+            padding: '9px 14px', gap: 8,
+            transition: `all 0.3s ${DS.ease}`,
+            marginBottom: 12,
+            boxShadow: searchFocused
+              ? `0 0 0 3px ${DS.gold}10, 0 4px 16px rgba(0,0,0,0.2)`
+              : '0 2px 8px rgba(0,0,0,0.1)',
           }}>
-            <Search size={14} color="#6b6358" style={{ flexShrink: 0 }} />
+            <Search size={14} color={searchFocused ? DS.gold : DS.dim} style={{
+              flexShrink: 0, transition: `color 0.2s ${DS.ease}`,
+            }} />
             <input
               ref={searchRef}
               placeholder="Search notes, tags..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
+              onFocus={() => setSearchFocused(true)}
+              onBlur={() => setSearchFocused(false)}
               style={{
                 flex: 1, background: 'transparent', border: 'none', outline: 'none',
-                color: '#f0ebe4', fontSize: 13, fontFamily: 'inherit',
+                color: DS.cream, fontSize: 13, fontFamily: 'inherit',
               }}
             />
             {searchQuery && (
@@ -971,50 +1347,70 @@ export function NotesView() {
                 onClick={() => { setSearchQuery(''); searchRef.current?.focus(); }}
                 style={{
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  background: 'rgba(107,99,88,0.2)', border: 'none', borderRadius: 4,
-                  padding: 2, cursor: 'pointer', color: '#6b6358',
+                  background: 'rgba(107,99,88,0.15)', border: 'none', borderRadius: 6,
+                  padding: 3, cursor: 'pointer', color: DS.dim,
+                  transition: `all 0.15s ${DS.ease}`,
                 }}
+                onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(107,99,88,0.25)'; }}
+                onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(107,99,88,0.15)'; }}
               >
                 <X size={12} />
               </button>
             )}
           </div>
 
-          {/* Category tabs with counts */}
+          {/* Category filter pills */}
           <div style={{
-            display: 'flex', gap: 4, overflowX: 'auto', paddingBottom: 2,
+            display: 'flex', gap: 5, overflowX: 'auto', paddingBottom: 2,
           }}>
             {CATEGORIES.map((cat) => {
-              const isActive = activeCategory === cat;
-              const catColor2 = cat === 'All' ? '#d4a574' : (CATEGORY_COLORS[cat] || '#a09888');
+              const isActiveCat = activeCategory === cat;
+              const catColor2 = cat === 'All' ? DS.gold : (CATEGORY_COLORS[cat] || DS.muted);
               const count = categoryCounts[cat] || 0;
               return (
                 <button
                   key={cat}
                   onClick={() => setActiveCategory(cat)}
                   style={{
-                    padding: '4px 10px', borderRadius: 20, whiteSpace: 'nowrap',
-                    fontSize: 11, fontWeight: isActive ? 600 : 400, cursor: 'pointer',
-                    background: isActive ? `${catColor2}18` : 'transparent',
-                    color: isActive ? catColor2 : '#6b6358',
-                    border: isActive ? `1px solid ${catColor2}30` : '1px solid transparent',
-                    fontFamily: 'inherit', transition: 'all 0.15s', flexShrink: 0,
-                    display: 'flex', alignItems: 'center', gap: 4,
+                    padding: '5px 12px', borderRadius: 20, whiteSpace: 'nowrap',
+                    fontSize: 11, fontWeight: isActiveCat ? 600 : 400, cursor: 'pointer',
+                    background: isActiveCat
+                      ? `linear-gradient(135deg, ${catColor2}18, ${catColor2}0a)`
+                      : 'transparent',
+                    color: isActiveCat ? catColor2 : DS.dim,
+                    border: isActiveCat ? `1px solid ${catColor2}30` : '1px solid transparent',
+                    fontFamily: 'inherit',
+                    transition: `all 0.25s ${DS.ease}`,
+                    flexShrink: 0,
+                    display: 'flex', alignItems: 'center', gap: 5,
+                    backdropFilter: isActiveCat ? DS.blur : 'none',
                   }}
                   onMouseEnter={(e) => {
-                    if (!isActive) e.currentTarget.style.color = '#a09888';
+                    if (!isActiveCat) {
+                      e.currentTarget.style.color = DS.muted;
+                      e.currentTarget.style.background = 'rgba(255,255,255,0.02)';
+                    }
                   }}
                   onMouseLeave={(e) => {
-                    if (!isActive) e.currentTarget.style.color = '#6b6358';
+                    if (!isActiveCat) {
+                      e.currentTarget.style.color = DS.dim;
+                      e.currentTarget.style.background = 'transparent';
+                    }
                   }}
                 >
+                  {isActiveCat && cat !== 'All' && (
+                    <span style={{
+                      width: 5, height: 5, borderRadius: '50%', background: catColor2,
+                      boxShadow: `0 0 4px ${catColor2}50`,
+                    }} />
+                  )}
                   {cat}
                   {count > 0 && (
                     <span style={{
-                      fontSize: 9, fontWeight: 700, padding: '0px 5px',
-                      borderRadius: 6,
-                      background: isActive ? `${catColor2}22` : 'rgba(30,38,56,0.4)',
-                      color: isActive ? catColor2 : '#4a443e',
+                      fontSize: 9, fontWeight: 700, padding: '0px 6px',
+                      borderRadius: 8,
+                      background: isActiveCat ? `${catColor2}20` : 'rgba(30,38,56,0.4)',
+                      color: isActiveCat ? catColor2 : DS.faint,
                     }}>
                       {count}
                     </span>
@@ -1027,23 +1423,24 @@ export function NotesView() {
 
         {/* Note count + stats */}
         <div style={{
-          fontSize: 11, color: '#4a443e', padding: '8px 16px',
+          fontSize: 11, color: DS.faint, padding: '9px 18px',
           display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          position: 'relative', zIndex: 1,
         }}>
           <span>
             {filteredNotes.length} note{filteredNotes.length !== 1 ? 's' : ''}
             {activeCategory !== 'All' ? ` in ${activeCategory}` : ''}
           </span>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             {pinnedNotes.length > 0 && (
               <span style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
-                <Pin size={9} color="#d4a574" />
+                <Pin size={9} color={DS.gold} />
                 {pinnedNotes.length}
               </span>
             )}
             {notes.filter(n => n.bookmarked).length > 0 && (
               <span style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
-                <BookmarkCheck size={9} color="#8b5cf6" />
+                <BookmarkCheck size={9} color={DS.purple} />
                 {notes.filter(n => n.bookmarked).length}
               </span>
             )}
@@ -1051,16 +1448,25 @@ export function NotesView() {
         </div>
 
         {/* Note list / grid */}
-        <div style={{
-          flex: 1, overflowY: 'auto', padding: viewMode === 'grid' ? '0 12px 12px' : '0 8px 8px',
+        <div className="scrollbar-autohide" style={{
+          flex: 1, overflowY: 'auto',
+          padding: viewMode === 'grid' ? '0 14px 14px' : '0 8px 8px',
+          position: 'relative', zIndex: 1,
         }}>
           {filteredNotes.length === 0 ? (
             <div style={{
-              textAlign: 'center', padding: '40px 20px', color: '#4a443e',
+              textAlign: 'center', padding: '48px 20px', color: DS.faint,
             }}>
-              <Search size={28} style={{ marginBottom: 8, opacity: 0.3 }} />
-              <div style={{ fontSize: 13, marginBottom: 4 }}>No notes found</div>
-              <div style={{ fontSize: 11, color: '#3a352f' }}>
+              <div style={{
+                width: 56, height: 56, borderRadius: 16, margin: '0 auto 14px',
+                background: DS.glass, border: `1px solid ${DS.glassBorder}`,
+                backdropFilter: DS.blur,
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+              }}>
+                <Search size={24} style={{ opacity: 0.4 }} />
+              </div>
+              <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 6, color: DS.dim }}>No notes found</div>
+              <div style={{ fontSize: 12, color: DS.darker, lineHeight: 1.6 }}>
                 Try adjusting your search or category filter
               </div>
             </div>
@@ -1068,17 +1474,21 @@ export function NotesView() {
             <>
               {/* Pinned section */}
               {pinnedNotes.length > 0 && (
-                <div style={{ marginBottom: 8 }}>
+                <div style={{ marginBottom: 10 }}>
                   <div style={{
-                    fontSize: 10, fontWeight: 600, color: '#d4a574', textTransform: 'uppercase',
-                    letterSpacing: '0.06em', padding: '4px 8px', marginBottom: 4,
-                    display: 'flex', alignItems: 'center', gap: 5,
+                    fontSize: 10, fontWeight: 700, color: DS.gold, textTransform: 'uppercase',
+                    letterSpacing: '0.08em', padding: '5px 10px', marginBottom: 6,
+                    display: 'flex', alignItems: 'center', gap: 6,
                   }}>
-                    <Pin size={10} />
+                    <Pin size={10} style={{ animation: 'nt-pin-glow 2.5s ease-in-out infinite' }} />
                     Pinned
+                    <div style={{
+                      flex: 1, height: 1,
+                      background: `linear-gradient(90deg, ${DS.gold}20, transparent)`,
+                    }} />
                   </div>
                   <div style={viewMode === 'grid' ? {
-                    display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8,
+                    display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10,
                   } : {}}>
                     {pinnedNotes.map((note, i) => renderNoteCard(note, i, true))}
                   </div>
@@ -1090,16 +1500,20 @@ export function NotesView() {
                 <div>
                   {pinnedNotes.length > 0 && (
                     <div style={{
-                      fontSize: 10, fontWeight: 600, color: '#4a443e', textTransform: 'uppercase',
-                      letterSpacing: '0.06em', padding: '4px 8px', marginBottom: 4,
-                      display: 'flex', alignItems: 'center', gap: 5,
+                      fontSize: 10, fontWeight: 700, color: DS.faint, textTransform: 'uppercase',
+                      letterSpacing: '0.08em', padding: '5px 10px', marginBottom: 6,
+                      display: 'flex', alignItems: 'center', gap: 6,
                     }}>
                       <Clock size={10} />
                       Recent
+                      <div style={{
+                        flex: 1, height: 1,
+                        background: `linear-gradient(90deg, ${DS.faint}20, transparent)`,
+                      }} />
                     </div>
                   )}
                   <div style={viewMode === 'grid' ? {
-                    display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8,
+                    display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10,
                   } : {}}>
                     {unpinnedNotes.map((note, i) => renderNoteCard(note, i + pinnedNotes.length, false))}
                   </div>
@@ -1108,100 +1522,179 @@ export function NotesView() {
             </>
           )}
         </div>
+
+        {/* Premium Floating Action Button */}
+        <div style={{
+          position: 'absolute', bottom: 20, right: 20, zIndex: 10,
+        }}>
+          <button
+            onClick={createNote}
+            title="Create new note"
+            style={{
+              width: 48, height: 48, borderRadius: '50%',
+              background: `linear-gradient(135deg, ${DS.gold}, #c49560)`,
+              border: 'none', cursor: 'pointer',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              color: '#0b0d14',
+              boxShadow: `0 4px 20px ${DS.gold}30, 0 0 40px ${DS.gold}10`,
+              transition: `all 0.3s ${DS.ease}`,
+              animation: 'nt-fab-entrance 0.5s cubic-bezier(0.16,1,0.3,1) forwards, nt-fab-pulse 3s ease-in-out 1s infinite',
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.transform = 'scale(1.1)';
+              e.currentTarget.style.boxShadow = `0 6px 30px ${DS.gold}50, 0 0 60px ${DS.gold}20`;
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.transform = 'scale(1)';
+              e.currentTarget.style.boxShadow = `0 4px 20px ${DS.gold}30, 0 0 40px ${DS.gold}10`;
+            }}
+          >
+            <Plus size={22} strokeWidth={2.5} />
+          </button>
+        </div>
       </div>
 
       {/* ═══════════════════════════════════════════════════════════════════ */}
       {/* EDITOR / EMPTY STATE                                              */}
       {/* ═══════════════════════════════════════════════════════════════════ */}
       {selectedNote ? (
-        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', background: '#0b0d14' }}>
+        <div className="card-premium" style={{
+          flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden',
+          background: DS.bg, position: 'relative',
+        }}>
+          {/* Subtle ambient glow behind editor */}
+          <div style={{
+            position: 'absolute', top: -50, right: -50, width: 300, height: 300,
+            background: `radial-gradient(circle, ${CATEGORY_COLORS[selectedNote.category] || DS.muted}06 0%, transparent 70%)`,
+            pointerEvents: 'none',
+          }} />
+
           {/* Editor Header */}
-          <div style={{ padding: '16px 24px 12px', borderBottom: '1px solid #1e2638' }}>
+          <div style={{
+            padding: '18px 28px 14px',
+            borderBottom: `1px solid ${DS.line}`,
+            position: 'relative', zIndex: 1,
+            background: `linear-gradient(180deg, rgba(15,18,25,0.5) 0%, transparent 100%)`,
+          }}>
+            <div className="noise-overlay" style={{ position: 'absolute', inset: 0, borderRadius: 'inherit', pointerEvents: 'none' }} />
+            <div className="dot-pattern" style={{ position: 'absolute', inset: 0, borderRadius: 'inherit', pointerEvents: 'none', opacity: 0.3 }} />
             {/* Title row + action buttons */}
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
               <input
                 value={selectedNote.title}
                 onChange={(e) => updateField(selectedNote.id, 'title', e.target.value)}
                 placeholder="Note title..."
                 style={{
                   flex: 1, background: 'transparent', border: 'none', outline: 'none',
-                  color: '#f0ebe4', fontSize: 22, fontWeight: 700, marginRight: 12, fontFamily: 'inherit',
-                  letterSpacing: '-0.01em',
+                  color: DS.cream, fontSize: 24, fontWeight: 700, marginRight: 16, fontFamily: 'inherit',
+                  letterSpacing: '-0.02em',
                 }}
               />
               <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
                 <button
                   onClick={() => toggleBookmark(selectedNote.id)}
                   title={selectedNote.bookmarked ? 'Remove bookmark' : 'Bookmark'}
-                  style={iconBtn(selectedNote.bookmarked)}
+                  style={{
+                    ...iconBtn(selectedNote.bookmarked),
+                    transition: `all 0.25s ${DS.ease}`,
+                  }}
+                  onMouseEnter={(e) => { if (!selectedNote.bookmarked) e.currentTarget.style.color = DS.purple; }}
+                  onMouseLeave={(e) => { if (!selectedNote.bookmarked) e.currentTarget.style.color = DS.dim; }}
                 >
                   {selectedNote.bookmarked ? (
-                    <BookmarkCheck size={15} style={{ color: '#8b5cf6' }} />
+                    <BookmarkCheck size={16} style={{ color: DS.purple, filter: `drop-shadow(0 0 4px ${DS.purple}40)` }} />
                   ) : (
-                    <Bookmark size={15} />
+                    <Bookmark size={16} />
                   )}
                 </button>
                 <button
                   onClick={() => togglePin(selectedNote.id)}
                   title={selectedNote.pinned ? 'Unpin' : 'Pin'}
-                  style={iconBtn(selectedNote.pinned)}
+                  style={{
+                    ...iconBtn(selectedNote.pinned),
+                    transition: `all 0.25s ${DS.ease}`,
+                  }}
+                  onMouseEnter={(e) => { if (!selectedNote.pinned) e.currentTarget.style.color = DS.gold; }}
+                  onMouseLeave={(e) => { if (!selectedNote.pinned) e.currentTarget.style.color = DS.dim; }}
                 >
-                  {selectedNote.pinned ? <PinOff size={15} /> : <Pin size={15} />}
+                  {selectedNote.pinned ? (
+                    <PinOff size={16} style={{ color: DS.gold }} />
+                  ) : (
+                    <Pin size={16} />
+                  )}
                 </button>
                 <button
                   onClick={() => setPreviewMode(!previewMode)}
                   title={previewMode ? 'Edit' : 'Preview'}
-                  style={iconBtn(previewMode)}
+                  style={{
+                    ...iconBtn(previewMode),
+                    transition: `all 0.25s ${DS.ease}`,
+                  }}
+                  onMouseEnter={(e) => { if (!previewMode) e.currentTarget.style.color = DS.green; }}
+                  onMouseLeave={(e) => { if (!previewMode) e.currentTarget.style.color = DS.dim; }}
                 >
-                  {previewMode ? <Edit3 size={15} /> : <Eye size={15} />}
+                  {previewMode ? <Edit3 size={16} /> : <Eye size={16} />}
                 </button>
                 <button
                   onClick={() => copyToClipboard(selectedNote.content)}
                   title="Copy to clipboard"
-                  style={iconBtn(copied)}
+                  style={{
+                    ...iconBtn(copied),
+                    transition: `all 0.25s ${DS.ease}`,
+                  }}
                 >
-                  {copied ? <Check size={15} color="#6b8f71" /> : <Copy size={15} />}
+                  {copied ? <Check size={16} color={DS.green} /> : <Copy size={16} />}
                 </button>
+                <div style={{ width: 1, height: 20, background: DS.line, margin: '0 3px' }} />
                 <button
                   onClick={() => deleteNote(selectedNote.id)}
                   title="Delete note"
                   style={{
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    padding: 6, borderRadius: 6, background: 'transparent',
-                    border: '1px solid transparent', color: '#6b6358', cursor: 'pointer',
-                    transition: 'all 0.15s',
+                    padding: 7, borderRadius: 8, background: 'transparent',
+                    border: '1px solid transparent', color: DS.dim, cursor: 'pointer',
+                    transition: `all 0.25s ${DS.ease}`,
                   }}
-                  onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.color = '#e07a5f'; }}
-                  onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.color = '#6b6358'; }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.color = '#e07a5f';
+                    e.currentTarget.style.background = 'rgba(224,122,95,0.08)';
+                    e.currentTarget.style.borderColor = 'rgba(224,122,95,0.15)';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.color = DS.dim;
+                    e.currentTarget.style.background = 'transparent';
+                    e.currentTarget.style.borderColor = 'transparent';
+                  }}
                 >
-                  <Trash2 size={15} />
+                  <Trash2 size={16} />
                 </button>
               </div>
             </div>
 
             {/* Meta row: category + date badges */}
             <div style={{
-              display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: '#6b6358', marginBottom: 10,
+              display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: DS.dim, marginBottom: 12,
               flexWrap: 'wrap',
             }}>
               {/* Category selector with color indicator */}
               <div style={{
                 display: 'flex', alignItems: 'center', gap: 6,
-                padding: '3px 10px', borderRadius: 6,
-                background: `${CATEGORY_COLORS[selectedNote.category] || '#a09888'}12`,
-                border: `1px solid ${CATEGORY_COLORS[selectedNote.category] || '#a09888'}25`,
+                padding: '4px 12px', borderRadius: 8,
+                background: `${CATEGORY_COLORS[selectedNote.category] || DS.muted}10`,
+                border: `1px solid ${CATEGORY_COLORS[selectedNote.category] || DS.muted}20`,
+                backdropFilter: DS.blur,
               }}>
                 <div style={{
                   width: 8, height: 8, borderRadius: '50%',
-                  background: CATEGORY_COLORS[selectedNote.category] || '#a09888',
-                  boxShadow: `0 0 6px ${CATEGORY_COLORS[selectedNote.category] || '#a09888'}40`,
+                  background: CATEGORY_COLORS[selectedNote.category] || DS.muted,
+                  boxShadow: `0 0 8px ${CATEGORY_COLORS[selectedNote.category] || DS.muted}40`,
                 }} />
                 <select
                   value={selectedNote.category}
                   onChange={(e) => updateField(selectedNote.id, 'category', e.target.value as Exclude<Category, 'All'>)}
                   style={{
                     background: 'transparent', border: 'none',
-                    color: CATEGORY_COLORS[selectedNote.category] || '#a09888',
+                    color: CATEGORY_COLORS[selectedNote.category] || DS.muted,
                     fontSize: 11, outline: 'none', cursor: 'pointer',
                     fontFamily: 'inherit', fontWeight: 600,
                   }}
@@ -1216,37 +1709,39 @@ export function NotesView() {
                 label="Modified"
                 value={formatRelativeDate(selectedNote.updatedAt)}
                 icon={Calendar}
-                color="#6b6358"
+                color={DS.dim}
               />
               <DateBadge
                 label="Created"
                 value={formatDate(selectedNote.createdAt)}
                 icon={Clock}
-                color="#4a443e"
+                color={DS.faint}
               />
             </div>
 
             {/* Tags row with colored pills */}
             <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', position: 'relative' }}>
-              <Tag size={12} color="#6b6358" />
+              <Tag size={12} color={DS.dim} />
               {selectedNote.tags.map((tag) => {
                 const tc = getTagColor(tag);
                 return (
                   <span key={tag} style={{
                     display: 'flex', alignItems: 'center', gap: 4, fontSize: 11,
-                    padding: '3px 10px', borderRadius: 20,
-                    background: `${tc}15`, color: tc,
-                    fontWeight: 500, transition: 'all 0.15s',
+                    padding: '3px 11px', borderRadius: 20,
+                    background: `${tc}12`, color: tc,
+                    border: `1px solid ${tc}15`,
+                    fontWeight: 500, transition: `all 0.2s ${DS.ease}`,
                   }}>
                     {tag}
                     <span
                       onClick={() => removeTag(selectedNote.id, tag)}
                       style={{
                         cursor: 'pointer', display: 'flex', alignItems: 'center',
-                        opacity: 0.6, marginLeft: 2,
+                        opacity: 0.5, marginLeft: 2,
+                        transition: `opacity 0.15s ${DS.ease}`,
                       }}
                       onMouseEnter={(e) => { (e.currentTarget as HTMLSpanElement).style.opacity = '1'; }}
-                      onMouseLeave={(e) => { (e.currentTarget as HTMLSpanElement).style.opacity = '0.6'; }}
+                      onMouseLeave={(e) => { (e.currentTarget as HTMLSpanElement).style.opacity = '0.5'; }}
                     >
                       <X size={10} />
                     </span>
@@ -1267,19 +1762,24 @@ export function NotesView() {
                     }
                   }}
                   style={{
-                    width: 110, background: 'transparent', border: '1px solid #1e2638',
-                    borderRadius: 20, padding: '3px 10px', fontSize: 11, color: '#f0ebe4',
-                    outline: 'none', fontFamily: 'inherit', transition: 'border-color 0.15s',
+                    width: 110, background: 'transparent',
+                    border: `1px solid ${DS.glassBorder}`,
+                    borderRadius: 20, padding: '3px 11px', fontSize: 11, color: DS.cream,
+                    outline: 'none', fontFamily: 'inherit',
+                    transition: `all 0.2s ${DS.ease}`,
                   }}
-                  onMouseEnter={(e) => { e.currentTarget.style.borderColor = '#2e3a4e'; }}
-                  onMouseLeave={(e) => { if (document.activeElement !== e.currentTarget) e.currentTarget.style.borderColor = '#1e2638'; }}
+                  onMouseEnter={(e) => { e.currentTarget.style.borderColor = `${DS.gold}25`; }}
+                  onMouseLeave={(e) => { if (document.activeElement !== e.currentTarget) e.currentTarget.style.borderColor = DS.glassBorder; }}
                 />
                 {showTagSuggestions && filteredTagSuggestions.length > 0 && (
-                  <div style={{
-                    position: 'absolute', top: '100%', left: 0, marginTop: 4,
-                    background: '#131720', border: '1px solid #1e2638', borderRadius: 8,
-                    zIndex: 20, minWidth: 160, boxShadow: '0 8px 24px rgba(0,0,0,0.5)',
-                    maxHeight: 180, overflowY: 'auto', padding: 4,
+                  <div className="scrollbar-autohide" style={{
+                    position: 'absolute', top: '100%', left: 0, marginTop: 6,
+                    background: DS.glass, backdropFilter: DS.blur,
+                    border: `1px solid ${DS.glassBorder}`, borderRadius: DS.radius,
+                    zIndex: 20, minWidth: 180,
+                    boxShadow: '0 12px 40px rgba(0,0,0,0.5)',
+                    maxHeight: 200, overflowY: 'auto', padding: 5,
+                    animation: 'nt-slide-down 0.2s ease-out forwards',
                   }}>
                     {filteredTagSuggestions.map((sug) => {
                       const sc = getTagColor(sug);
@@ -1288,21 +1788,22 @@ export function NotesView() {
                           key={sug}
                           onMouseDown={(e) => { e.preventDefault(); addTag(selectedNote.id, sug); }}
                           style={{
-                            padding: '6px 10px', fontSize: 12, color: '#a09888', cursor: 'pointer',
-                            borderRadius: 4, display: 'flex', alignItems: 'center', gap: 6,
-                            transition: 'all 0.1s',
+                            padding: '7px 12px', fontSize: 12, color: DS.muted, cursor: 'pointer',
+                            borderRadius: 8, display: 'flex', alignItems: 'center', gap: 8,
+                            transition: `all 0.15s ${DS.ease}`,
                           }}
                           onMouseEnter={(e) => {
-                            e.currentTarget.style.background = `${sc}12`;
+                            e.currentTarget.style.background = `${sc}10`;
                             e.currentTarget.style.color = sc;
                           }}
                           onMouseLeave={(e) => {
                             e.currentTarget.style.background = 'transparent';
-                            e.currentTarget.style.color = '#a09888';
+                            e.currentTarget.style.color = DS.muted;
                           }}
                         >
                           <span style={{
                             width: 6, height: 6, borderRadius: '50%', background: sc, flexShrink: 0,
+                            boxShadow: `0 0 4px ${sc}40`,
                           }} />
                           {sug}
                         </div>
@@ -1315,7 +1816,7 @@ export function NotesView() {
           </div>
 
           {/* Editor Body */}
-          <div style={{ flex: 1, padding: '12px 28px 20px', overflow: 'auto' }}>
+          <div className="scrollbar-autohide" style={{ flex: 1, padding: '14px 32px 24px', overflow: 'auto', position: 'relative', zIndex: 1 }}>
             {previewMode ? (
               <div
                 style={{ lineHeight: 1.7, fontSize: 14, maxWidth: 720, paddingTop: 8 }}
@@ -1332,7 +1833,7 @@ export function NotesView() {
                   placeholder="Start writing... (supports basic markdown: # headers, **bold**, *italic*, - lists)"
                   style={{
                     width: '100%', flex: 1, background: 'transparent', border: 'none',
-                    outline: 'none', color: '#a09888', fontSize: 14, lineHeight: 1.8,
+                    outline: 'none', color: DS.muted, fontSize: 14, lineHeight: 1.8,
                     resize: 'none', fontFamily: '"SF Mono", "Fira Code", "JetBrains Mono", monospace',
                     letterSpacing: '-0.01em',
                   }}
@@ -1343,34 +1844,46 @@ export function NotesView() {
 
           {/* Editor Footer */}
           <div style={{
-            padding: '8px 24px', borderTop: '1px solid #1e2638',
+            padding: '10px 28px',
+            borderTop: `1px solid ${DS.line}`,
             display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-            fontSize: 12, color: '#4a443e',
+            fontSize: 12, color: DS.faint,
+            background: `linear-gradient(0deg, rgba(15,18,25,0.3) 0%, transparent 100%)`,
           }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-              <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+              <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
                 <Hash size={11} />
                 {getWordCount(selectedNote.content)} words
               </span>
-              <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+              <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
                 <AlignLeft size={11} />
                 {getCharCount(selectedNote.content)} chars
               </span>
-              <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+              <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
                 <BookOpen size={11} />
                 {getReadingTime(getWordCount(selectedNote.content))}
               </span>
             </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
               <CharCountRing count={getCharCount(selectedNote.content)} />
               <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
                 {previewMode ? (
-                  <span style={{ display: 'flex', alignItems: 'center', gap: 4, color: '#6b8f71' }}>
+                  <span style={{
+                    display: 'flex', alignItems: 'center', gap: 5,
+                    color: DS.green, fontWeight: 500,
+                    padding: '3px 10px', borderRadius: 8,
+                    background: `${DS.green}10`,
+                  }}>
                     <Eye size={11} />
                     Preview
                   </span>
                 ) : (
-                  <span style={{ display: 'flex', alignItems: 'center', gap: 4, color: '#d4a574' }}>
+                  <span style={{
+                    display: 'flex', alignItems: 'center', gap: 5,
+                    color: DS.gold, fontWeight: 500,
+                    padding: '3px 10px', borderRadius: 8,
+                    background: `${DS.gold}10`,
+                  }}>
                     <Edit3 size={11} />
                     Editing
                   </span>
@@ -1380,43 +1893,63 @@ export function NotesView() {
           </div>
         </div>
       ) : (
-        /* ─── Empty State with Illustration ──────────────────────────────── */
+        /* ─── Empty State ────────────────────────────────────────────────── */
         <div style={{
           flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center',
-          justifyContent: 'center', color: '#4a443e', gap: 8, padding: 40, textAlign: 'center',
+          justifyContent: 'center', color: DS.faint, gap: 8, padding: 40, textAlign: 'center',
+          position: 'relative', overflow: 'hidden',
         }}>
+          {/* Ambient background glow */}
+          <div style={{
+            position: 'absolute', top: '30%', left: '50%', transform: 'translate(-50%, -50%)',
+            width: 400, height: 400,
+            background: `radial-gradient(circle, ${DS.gold}04 0%, ${DS.purple}02 40%, transparent 70%)`,
+            pointerEvents: 'none',
+          }} />
+
           <EmptyStateIllustration />
-          <div style={{ fontSize: 20, fontWeight: 700, color: '#6b6358', marginTop: 8 }}>
+          <div style={{
+            fontSize: 22, fontWeight: 700, color: DS.dim, marginTop: 12,
+            letterSpacing: '-0.02em',
+          }}>
             Capture Your Thoughts
           </div>
-          <div style={{ fontSize: 13, color: '#4a443e', maxWidth: 340, lineHeight: 1.7 }}>
+          <div style={{
+            fontSize: 13, color: DS.faint, maxWidth: 360, lineHeight: 1.7,
+          }}>
             Select a note from the sidebar to view and edit, or create a new one to start capturing your ideas, plans, and reflections.
           </div>
           <button
             onClick={createNote}
             style={{
-              marginTop: 12, padding: '10px 24px', background: 'rgba(212,165,116,0.1)',
-              border: '1px solid rgba(212,165,116,0.25)', borderRadius: 10,
-              color: '#d4a574', fontSize: 14, fontWeight: 600, cursor: 'pointer',
+              marginTop: 16, padding: '12px 28px',
+              background: `linear-gradient(135deg, ${DS.gold}12, ${DS.gold}06)`,
+              border: `1px solid ${DS.gold}25`,
+              borderRadius: DS.radius,
+              color: DS.gold, fontSize: 14, fontWeight: 600, cursor: 'pointer',
               display: 'flex', alignItems: 'center', gap: 8, fontFamily: 'inherit',
-              transition: 'all 0.15s',
+              transition: `all 0.3s ${DS.ease}`,
+              backdropFilter: DS.blur,
+              boxShadow: `0 4px 16px ${DS.gold}08`,
             }}
             onMouseEnter={(e) => {
-              e.currentTarget.style.background = 'rgba(212,165,116,0.18)';
-              e.currentTarget.style.transform = 'translateY(-1px)';
+              e.currentTarget.style.background = `linear-gradient(135deg, ${DS.gold}20, ${DS.gold}10)`;
+              e.currentTarget.style.transform = 'translateY(-2px)';
+              e.currentTarget.style.boxShadow = `0 8px 24px ${DS.gold}15`;
             }}
             onMouseLeave={(e) => {
-              e.currentTarget.style.background = 'rgba(212,165,116,0.1)';
+              e.currentTarget.style.background = `linear-gradient(135deg, ${DS.gold}12, ${DS.gold}06)`;
               e.currentTarget.style.transform = 'translateY(0)';
+              e.currentTarget.style.boxShadow = `0 4px 16px ${DS.gold}08`;
             }}
           >
             <Plus size={16} />
             Create New Note
           </button>
           <div style={{
-            marginTop: 16, fontSize: 11, color: '#3a352f', display: 'flex', alignItems: 'center', gap: 6,
+            marginTop: 20, fontSize: 11, color: DS.darker, display: 'flex', alignItems: 'center', gap: 6,
           }}>
-            <Sparkles size={12} color="#d4a574" opacity={0.4} />
+            <Sparkles size={12} color={DS.gold} opacity={0.4} />
             Supports Markdown formatting
           </div>
         </div>

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import {
   Activity,
   ChevronDown,
@@ -20,6 +20,12 @@ import {
   Users,
   Zap,
   Calendar,
+  Clock,
+  ArrowUpRight,
+  ArrowDownRight,
+  Sparkles,
+  BarChart3,
+  Shield,
 } from 'lucide-react';
 import { teamMembers } from '@/lib/data';
 
@@ -91,37 +97,121 @@ const statusBg = (status: CommitmentStatus) => {
   }
 };
 
-// ── Keyframe styles injected once ────────────────────────
+/** Days between a date string and today. Negative = overdue. */
+const daysUntil = (dateStr: string): number => {
+  const today = new Date(todayStr() + 'T12:00:00');
+  const target = new Date(dateStr + 'T12:00:00');
+  return Math.round((target.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+};
+
+// ── Scoped keyframe styles injected once ────────────────────
 
 const styleId = 'accountability-keyframes';
 if (typeof document !== 'undefined' && !document.getElementById(styleId)) {
   const style = document.createElement('style');
   style.id = styleId;
   style.textContent = `
-    @keyframes flame-dance {
-      0%, 100% { transform: scaleY(1) translateY(0); }
-      25% { transform: scaleY(1.08) translateY(-1px); }
-      50% { transform: scaleY(0.95) translateY(1px); }
-      75% { transform: scaleY(1.05) translateY(-0.5px); }
+    @keyframes acc-flame-dance {
+      0%, 100% { transform: scaleY(1) translateY(0) rotate(0deg); }
+      20% { transform: scaleY(1.1) translateY(-1.5px) rotate(-2deg); }
+      40% { transform: scaleY(0.92) translateY(1px) rotate(1deg); }
+      60% { transform: scaleY(1.06) translateY(-1px) rotate(-1deg); }
+      80% { transform: scaleY(0.97) translateY(0.5px) rotate(0.5deg); }
     }
-    @keyframes pulse-glow {
-      0%, 100% { opacity: 0.5; }
+    @keyframes acc-pulse-glow {
+      0%, 100% { opacity: 0.4; }
       50% { opacity: 1; }
     }
-    @keyframes ring-in {
-      from { stroke-dashoffset: var(--circ); }
+    @keyframes acc-ring-fill {
+      from { stroke-dashoffset: var(--acc-circ); }
     }
-    @keyframes heat-cell-in {
-      from { opacity: 0; transform: scale(0); }
+    @keyframes acc-heat-cell-in {
+      from { opacity: 0; transform: scale(0.3); }
       to { opacity: 1; transform: scale(1); }
     }
-    @keyframes stat-count-up {
-      from { opacity: 0; transform: translateY(8px); }
+    @keyframes acc-stat-count-up {
+      from { opacity: 0; transform: translateY(10px) scale(0.95); }
+      to { opacity: 1; transform: translateY(0) scale(1); }
+    }
+    @keyframes acc-stagger-in {
+      from { opacity: 0; transform: translateY(16px); }
       to { opacity: 1; transform: translateY(0); }
+    }
+    @keyframes acc-slide-up {
+      from { opacity: 0; transform: translateY(24px) scale(0.98); }
+      to { opacity: 1; transform: translateY(0) scale(1); }
+    }
+    @keyframes acc-glow-pulse {
+      0%, 100% { box-shadow: 0 0 0 0 rgba(212,165,116,0); }
+      50% { box-shadow: 0 0 20px 2px rgba(212,165,116,0.15); }
+    }
+    @keyframes acc-shimmer {
+      0% { background-position: -200% center; }
+      100% { background-position: 200% center; }
+    }
+    @keyframes acc-rank-bounce {
+      0% { transform: scale(1); }
+      50% { transform: scale(1.15); }
+      100% { transform: scale(1); }
+    }
+    @keyframes acc-progress-fill {
+      from { width: 0%; }
+    }
+    @keyframes acc-ember-float {
+      0% { opacity: 0; transform: translateY(0) scale(0.5); }
+      30% { opacity: 1; }
+      100% { opacity: 0; transform: translateY(-20px) scale(0); }
+    }
+    @keyframes acc-number-pop {
+      0% { transform: scale(0.8); opacity: 0; }
+      60% { transform: scale(1.05); }
+      100% { transform: scale(1); opacity: 1; }
+    }
+    @keyframes acc-card-hover-glow {
+      0% { opacity: 0; }
+      100% { opacity: 1; }
+    }
+    @keyframes acc-bar-grow {
+      from { transform: scaleY(0); }
+      to { transform: scaleY(1); }
+    }
+    @keyframes acc-sparkle-rotate {
+      0% { transform: rotate(0deg) scale(1); }
+      50% { transform: rotate(180deg) scale(1.2); }
+      100% { transform: rotate(360deg) scale(1); }
     }
   `;
   document.head.appendChild(style);
 }
+
+// ── Design tokens ──────────────────────────────────────────
+
+const GLASS = {
+  bg: 'rgba(19,23,32,0.7)',
+  border: 'rgba(212,165,116,0.08)',
+  borderHover: 'rgba(212,165,116,0.18)',
+  blur: 'blur(20px)',
+} as const;
+
+const EASE = 'cubic-bezier(0.16,1,0.3,1)';
+
+const COLORS = {
+  gold: '#d4a574',
+  purple: '#8b5cf6',
+  green: '#6b8f71',
+  cream: '#f0ebe4',
+  muted: '#a09888',
+  dimmed: '#6b6358',
+  bg: '#0b0d14',
+  surface: '#131720',
+  surfaceAlt: '#0f1219',
+  border: '#1e2638',
+  borderHover: '#2a3550',
+  amber: '#e8b44c',
+  red: '#e06060',
+  redDark: '#c04040',
+  greenDark: '#4a6f50',
+} as const;
 
 // ── SVG Score Ring ─────────────────────────────────────────
 
@@ -131,36 +221,63 @@ function ScoreRing({ score, size = 140, strokeWidth = 10, label }: { score: numb
   const offset = circumference - (score / 100) * circumference;
   const center = size / 2;
 
-  const color = score >= 80 ? '#6b8f71' : score >= 50 ? '#e8b44c' : score > 0 ? '#e06060' : '#262e3e';
-  const glowColor = score >= 80 ? 'rgba(107,143,113,0.3)' : score >= 50 ? 'rgba(232,180,76,0.3)' : 'rgba(224,96,96,0.2)';
+  const color = score >= 80 ? COLORS.green : score >= 50 ? COLORS.amber : score > 0 ? COLORS.red : '#262e3e';
+  const glowColor = score >= 80 ? 'rgba(107,143,113,0.35)' : score >= 50 ? 'rgba(232,180,76,0.35)' : 'rgba(224,96,96,0.25)';
+  const secondaryColor = score >= 80 ? COLORS.purple : score >= 50 ? COLORS.gold : '#8b5cf6';
 
   return (
     <div style={{ position: 'relative', width: size, height: size }}>
       <svg width={size} height={size} style={{ transform: 'rotate(-90deg)' }}>
+        <defs>
+          <linearGradient id={`acc-ring-grad-${score}`} x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stopColor={color} />
+            <stop offset="100%" stopColor={secondaryColor} />
+          </linearGradient>
+        </defs>
         {/* Background track */}
         <circle
           cx={center}
           cy={center}
           r={radius}
           fill="none"
-          stroke="#1e2638"
+          stroke={COLORS.border}
           strokeWidth={strokeWidth}
+          opacity={0.6}
         />
+        {/* Subtle tick marks */}
+        {[0, 25, 50, 75].map((tick) => {
+          const tickOffset = circumference - (tick / 100) * circumference;
+          return (
+            <circle
+              key={tick}
+              cx={center}
+              cy={center}
+              r={radius}
+              fill="none"
+              stroke="rgba(160,152,136,0.15)"
+              strokeWidth={strokeWidth + 2}
+              strokeDasharray={`2 ${circumference - 2}`}
+              strokeDashoffset={tickOffset}
+            />
+          );
+        })}
         {/* Score arc */}
         <circle
           cx={center}
           cy={center}
           r={radius}
           fill="none"
-          stroke={color}
+          stroke={`url(#acc-ring-grad-${score})`}
           strokeWidth={strokeWidth}
           strokeLinecap="round"
           strokeDasharray={circumference}
           strokeDashoffset={offset}
           style={{
-            transition: 'stroke-dashoffset 1s ease-out, stroke 0.5s ease',
-            filter: score > 0 ? `drop-shadow(0 0 6px ${glowColor})` : 'none',
-          }}
+            '--acc-circ': `${circumference}`,
+            animation: `acc-ring-fill 1.2s ${EASE} forwards`,
+            filter: score > 0 ? `drop-shadow(0 0 8px ${glowColor})` : 'none',
+            transition: `stroke-dashoffset 1s ${EASE}, stroke 0.5s ease`,
+          } as React.CSSProperties}
         />
       </svg>
       <div style={{
@@ -171,11 +288,25 @@ function ScoreRing({ score, size = 140, strokeWidth = 10, label }: { score: numb
         alignItems: 'center',
         justifyContent: 'center',
       }}>
-        <span style={{ fontSize: size * 0.26, fontWeight: 800, color: '#f0ebe4', lineHeight: 1, fontVariantNumeric: 'tabular-nums' }}>
+        <span style={{
+          fontSize: size * 0.28,
+          fontWeight: 800,
+          color: COLORS.cream,
+          lineHeight: 1,
+          fontVariantNumeric: 'tabular-nums',
+          animation: `acc-number-pop 0.6s ${EASE} 0.4s both`,
+        }}>
           {score}%
         </span>
         {label && (
-          <span style={{ fontSize: 10, color: '#6b6358', marginTop: 4, textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: 600 }}>
+          <span style={{
+            fontSize: 10,
+            color: COLORS.dimmed,
+            marginTop: 4,
+            textTransform: 'uppercase',
+            letterSpacing: '0.1em',
+            fontWeight: 600,
+          }}>
             {label}
           </span>
         )}
@@ -191,17 +322,20 @@ function MiniProgressRing({ score, size = 44, strokeWidth = 4 }: { score: number
   const circumference = 2 * Math.PI * radius;
   const offset = circumference - (score / 100) * circumference;
   const center = size / 2;
-  const color = score >= 80 ? '#6b8f71' : score >= 50 ? '#e8b44c' : score > 0 ? '#e06060' : '#262e3e';
+  const color = score >= 80 ? COLORS.green : score >= 50 ? COLORS.amber : score > 0 ? COLORS.red : '#262e3e';
 
   return (
     <div style={{ position: 'relative', width: size, height: size, flexShrink: 0 }}>
       <svg width={size} height={size} style={{ transform: 'rotate(-90deg)' }}>
-        <circle cx={center} cy={center} r={radius} fill="none" stroke="#1e2638" strokeWidth={strokeWidth} />
+        <circle cx={center} cy={center} r={radius} fill="none" stroke={COLORS.border} strokeWidth={strokeWidth} opacity={0.5} />
         <circle
           cx={center} cy={center} r={radius}
           fill="none" stroke={color} strokeWidth={strokeWidth} strokeLinecap="round"
           strokeDasharray={circumference} strokeDashoffset={offset}
-          style={{ transition: 'stroke-dashoffset 0.8s ease-out' }}
+          style={{
+            transition: `stroke-dashoffset 0.8s ${EASE}`,
+            filter: score > 0 ? `drop-shadow(0 0 4px ${color}40)` : 'none',
+          }}
         />
       </svg>
       <div style={{
@@ -217,47 +351,77 @@ function MiniProgressRing({ score, size = 44, strokeWidth = 4 }: { score: number
 // ── Animated Flame SVG ─────────────────────────────────────
 
 function AnimatedFlame({ size = 26, active = true }: { size?: number; active?: boolean }) {
+  const uniqueId = useMemo(() => `acc-flame-${Math.random().toString(36).slice(2, 8)}`, []);
+
   return (
     <svg
       width={size} height={size} viewBox="0 0 24 24" fill="none"
-      style={{ animation: active ? 'flame-dance 1.5s ease-in-out infinite' : 'none' }}
+      style={{
+        animation: active ? `acc-flame-dance 1.5s ease-in-out infinite` : 'none',
+        filter: active ? 'drop-shadow(0 0 4px rgba(232,180,76,0.4))' : 'none',
+      }}
     >
       <defs>
         {active && (
-          <filter id="flame-glow-v2">
+          <filter id={`${uniqueId}-glow`}>
             <feGaussianBlur stdDeviation="2" result="blur" />
             <feMerge><feMergeNode in="blur" /><feMergeNode in="SourceGraphic" /></feMerge>
           </filter>
         )}
-        <linearGradient id="flame-grad-v2" x1="0" y1="1" x2="0" y2="0">
+        <linearGradient id={`${uniqueId}-grad`} x1="0" y1="1" x2="0" y2="0">
           <stop offset="0%" stopColor={active ? '#e06060' : '#3a3a3a'} />
-          <stop offset="50%" stopColor={active ? '#e8b44c' : '#4a4a4a'} />
-          <stop offset="100%" stopColor={active ? '#f0c060' : '#555'} />
+          <stop offset="40%" stopColor={active ? '#e8b44c' : '#4a4a4a'} />
+          <stop offset="80%" stopColor={active ? '#f0c060' : '#555'} />
+          <stop offset="100%" stopColor={active ? '#ffe08a' : '#555'} />
         </linearGradient>
       </defs>
       <path
         d="M12 2C12 2 8 6 8 10C8 11.5 8.5 12.8 9.4 13.8C8.5 13.3 8 12.2 8 11C5.5 13 4 16 4 18C4 21.3 7.6 24 12 24C16.4 24 20 21.3 20 18C20 12 12 2 12 2Z"
-        fill="url(#flame-grad-v2)"
-        filter={active ? 'url(#flame-glow-v2)' : undefined}
+        fill={`url(#${uniqueId}-grad)`}
+        filter={active ? `url(#${uniqueId}-glow)` : undefined}
       />
       {active && (
         <path
           d="M12 24C14.2 24 16 22 16 19.5C16 17 12 12 12 12C12 12 8 17 8 19.5C8 22 9.8 24 12 24Z"
-          fill="#f0c060" opacity="0.7"
+          fill="#ffe08a" opacity="0.75"
         />
       )}
     </svg>
   );
 }
 
+// ── Ember particles (floating sparks) ──────────────────────
+
+function EmberParticles({ count = 3 }: { count?: number }) {
+  return (
+    <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none', overflow: 'hidden' }}>
+      {Array.from({ length: count }).map((_, i) => (
+        <div
+          key={i}
+          style={{
+            position: 'absolute',
+            bottom: '20%',
+            left: `${25 + i * 25}%`,
+            width: 3,
+            height: 3,
+            borderRadius: '50%',
+            backgroundColor: COLORS.amber,
+            animation: `acc-ember-float ${1.5 + i * 0.4}s ease-out ${i * 0.3}s infinite`,
+            opacity: 0,
+          }}
+        />
+      ))}
+    </div>
+  );
+}
+
 // ── SVG Heat Calendar ──────────────────────────────────────
 
 function HeatCalendar({ memberData, weeksBack = 8 }: { memberData: { entries: DayEntry[] } | undefined; weeksBack?: number }) {
-  const cellSize = 14;
+  const cellSize = 15;
   const cellGap = 3;
   const labelWidth = 28;
 
-  // Generate dates for past N weeks
   const allWeeks: string[][] = [];
   for (let w = -(weeksBack - 1); w <= 0; w++) {
     allWeeks.push(getWeekDates(w));
@@ -268,15 +432,15 @@ function HeatCalendar({ memberData, weeksBack = 8 }: { memberData: { entries: Da
     const entry = memberData?.entries.find((e) => e.date === dateStr);
     const rate = getHitRate(entry);
     if (!entry || entry.commitments.length === 0) return '#1c2230';
-    if (rate === 100) return '#6b8f71';
+    if (rate === 100) return COLORS.green;
     if (rate >= 75) return 'rgba(107,143,113,0.6)';
-    if (rate >= 50) return '#e8b44c';
+    if (rate >= 50) return COLORS.amber;
     if (rate >= 25) return 'rgba(232,180,76,0.5)';
-    return '#e06060';
+    return COLORS.red;
   };
 
   const svgWidth = labelWidth + allWeeks.length * (cellSize + cellGap);
-  const svgHeight = 7 * (cellSize + cellGap) + 20; // +20 for month labels
+  const svgHeight = 7 * (cellSize + cellGap) + 20;
 
   return (
     <svg width={svgWidth} height={svgHeight} style={{ overflow: 'visible' }}>
@@ -286,7 +450,7 @@ function HeatCalendar({ memberData, weeksBack = 8 }: { memberData: { entries: Da
           key={`day-${i}`}
           x={labelWidth - 6}
           y={20 + i * (cellSize + cellGap) + cellSize / 2 + 3}
-          fill="#6b6358"
+          fill={COLORS.dimmed}
           fontSize={9}
           textAnchor="end"
           fontFamily="inherit"
@@ -296,7 +460,6 @@ function HeatCalendar({ memberData, weeksBack = 8 }: { memberData: { entries: Da
       ))}
       {/* Week columns */}
       {allWeeks.map((week, wIdx) => {
-        // Month label for first week or when month changes
         const firstDate = new Date(week[0] + 'T12:00:00');
         const showMonth = wIdx === 0 || firstDate.getDate() <= 7;
         return (
@@ -305,7 +468,7 @@ function HeatCalendar({ memberData, weeksBack = 8 }: { memberData: { entries: Da
               <text
                 x={labelWidth + wIdx * (cellSize + cellGap)}
                 y={10}
-                fill="#6b6358"
+                fill={COLORS.dimmed}
                 fontSize={9}
                 fontFamily="inherit"
               >
@@ -316,29 +479,82 @@ function HeatCalendar({ memberData, weeksBack = 8 }: { memberData: { entries: Da
               const color = getColor(dateStr);
               const today = todayStr();
               const isToday = dateStr === today;
+              const entry = memberData?.entries.find(e => e.date === dateStr);
+              const rate = getHitRate(entry);
               return (
-                <rect
-                  key={dateStr}
-                  x={labelWidth + wIdx * (cellSize + cellGap)}
-                  y={20 + dIdx * (cellSize + cellGap)}
-                  width={cellSize}
-                  height={cellSize}
-                  rx={3}
-                  fill={color}
-                  stroke={isToday ? '#d4a574' : 'none'}
-                  strokeWidth={isToday ? 1.5 : 0}
-                  style={{
-                    animation: `heat-cell-in 0.3s ease-out ${wIdx * 30 + dIdx * 10}ms both`,
-                  }}
-                >
-                  <title>{dayLabel(dateStr)}: {getHitRate(memberData?.entries.find(e => e.date === dateStr))}%</title>
-                </rect>
+                <g key={dateStr}>
+                  <rect
+                    x={labelWidth + wIdx * (cellSize + cellGap)}
+                    y={20 + dIdx * (cellSize + cellGap)}
+                    width={cellSize}
+                    height={cellSize}
+                    rx={3}
+                    fill={color}
+                    stroke={isToday ? COLORS.gold : 'none'}
+                    strokeWidth={isToday ? 1.5 : 0}
+                    style={{
+                      animation: `acc-heat-cell-in 0.4s ${EASE} ${wIdx * 25 + dIdx * 8}ms both`,
+                      cursor: 'default',
+                    }}
+                  />
+                  {/* Glow for 100% days */}
+                  {rate === 100 && (
+                    <rect
+                      x={labelWidth + wIdx * (cellSize + cellGap) - 1}
+                      y={20 + dIdx * (cellSize + cellGap) - 1}
+                      width={cellSize + 2}
+                      height={cellSize + 2}
+                      rx={4}
+                      fill="none"
+                      stroke={COLORS.green}
+                      strokeWidth={0.5}
+                      opacity={0.4}
+                      style={{
+                        animation: `acc-heat-cell-in 0.4s ${EASE} ${wIdx * 25 + dIdx * 8 + 100}ms both`,
+                      }}
+                    />
+                  )}
+                  <title>{dayLabel(dateStr)}: {rate}%</title>
+                </g>
               );
             })}
           </g>
         );
       })}
     </svg>
+  );
+}
+
+// ── Trend Arrow Indicator ──────────────────────────────────
+
+function TrendArrow({ current, previous }: { current: number; previous: number }) {
+  const diff = current - previous;
+  const isUp = diff > 0;
+  const isFlat = diff === 0;
+
+  if (isFlat) return (
+    <span style={{
+      fontSize: 10, color: COLORS.dimmed, display: 'inline-flex', alignItems: 'center', gap: 2,
+    }}>
+      --
+    </span>
+  );
+
+  return (
+    <span style={{
+      fontSize: 10,
+      fontWeight: 700,
+      color: isUp ? COLORS.green : COLORS.red,
+      display: 'inline-flex',
+      alignItems: 'center',
+      gap: 2,
+      backgroundColor: isUp ? 'rgba(107,143,113,0.12)' : 'rgba(224,96,96,0.12)',
+      padding: '2px 6px',
+      borderRadius: 8,
+    }}>
+      {isUp ? <ArrowUpRight size={10} /> : <ArrowDownRight size={10} />}
+      {Math.abs(diff)}%
+    </span>
   );
 }
 
@@ -349,12 +565,14 @@ function SummaryStatsBar({
   completionRate,
   teamAvg,
   totalCompleted,
+  previousWeekRate,
   delay,
 }: {
   streak: number;
   completionRate: number;
   teamAvg: number;
   totalCompleted: number;
+  previousWeekRate: number;
   delay: number;
 }) {
   const stats = [
@@ -362,29 +580,37 @@ function SummaryStatsBar({
       icon: <AnimatedFlame size={20} active={streak > 0} />,
       value: `${streak}`,
       label: 'Day Streak',
-      color: streak > 0 ? '#e8b44c' : '#6b6358',
+      color: streak > 0 ? COLORS.amber : COLORS.dimmed,
       sub: streak >= 7 ? 'On fire!' : streak > 0 ? 'Keep going' : 'Start today',
+      trend: null,
+      glow: streak >= 5,
     },
     {
-      icon: <Target size={18} style={{ color: '#d4a574' }} />,
+      icon: <Target size={18} style={{ color: COLORS.gold }} />,
       value: `${completionRate}%`,
       label: 'Completion Rate',
-      color: completionRate >= 80 ? '#6b8f71' : completionRate >= 50 ? '#e8b44c' : '#e06060',
+      color: completionRate >= 80 ? COLORS.green : completionRate >= 50 ? COLORS.amber : COLORS.red,
       sub: 'This week',
+      trend: { current: completionRate, previous: previousWeekRate },
+      glow: completionRate >= 90,
     },
     {
-      icon: <Users size={18} style={{ color: '#8b5cf6' }} />,
+      icon: <Users size={18} style={{ color: COLORS.purple }} />,
       value: `${teamAvg}%`,
       label: 'Team Average',
-      color: teamAvg >= 80 ? '#6b8f71' : teamAvg >= 50 ? '#e8b44c' : '#e06060',
+      color: teamAvg >= 80 ? COLORS.green : teamAvg >= 50 ? COLORS.amber : COLORS.red,
       sub: 'All members',
+      trend: null,
+      glow: false,
     },
     {
-      icon: <Zap size={18} style={{ color: '#6b8f71' }} />,
+      icon: <Zap size={18} style={{ color: COLORS.green }} />,
       value: `${totalCompleted}`,
       label: 'Completed',
-      color: '#6b8f71',
+      color: COLORS.green,
       sub: 'All time',
+      trend: null,
+      glow: false,
     },
   ];
 
@@ -392,47 +618,78 @@ function SummaryStatsBar({
     <div style={{
       display: 'grid',
       gridTemplateColumns: 'repeat(4, 1fr)',
-      gap: 12,
+      gap: 14,
     }}>
       {stats.map((stat, i) => (
         <div
+          className="card-stat"
           key={stat.label}
-          className="animate-fade-in"
           style={{
-            animationDelay: `${delay + i * 60}ms`,
-            opacity: 0,
-            backgroundColor: '#131720',
-            border: '1px solid #1e2638',
+            animation: `acc-slide-up 0.6s ${EASE} ${delay + i * 70}ms both`,
+            background: GLASS.bg,
+            backdropFilter: GLASS.blur,
+            WebkitBackdropFilter: GLASS.blur,
+            border: `1px solid ${stat.glow ? `${stat.color}30` : GLASS.border}`,
             borderRadius: 16,
-            padding: '18px 20px',
+            padding: '20px 22px',
             display: 'flex',
             alignItems: 'center',
             gap: 14,
-            transition: 'border-color 0.3s',
+            transition: `border-color 0.4s ${EASE}, box-shadow 0.4s ${EASE}, transform 0.3s ${EASE}`,
+            cursor: 'default',
+            position: 'relative',
+            overflow: 'hidden',
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.borderColor = stat.color + '40';
+            e.currentTarget.style.boxShadow = `0 4px 24px ${stat.color}15, inset 0 1px 0 ${stat.color}10`;
+            e.currentTarget.style.transform = 'translateY(-2px)';
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.borderColor = stat.glow ? `${stat.color}30` : GLASS.border;
+            e.currentTarget.style.boxShadow = 'none';
+            e.currentTarget.style.transform = 'translateY(0)';
           }}
         >
+          {/* Subtle radial glow for high-value stats */}
+          {stat.glow && (
+            <div style={{
+              position: 'absolute', inset: 0, pointerEvents: 'none',
+              background: `radial-gradient(ellipse at 30% 50%, ${stat.color}10 0%, transparent 70%)`,
+              animation: `acc-pulse-glow 4s ease-in-out infinite`,
+            }} />
+          )}
           <div style={{
-            width: 42, height: 42, borderRadius: 12,
-            backgroundColor: `${stat.color}12`,
-            border: `1px solid ${stat.color}25`,
+            width: 44, height: 44, borderRadius: 12,
+            backgroundColor: `${stat.color}10`,
+            border: `1px solid ${stat.color}20`,
             display: 'flex', alignItems: 'center', justifyContent: 'center',
             flexShrink: 0,
+            position: 'relative',
           }}>
             {stat.icon}
           </div>
-          <div>
+          <div style={{ position: 'relative', flex: 1 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span style={{
+                fontSize: 24, fontWeight: 800, color: stat.color,
+                lineHeight: 1, fontVariantNumeric: 'tabular-nums',
+                display: 'block',
+                animation: `acc-number-pop 0.5s ${EASE} ${delay + i * 70 + 200}ms both`,
+              }}>
+                {stat.value}
+              </span>
+              {stat.trend && (
+                <TrendArrow current={stat.trend.current} previous={stat.trend.previous} />
+              )}
+            </div>
             <span style={{
-              fontSize: 22, fontWeight: 800, color: stat.color,
-              lineHeight: 1, fontVariantNumeric: 'tabular-nums',
-              display: 'block',
-              animation: `stat-count-up 0.5s ease-out ${delay + i * 60 + 200}ms both`,
+              fontSize: 10, fontWeight: 600, textTransform: 'uppercase',
+              letterSpacing: '0.08em', color: COLORS.muted, display: 'block', marginTop: 3,
             }}>
-              {stat.value}
-            </span>
-            <span style={{ fontSize: 10, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em', color: '#a09888', display: 'block', marginTop: 2 }}>
               {stat.label}
             </span>
-            <span style={{ fontSize: 10, color: '#6b6358' }}>{stat.sub}</span>
+            <span style={{ fontSize: 10, color: COLORS.dimmed }}>{stat.sub}</span>
           </div>
         </div>
       ))}
@@ -457,76 +714,116 @@ function WeekGridCell({
   const hasData = entry && entry.commitments.length > 0;
   const completed = entry?.commitments.filter((c) => c.status === 'completed').length ?? 0;
   const total = entry?.commitments.length ?? 0;
+  const [hovered, setHovered] = useState(false);
 
-  let bgColor = '#131720';
-  let borderColor = '#1e2638';
-  let dotColor = '#262e3e';
+  let bgColor: string = COLORS.surface;
+  let borderColor: string = COLORS.border;
+  let dotColor: string = '#262e3e';
 
   if (hasData) {
     if (rate === 100) {
       bgColor = 'rgba(107, 143, 113, 0.15)';
       borderColor = 'rgba(107, 143, 113, 0.4)';
-      dotColor = '#6b8f71';
+      dotColor = COLORS.green;
     } else if (rate >= 50) {
       bgColor = 'rgba(232, 180, 76, 0.12)';
       borderColor = 'rgba(232, 180, 76, 0.35)';
-      dotColor = '#e8b44c';
+      dotColor = COLORS.amber;
     } else if (rate > 0) {
       bgColor = 'rgba(224, 96, 96, 0.12)';
       borderColor = 'rgba(224, 96, 96, 0.35)';
-      dotColor = '#e06060';
+      dotColor = COLORS.red;
     }
   }
 
   return (
     <div
-      className="animate-fade-in"
       style={{
-        animationDelay: `${delay}ms`,
-        opacity: 0,
+        animation: `acc-stagger-in 0.5s ${EASE} ${delay}ms both`,
         display: 'flex',
         flexDirection: 'column',
         alignItems: 'center',
         gap: 6,
         flex: 1,
       }}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
     >
       <span style={{
         fontSize: 10,
         fontWeight: 600,
         textTransform: 'uppercase',
         letterSpacing: '0.08em',
-        color: isToday ? '#d4a574' : '#6b6358',
+        color: isToday ? COLORS.gold : COLORS.dimmed,
+        transition: `color 0.3s ${EASE}`,
       }}>
         {weekdayShort(date)}
       </span>
       <div style={{
-        width: 52,
-        height: 52,
+        width: 54,
+        height: 54,
         borderRadius: 14,
         backgroundColor: bgColor,
-        border: `2px solid ${isToday ? '#d4a574' : borderColor}`,
+        border: `2px solid ${isToday ? COLORS.gold : borderColor}`,
         display: 'flex',
         flexDirection: 'column',
         alignItems: 'center',
         justifyContent: 'center',
-        transition: 'all 0.3s ease',
-        boxShadow: isToday ? '0 0 16px rgba(212,165,116,0.2)' : 'none',
+        transition: `all 0.4s ${EASE}`,
+        boxShadow: isToday
+          ? '0 0 20px rgba(212,165,116,0.2), inset 0 1px 0 rgba(212,165,116,0.1)'
+          : hovered && hasData
+            ? `0 0 16px ${dotColor}25`
+            : 'none',
         position: 'relative',
+        transform: hovered ? 'scale(1.08)' : 'scale(1)',
+        cursor: 'default',
       }}>
         {/* Colored status dot */}
         <div style={{
-          width: hasData ? 14 : 8,
-          height: hasData ? 14 : 8,
+          width: hasData ? 16 : 8,
+          height: hasData ? 16 : 8,
           borderRadius: '50%',
           backgroundColor: dotColor,
-          transition: 'all 0.3s ease',
-          boxShadow: hasData && rate === 100 ? `0 0 8px ${dotColor}60` : 'none',
+          transition: `all 0.3s ${EASE}`,
+          boxShadow: hasData && rate === 100 ? `0 0 10px ${dotColor}60` : 'none',
         }} />
         {/* Streak fire for 100% days */}
         {hasData && rate === 100 && (
-          <div style={{ position: 'absolute', top: -6, right: -4 }}>
+          <div style={{ position: 'absolute', top: -7, right: -5 }}>
             <AnimatedFlame size={14} active />
+          </div>
+        )}
+        {/* Hover tooltip */}
+        {hovered && hasData && (
+          <div style={{
+            position: 'absolute',
+            bottom: '110%',
+            left: '50%',
+            transform: 'translateX(-50%)',
+            backgroundColor: 'rgba(11,13,20,0.95)',
+            border: `1px solid ${COLORS.border}`,
+            borderRadius: 10,
+            padding: '8px 12px',
+            whiteSpace: 'nowrap',
+            zIndex: 20,
+            animation: `acc-stat-count-up 0.2s ${EASE} both`,
+            boxShadow: '0 8px 32px rgba(0,0,0,0.4)',
+          }}>
+            <div style={{ fontSize: 11, fontWeight: 600, color: COLORS.cream, marginBottom: 4 }}>
+              {dayLabel(date)}
+            </div>
+            {entry?.commitments.map((c) => (
+              <div key={c.id} style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 2 }}>
+                <div style={{
+                  width: 6, height: 6, borderRadius: '50%',
+                  backgroundColor: c.status === 'completed' ? COLORS.green : c.status === 'partial' ? COLORS.amber : c.status === 'missed' ? COLORS.red : COLORS.dimmed,
+                }} />
+                <span style={{ fontSize: 10, color: COLORS.muted, maxWidth: 180, overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                  {c.text}
+                </span>
+              </div>
+            ))}
           </div>
         )}
       </div>
@@ -534,7 +831,7 @@ function WeekGridCell({
         <span style={{
           fontSize: 10,
           fontWeight: 600,
-          color: rate === 100 ? '#6b8f71' : rate >= 50 ? '#e8b44c' : '#e06060',
+          color: rate === 100 ? COLORS.green : rate >= 50 ? COLORS.amber : COLORS.red,
           fontVariantNumeric: 'tabular-nums',
         }}>
           {completed}/{total}
@@ -551,83 +848,188 @@ function WeekGridCell({
 function StreakCounter({ streak }: { streak: number }) {
   const isActive = streak > 0;
   const isHot = streak >= 5;
+  const isBlazing = streak >= 10;
 
   return (
     <div style={{
       display: 'flex',
       alignItems: 'center',
-      gap: 12,
-      padding: '16px 20px',
+      gap: 14,
+      padding: '18px 22px',
       borderRadius: 16,
-      backgroundColor: isActive ? 'rgba(232, 180, 76, 0.08)' : '#131720',
-      border: `1px solid ${isHot ? 'rgba(232, 180, 76, 0.4)' : isActive ? 'rgba(232, 180, 76, 0.25)' : '#1e2638'}`,
+      background: isActive ? GLASS.bg : COLORS.surface,
+      backdropFilter: isActive ? GLASS.blur : 'none',
+      WebkitBackdropFilter: isActive ? GLASS.blur : 'none',
+      border: `1px solid ${isBlazing ? 'rgba(232, 180, 76, 0.5)' : isHot ? 'rgba(232, 180, 76, 0.35)' : isActive ? 'rgba(232, 180, 76, 0.2)' : COLORS.border}`,
       position: 'relative',
       overflow: 'hidden',
+      transition: `all 0.4s ${EASE}`,
     }}>
       {/* Animated glow background for active streaks */}
       {isActive && (
         <div style={{
           position: 'absolute',
           inset: 0,
-          background: isHot
-            ? 'radial-gradient(ellipse at 20% 50%, rgba(232,180,76,0.15) 0%, transparent 70%)'
-            : 'radial-gradient(ellipse at 20% 50%, rgba(232,180,76,0.1) 0%, transparent 70%)',
-          animation: 'pulse-glow 3s ease-in-out infinite',
+          background: isBlazing
+            ? 'radial-gradient(ellipse at 15% 50%, rgba(232,180,76,0.2) 0%, transparent 60%)'
+            : isHot
+              ? 'radial-gradient(ellipse at 15% 50%, rgba(232,180,76,0.15) 0%, transparent 60%)'
+              : 'radial-gradient(ellipse at 15% 50%, rgba(232,180,76,0.08) 0%, transparent 60%)',
+          animation: `acc-pulse-glow 3s ease-in-out infinite`,
         }} />
       )}
+      {/* Ember particles for hot streaks */}
+      {isHot && <EmberParticles count={isBlazing ? 5 : 3} />}
+
       <div style={{
         position: 'relative',
-        width: 44,
-        height: 44,
-        borderRadius: 12,
+        width: 48,
+        height: 48,
+        borderRadius: 14,
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        backgroundColor: isActive ? 'rgba(232, 180, 76, 0.15)' : 'rgba(255,255,255,0.03)',
+        backgroundColor: isActive ? 'rgba(232, 180, 76, 0.12)' : 'rgba(255,255,255,0.03)',
+        border: `1px solid ${isActive ? 'rgba(232,180,76,0.2)' : 'transparent'}`,
       }}>
-        <AnimatedFlame size={26} active={isActive} />
+        <AnimatedFlame size={28} active={isActive} />
       </div>
-      <div style={{ position: 'relative' }}>
-        <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
+      <div style={{ position: 'relative', flex: 1 }}>
+        <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
           <span style={{
-            fontSize: 28,
+            fontSize: 32,
             fontWeight: 800,
-            color: isActive ? '#e8b44c' : '#6b6358',
+            color: isActive ? COLORS.amber : COLORS.dimmed,
             lineHeight: 1,
             fontVariantNumeric: 'tabular-nums',
+            animation: `acc-number-pop 0.6s ${EASE} both`,
           }}>
             {streak}
           </span>
           <span style={{
             fontSize: 12,
             fontWeight: 600,
-            color: isActive ? '#d4a574' : '#6b6358',
+            color: isActive ? COLORS.gold : COLORS.dimmed,
             textTransform: 'uppercase',
             letterSpacing: '0.06em',
           }}>
             day streak
           </span>
-          {isHot && (
+          {isBlazing && (
             <span style={{
               fontSize: 9,
               fontWeight: 700,
-              color: '#e06060',
+              color: '#ff6b6b',
               textTransform: 'uppercase',
-              letterSpacing: '0.08em',
-              backgroundColor: 'rgba(224,96,96,0.12)',
-              padding: '2px 8px',
+              letterSpacing: '0.1em',
+              background: 'linear-gradient(135deg, rgba(255,107,107,0.15), rgba(232,180,76,0.15))',
+              padding: '3px 10px',
               borderRadius: 8,
-              marginLeft: 4,
+              border: '1px solid rgba(255,107,107,0.2)',
+              animation: `acc-pulse-glow 2s ease-in-out infinite`,
+            }}>
+              BLAZING
+            </span>
+          )}
+          {isHot && !isBlazing && (
+            <span style={{
+              fontSize: 9,
+              fontWeight: 700,
+              color: COLORS.red,
+              textTransform: 'uppercase',
+              letterSpacing: '0.1em',
+              backgroundColor: 'rgba(224,96,96,0.12)',
+              padding: '3px 10px',
+              borderRadius: 8,
             }}>
               HOT
             </span>
           )}
         </div>
-        <span style={{ fontSize: 11, color: '#6b6358', marginTop: 2, display: 'block' }}>
-          {isHot ? 'Blazing through commitments!' : isActive ? 'Consecutive 100% completion days' : 'Complete all commitments to start'}
+        <span style={{ fontSize: 11, color: COLORS.dimmed, marginTop: 3, display: 'block' }}>
+          {isBlazing ? 'Absolutely unstoppable commitment!' : isHot ? 'Blazing through commitments!' : isActive ? 'Consecutive 100% completion days' : 'Complete all commitments to start'}
         </span>
       </div>
+
+      {/* Milestone markers */}
+      {streak > 0 && (
+        <div style={{
+          position: 'relative',
+          display: 'flex',
+          gap: 4,
+          alignItems: 'center',
+        }}>
+          {[3, 5, 7, 10, 14].map((milestone) => (
+            <div
+              key={milestone}
+              style={{
+                width: 6,
+                height: 6,
+                borderRadius: '50%',
+                backgroundColor: streak >= milestone ? COLORS.amber : COLORS.border,
+                transition: `all 0.3s ${EASE}`,
+                boxShadow: streak >= milestone ? `0 0 6px ${COLORS.amber}50` : 'none',
+              }}
+              title={`${milestone}-day milestone`}
+            />
+          ))}
+        </div>
+      )}
     </div>
+  );
+}
+
+// ── Due Date / Urgency Indicator ───────────────────────────
+
+function UrgencyBadge({ date }: { date: string }) {
+  const days = daysUntil(date);
+  const today = todayStr();
+  const isToday = date === today;
+
+  if (isToday) return (
+    <span style={{
+      fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em',
+      color: COLORS.gold, backgroundColor: 'rgba(212,165,116,0.12)',
+      border: '1px solid rgba(212,165,116,0.2)',
+      padding: '2px 8px', borderRadius: 8,
+      animation: `acc-glow-pulse 3s ease-in-out infinite`,
+    }}>
+      Today
+    </span>
+  );
+
+  if (days < 0) return (
+    <span style={{
+      fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em',
+      color: COLORS.red, backgroundColor: 'rgba(224,96,96,0.12)',
+      border: '1px solid rgba(224,96,96,0.2)',
+      padding: '2px 8px', borderRadius: 8,
+    }}>
+      <Clock size={8} style={{ display: 'inline', marginRight: 3, verticalAlign: 'middle' }} />
+      Overdue
+    </span>
+  );
+
+  if (days <= 1) return (
+    <span style={{
+      fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em',
+      color: COLORS.amber, backgroundColor: 'rgba(232,180,76,0.12)',
+      border: '1px solid rgba(232,180,76,0.2)',
+      padding: '2px 8px', borderRadius: 8,
+    }}>
+      Due Soon
+    </span>
+  );
+
+  return (
+    <span style={{
+      fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em',
+      color: COLORS.green, backgroundColor: 'rgba(107,143,113,0.12)',
+      border: '1px solid rgba(107,143,113,0.2)',
+      padding: '2px 8px', borderRadius: 8,
+    }}>
+      On Track
+    </span>
   );
 }
 
@@ -652,24 +1054,42 @@ function AccountabilityCard({
 }) {
   const completionRate = totalCommitments > 0 ? Math.round((totalCompleted / totalCommitments) * 100) : 0;
   const isHot = streak >= 3;
+  const [hovered, setHovered] = useState(false);
+
+  // Mini sparkline data (last 7 entries)
+  const sparklineData = useMemo(() => {
+    if (!memberData) return [];
+    const sorted = [...memberData.entries]
+      .sort((a, b) => a.date.localeCompare(b.date))
+      .slice(-7);
+    return sorted.map(e => getHitRate(e));
+  }, [memberData]);
 
   return (
     <div
-      className="animate-fade-in glow-card"
+      className="card-interactive"
       style={{
-        animationDelay: `${delay}ms`,
-        opacity: 0,
-        backgroundColor: '#131720',
-        border: `1px solid ${isHot ? 'rgba(232,180,76,0.3)' : '#1e2638'}`,
+        animation: `acc-slide-up 0.6s ${EASE} ${delay}ms both`,
+        background: GLASS.bg,
+        backdropFilter: GLASS.blur,
+        WebkitBackdropFilter: GLASS.blur,
+        border: `1px solid ${isHot ? 'rgba(232,180,76,0.25)' : hovered ? GLASS.borderHover : GLASS.border}`,
         borderRadius: 18,
-        padding: '20px 22px',
+        padding: '22px 24px',
         display: 'flex',
         alignItems: 'center',
         gap: 16,
-        transition: 'border-color 0.3s, box-shadow 0.3s',
+        transition: `all 0.4s ${EASE}`,
         position: 'relative',
         overflow: 'hidden',
+        cursor: 'default',
+        transform: hovered ? 'translateY(-2px)' : 'translateY(0)',
+        boxShadow: hovered
+          ? `0 8px 32px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.03)`
+          : 'none',
       }}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
     >
       {/* Hot streak glow */}
       {isHot && (
@@ -687,14 +1107,15 @@ function AccountabilityCard({
       <div
         className={member.color}
         style={{
-          width: 36, height: 36, borderRadius: 10,
+          width: 38, height: 38, borderRadius: 11,
           display: 'flex', alignItems: 'center', justifyContent: 'center',
           color: '#fff', fontSize: 11, fontWeight: 700, flexShrink: 0,
           position: 'relative',
+          transition: `transform 0.3s ${EASE}`,
+          transform: hovered ? 'scale(1.05)' : 'scale(1)',
         }}
       >
         {member.avatar}
-        {/* Flame badge for hot streaks */}
         {isHot && (
           <div style={{
             position: 'absolute', top: -6, right: -6,
@@ -708,39 +1129,72 @@ function AccountabilityCard({
 
       {/* Name + role */}
       <div style={{ flex: 1, minWidth: 0 }}>
-        <span style={{ fontSize: 13, fontWeight: 600, color: '#f0ebe4', display: 'block' }}>
+        <span style={{ fontSize: 13, fontWeight: 600, color: COLORS.cream, display: 'block' }}>
           {member.name.split(' ')[0]}
         </span>
-        <span style={{ fontSize: 10, color: '#6b6358' }}>{member.shortRole}</span>
+        <span style={{ fontSize: 10, color: COLORS.dimmed }}>{member.shortRole}</span>
       </div>
+
+      {/* Sparkline on hover */}
+      {hovered && sparklineData.length > 0 && (
+        <div style={{
+          display: 'flex', alignItems: 'flex-end', gap: 2, height: 24,
+          animation: `acc-stat-count-up 0.2s ${EASE} both`,
+        }}>
+          {sparklineData.map((val, idx) => (
+            <div
+              key={idx}
+              style={{
+                width: 4,
+                height: `${Math.max(val * 0.24, 2)}px`,
+                borderRadius: 2,
+                backgroundColor: val >= 80 ? COLORS.green : val >= 50 ? COLORS.amber : val > 0 ? COLORS.red : COLORS.border,
+                transition: `height 0.3s ${EASE}`,
+              }}
+            />
+          ))}
+        </div>
+      )}
 
       {/* Streak */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 4, minWidth: 42 }}>
-        <Flame size={13} style={{ color: streak > 0 ? '#e8b44c' : '#262e3e' }} />
+        <Flame size={13} style={{ color: streak > 0 ? COLORS.amber : '#262e3e' }} />
         <span style={{
           fontSize: 13, fontWeight: 700,
-          color: streak > 0 ? '#e8b44c' : '#6b6358',
+          color: streak > 0 ? COLORS.amber : COLORS.dimmed,
           fontVariantNumeric: 'tabular-nums',
         }}>
           {streak}
         </span>
       </div>
 
-      {/* Completion */}
-      <div style={{ textAlign: 'right', minWidth: 50 }}>
+      {/* Completion with gradient bar */}
+      <div style={{ textAlign: 'right', minWidth: 60 }}>
         <span style={{
-          fontSize: 10, color: '#6b6358', display: 'block',
+          fontSize: 10, color: COLORS.dimmed, display: 'block',
           textTransform: 'uppercase', letterSpacing: '0.06em', fontWeight: 600,
         }}>
           Done
         </span>
         <span style={{
           fontSize: 13, fontWeight: 700,
-          color: completionRate >= 80 ? '#6b8f71' : completionRate >= 50 ? '#e8b44c' : '#a09888',
+          color: completionRate >= 80 ? COLORS.green : completionRate >= 50 ? COLORS.amber : COLORS.muted,
           fontVariantNumeric: 'tabular-nums',
         }}>
           {totalCompleted}/{totalCommitments}
         </span>
+        <div style={{
+          height: 3, backgroundColor: COLORS.border, borderRadius: 2,
+          overflow: 'hidden', marginTop: 4,
+        }}>
+          <div style={{
+            height: '100%',
+            width: totalCommitments > 0 ? `${(totalCompleted / totalCommitments) * 100}%` : '0%',
+            background: `linear-gradient(90deg, ${COLORS.gold}, ${COLORS.purple})`,
+            borderRadius: 2,
+            transition: `width 0.8s ${EASE}`,
+          }} />
+        </div>
       </div>
     </div>
   );
@@ -761,6 +1215,8 @@ function CommitmentCard({
   onRemove: (date: string, id: string) => void;
   delay: number;
 }) {
+  const [hovered, setHovered] = useState(false);
+
   const progressValue =
     commitment.status === 'completed' ? 100
       : commitment.status === 'partial' ? 50
@@ -768,101 +1224,114 @@ function CommitmentCard({
           : 0;
 
   const progressColor =
-    commitment.status === 'completed' ? '#6b8f71'
-      : commitment.status === 'partial' ? '#e8b44c'
-        : commitment.status === 'missed' ? '#e06060'
+    commitment.status === 'completed' ? COLORS.green
+      : commitment.status === 'partial' ? COLORS.amber
+        : commitment.status === 'missed' ? COLORS.red
           : '#262e3e';
+
+  const borderColor =
+    commitment.status === 'completed' ? 'rgba(107,143,113,0.3)'
+      : commitment.status === 'partial' ? 'rgba(232,180,76,0.3)'
+        : commitment.status === 'missed' ? 'rgba(224,96,96,0.3)'
+          : GLASS.border;
+
+  const bgColor =
+    commitment.status === 'completed' ? 'rgba(107,143,113,0.06)'
+      : commitment.status === 'partial' ? 'rgba(232,180,76,0.06)'
+        : commitment.status === 'missed' ? 'rgba(224,96,96,0.06)'
+          : GLASS.bg;
 
   return (
     <div
-      className="animate-fade-in"
       style={{
-        animationDelay: `${delay}ms`,
-        opacity: 0,
-        padding: '14px 16px',
+        animation: `acc-slide-up 0.5s ${EASE} ${delay}ms both`,
+        padding: '16px 18px',
         borderRadius: 14,
-        border: '1px solid',
-        borderColor:
-          commitment.status === 'completed' ? 'rgba(107,143,113,0.3)'
-            : commitment.status === 'partial' ? 'rgba(232,180,76,0.3)'
-              : commitment.status === 'missed' ? 'rgba(224,96,96,0.3)'
-                : '#1e2638',
-        backgroundColor:
-          commitment.status === 'completed' ? 'rgba(107,143,113,0.06)'
-            : commitment.status === 'partial' ? 'rgba(232,180,76,0.06)'
-              : commitment.status === 'missed' ? 'rgba(224,96,96,0.06)'
-                : '#131720',
-        transition: 'all 0.3s ease',
+        border: `1px solid ${hovered ? (commitment.status === 'pending' ? GLASS.borderHover : borderColor) : borderColor}`,
+        background: bgColor,
+        backdropFilter: GLASS.blur,
+        WebkitBackdropFilter: GLASS.blur,
+        transition: `all 0.3s ${EASE}`,
+        transform: hovered ? 'translateX(4px)' : 'translateX(0)',
       }}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
     >
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 }}>
         <div style={{ flex: 1, minWidth: 0 }}>
-          <p style={{
-            fontSize: 13,
-            fontWeight: 500,
-            color: commitment.status === 'completed' ? '#a09888' : '#f0ebe4',
-            textDecoration: commitment.status === 'completed' ? 'line-through' : 'none',
-            margin: 0,
-            lineHeight: 1.4,
-          }}>
-            {commitment.text}
-          </p>
-          {/* Mini progress bar */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+            <p style={{
+              fontSize: 13,
+              fontWeight: 500,
+              color: commitment.status === 'completed' ? COLORS.muted : COLORS.cream,
+              textDecoration: commitment.status === 'completed' ? 'line-through' : 'none',
+              margin: 0,
+              lineHeight: 1.4,
+              transition: `color 0.3s ${EASE}`,
+            }}>
+              {commitment.text}
+            </p>
+            {commitment.status === 'completed' && (
+              <CheckCircle2 size={14} style={{ color: COLORS.green, flexShrink: 0, opacity: 0.7 }} />
+            )}
+          </div>
+          {/* Progress bar with gradient fill */}
           <div style={{
             marginTop: 8,
-            height: 3,
-            backgroundColor: '#1e2638',
-            borderRadius: 2,
+            height: 4,
+            backgroundColor: COLORS.border,
+            borderRadius: 3,
             overflow: 'hidden',
           }}>
             <div style={{
               height: '100%',
               width: `${progressValue}%`,
-              backgroundColor: progressColor,
-              borderRadius: 2,
-              transition: 'width 0.5s ease, background-color 0.3s ease',
+              background: commitment.status === 'completed'
+                ? `linear-gradient(90deg, ${COLORS.green}, ${COLORS.green}cc)`
+                : commitment.status === 'partial'
+                  ? `linear-gradient(90deg, ${COLORS.amber}, ${COLORS.gold})`
+                  : progressColor,
+              borderRadius: 3,
+              transition: `width 0.6s ${EASE}, background-color 0.3s ease`,
+              boxShadow: progressValue > 0 ? `0 0 8px ${progressColor}30` : 'none',
             }} />
           </div>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
-          <button
-            onClick={() => onUpdateStatus(date, commitment.id, 'completed')}
-            style={{
-              padding: 4, borderRadius: 6, border: 'none', backgroundColor: 'transparent',
-              color: commitment.status === 'completed' ? '#6b8f71' : '#6b6358',
-              cursor: 'pointer', transition: 'color 0.2s', display: 'flex',
-            }}
-            title="Completed"
-          >
-            <CheckCircle2 size={18} />
-          </button>
-          <button
-            onClick={() => onUpdateStatus(date, commitment.id, 'partial')}
-            style={{
-              padding: 4, borderRadius: 6, border: 'none', backgroundColor: 'transparent',
-              color: commitment.status === 'partial' ? '#e8b44c' : '#6b6358',
-              cursor: 'pointer', transition: 'color 0.2s', display: 'flex',
-            }}
-            title="Partial"
-          >
-            <MinusCircle size={18} />
-          </button>
-          <button
-            onClick={() => onUpdateStatus(date, commitment.id, 'missed')}
-            style={{
-              padding: 4, borderRadius: 6, border: 'none', backgroundColor: 'transparent',
-              color: commitment.status === 'missed' ? '#e06060' : '#6b6358',
-              cursor: 'pointer', transition: 'color 0.2s', display: 'flex',
-            }}
-            title="Missed"
-          >
-            <XCircle size={18} />
-          </button>
+        <div style={{
+          display: 'flex', alignItems: 'center', gap: 2, flexShrink: 0,
+          opacity: hovered ? 1 : 0.7,
+          transition: `opacity 0.3s ${EASE}`,
+        }}>
+          {(['completed', 'partial', 'missed'] as CommitmentStatus[]).map((status) => {
+            const Icon = status === 'completed' ? CheckCircle2 : status === 'partial' ? MinusCircle : XCircle;
+            const color = status === 'completed' ? COLORS.green : status === 'partial' ? COLORS.amber : COLORS.red;
+            const isActive = commitment.status === status;
+            return (
+              <button
+                key={status}
+                onClick={() => onUpdateStatus(date, commitment.id, status)}
+                style={{
+                  padding: 5, borderRadius: 8, border: 'none',
+                  backgroundColor: isActive ? `${color}18` : 'transparent',
+                  color: isActive ? color : COLORS.dimmed,
+                  cursor: 'pointer',
+                  transition: `all 0.2s ${EASE}`,
+                  display: 'flex',
+                  transform: isActive ? 'scale(1.1)' : 'scale(1)',
+                }}
+                title={status.charAt(0).toUpperCase() + status.slice(1)}
+              >
+                <Icon size={18} />
+              </button>
+            );
+          })}
           <button
             onClick={() => onRemove(date, commitment.id)}
             style={{
-              padding: 4, borderRadius: 6, border: 'none', backgroundColor: 'transparent',
-              color: '#6b6358', cursor: 'pointer', transition: 'color 0.2s', display: 'flex', marginLeft: 2,
+              padding: 5, borderRadius: 8, border: 'none', backgroundColor: 'transparent',
+              color: COLORS.dimmed, cursor: 'pointer',
+              transition: `all 0.2s ${EASE}`, display: 'flex', marginLeft: 2,
+              opacity: hovered ? 0.8 : 0.4,
             }}
             title="Remove"
           >
@@ -894,36 +1363,50 @@ function LeaderboardRow({
   delay: number;
 }) {
   const RankIcon = rank === 1 ? Crown : rank === 2 ? Medal : rank === 3 ? Award : Target;
-  const rankColor = rank === 1 ? '#e8b44c' : rank === 2 ? '#a09888' : rank === 3 ? '#d4a574' : '#6b6358';
+  const rankColor = rank === 1 ? COLORS.amber : rank === 2 ? '#c0c0c0' : rank === 3 ? COLORS.gold : COLORS.dimmed;
+  const [hovered, setHovered] = useState(false);
 
   return (
     <div
-      className="animate-fade-in"
       style={{
-        animationDelay: `${delay}ms`,
-        opacity: 0,
+        animation: `acc-slide-up 0.5s ${EASE} ${delay}ms both`,
         display: 'flex',
         alignItems: 'center',
         gap: 12,
-        padding: '12px 16px',
-        borderRadius: 12,
-        backgroundColor: rank === 1 ? 'rgba(232,180,76,0.06)' : 'transparent',
-        border: `1px solid ${rank === 1 ? 'rgba(232,180,76,0.2)' : 'transparent'}`,
-        transition: 'background-color 0.2s',
+        padding: '14px 18px',
+        borderRadius: 14,
+        background: rank === 1 ? 'rgba(232,180,76,0.06)' : hovered ? 'rgba(255,255,255,0.02)' : 'transparent',
+        border: `1px solid ${rank === 1 ? 'rgba(232,180,76,0.2)' : hovered ? GLASS.border : 'transparent'}`,
+        transition: `all 0.3s ${EASE}`,
+        cursor: 'default',
+        transform: hovered ? 'translateX(4px)' : 'translateX(0)',
       }}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
     >
-      {/* Rank */}
+      {/* Rank badge */}
       <div style={{
-        width: 32, height: 32, borderRadius: 8,
+        width: 34, height: 34, borderRadius: 10,
         display: 'flex', alignItems: 'center', justifyContent: 'center',
-        backgroundColor: `${rankColor}15`,
+        backgroundColor: `${rankColor}12`,
+        border: `1px solid ${rankColor}20`,
+        position: 'relative',
       }}>
         <RankIcon size={16} style={{ color: rankColor }} />
+        {rank === 1 && (
+          <div style={{
+            position: 'absolute', inset: -1,
+            borderRadius: 11,
+            border: `1px solid ${COLORS.amber}30`,
+            animation: `acc-pulse-glow 3s ease-in-out infinite`,
+            pointerEvents: 'none',
+          }} />
+        )}
       </div>
 
       {/* Avatar */}
       <div style={{
-        width: 34, height: 34, borderRadius: 10,
+        width: 36, height: 36, borderRadius: 10,
         display: 'flex', alignItems: 'center', justifyContent: 'center',
         fontSize: 11, fontWeight: 700, color: '#fff', flexShrink: 0,
       }}
@@ -934,18 +1417,24 @@ function LeaderboardRow({
 
       {/* Name & role */}
       <div style={{ flex: 1, minWidth: 0 }}>
-        <span style={{ fontSize: 13, fontWeight: 600, color: '#f0ebe4', display: 'block' }}>
+        <span style={{ fontSize: 13, fontWeight: 600, color: COLORS.cream, display: 'block' }}>
           {member.name.split(' ')[0]}
         </span>
-        <span style={{ fontSize: 10, color: '#6b6358' }}>{member.shortRole}</span>
+        <span style={{ fontSize: 10, color: COLORS.dimmed }}>{member.shortRole}</span>
       </div>
 
-      {/* Score */}
+      {/* Score with gradient text for #1 */}
       <div style={{ textAlign: 'right', minWidth: 50 }}>
         <span style={{
-          fontSize: 16, fontWeight: 700,
-          color: score >= 80 ? '#6b8f71' : score >= 50 ? '#e8b44c' : '#e06060',
+          fontSize: 18, fontWeight: 800,
+          color: score >= 80 ? COLORS.green : score >= 50 ? COLORS.amber : COLORS.red,
           fontVariantNumeric: 'tabular-nums',
+          ...(rank === 1 ? {
+            background: `linear-gradient(135deg, ${COLORS.amber}, ${COLORS.gold})`,
+            WebkitBackgroundClip: 'text',
+            WebkitTextFillColor: 'transparent',
+            backgroundClip: 'text',
+          } : {}),
         }}>
           {score}%
         </span>
@@ -953,30 +1442,37 @@ function LeaderboardRow({
 
       {/* Streak */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 4, minWidth: 40 }}>
-        <Flame size={12} style={{ color: streak > 0 ? '#e8b44c' : '#262e3e' }} />
+        <Flame size={12} style={{ color: streak > 0 ? COLORS.amber : '#262e3e' }} />
         <span style={{
           fontSize: 12, fontWeight: 600,
-          color: streak > 0 ? '#e8b44c' : '#6b6358',
+          color: streak > 0 ? COLORS.amber : COLORS.dimmed,
           fontVariantNumeric: 'tabular-nums',
         }}>
           {streak}
         </span>
       </div>
 
-      {/* Completion bar */}
-      <div style={{ width: 60 }}>
+      {/* Completion bar with gradient */}
+      <div style={{ width: 70 }}>
         <div style={{
-          height: 4, backgroundColor: '#1e2638', borderRadius: 2, overflow: 'hidden',
+          height: 5, backgroundColor: COLORS.border, borderRadius: 3, overflow: 'hidden',
         }}>
           <div style={{
             height: '100%',
             width: total > 0 ? `${(completed / total) * 100}%` : '0%',
-            backgroundColor: score >= 80 ? '#6b8f71' : score >= 50 ? '#e8b44c' : '#e06060',
-            borderRadius: 2,
-            transition: 'width 0.7s ease',
+            background: score >= 80
+              ? `linear-gradient(90deg, ${COLORS.green}, ${COLORS.purple})`
+              : score >= 50
+                ? `linear-gradient(90deg, ${COLORS.amber}, ${COLORS.gold})`
+                : `linear-gradient(90deg, ${COLORS.red}, ${COLORS.redDark})`,
+            borderRadius: 3,
+            transition: `width 0.8s ${EASE}`,
           }} />
         </div>
-        <span style={{ fontSize: 9, color: '#6b6358', marginTop: 2, display: 'block', textAlign: 'center' }}>
+        <span style={{
+          fontSize: 9, color: COLORS.dimmed, marginTop: 3, display: 'block', textAlign: 'center',
+          fontVariantNumeric: 'tabular-nums',
+        }}>
           {completed}/{total}
         </span>
       </div>
@@ -1021,7 +1517,6 @@ const generateMockData = (): MemberData => {
     ['pending', 'pending', 'pending'],
   ];
 
-  // Also generate historical data for heat calendar (past 8 weeks)
   const historicalStatuses: CommitmentStatus[][] = [
     ['completed', 'completed', 'completed'],
     ['completed', 'partial', 'completed'],
@@ -1036,10 +1531,9 @@ const generateMockData = (): MemberData => {
     const entries: DayEntry[] = [];
     const commitmentSets = mockCommitments[memberId];
 
-    // Historical weeks (7 weeks back)
     for (let w = -7; w < 0; w++) {
       const weekDates = getWeekDates(w);
-      for (let d = 0; d < 5; d++) { // only weekdays
+      for (let d = 0; d < 5; d++) {
         const dayStatuses = historicalStatuses[(Math.abs(w) + d) % historicalStatuses.length];
         entries.push({
           date: weekDates[d],
@@ -1052,7 +1546,6 @@ const generateMockData = (): MemberData => {
       }
     }
 
-    // Current week
     for (let i = 0; i < Math.min(currentWeek.length, commitmentSets.length); i++) {
       const dayCommitments = commitmentSets[i];
       const dayStatuses = statuses[i];
@@ -1143,6 +1636,21 @@ export function AccountabilityView() {
     return count > 0 ? Math.round(total / count) : 0;
   }, [memberData, currentWeek]);
 
+  // Previous week average (for trend indicator)
+  const previousWeekRate = useMemo(() => {
+    const prevWeek = getWeekDates(-1);
+    let total = 0;
+    let count = 0;
+    for (const d of prevWeek) {
+      const entry = memberData?.entries.find((e) => e.date === d);
+      if (entry && entry.commitments.length > 0) {
+        total += getHitRate(entry);
+        count++;
+      }
+    }
+    return count > 0 ? Math.round(total / count) : 0;
+  }, [memberData]);
+
   // Total completed
   const totalCompleted = useMemo(() => {
     return memberData?.entries.reduce((sum, e) => sum + e.commitments.filter((c) => c.status === 'completed').length, 0) ?? 0;
@@ -1224,7 +1732,6 @@ export function AccountabilityView() {
         else break;
       }
 
-      // Weekly avg for this member
       let wTotal = 0;
       let wCount = 0;
       for (const d of currentWeek) {
@@ -1312,26 +1819,52 @@ export function AccountabilityView() {
     });
   }, [selectedMember]);
 
+  // Close dropdown on outside click
+  useEffect(() => {
+    if (!dropdownOpen) return;
+    const handler = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      if (!target.closest('[data-acc-dropdown]')) {
+        setDropdownOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [dropdownOpen]);
+
   return (
     <div style={{ padding: '32px 40px', maxWidth: 1200, margin: '0 auto' }}>
       {/* ── Header ── */}
-      <div className="animate-fade-in" style={{ marginBottom: 28 }}>
+      <div style={{
+        animation: `acc-slide-up 0.6s ${EASE} 0ms both`,
+        marginBottom: 32,
+        position: 'relative',
+      }}>
+        <div className="noise-overlay" style={{ position: 'absolute', inset: 0, borderRadius: 'inherit', pointerEvents: 'none' }} />
+        <div className="dot-pattern" style={{ position: 'absolute', inset: 0, borderRadius: 'inherit', pointerEvents: 'none', opacity: 0.3 }} />
         <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16 }}>
           <div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 6 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 6 }}>
               <div style={{
-                width: 42, height: 42, borderRadius: 12,
-                backgroundColor: 'rgba(212,165,116,0.12)',
-                border: '1px solid rgba(212,165,116,0.25)',
+                width: 46, height: 46, borderRadius: 14,
+                background: 'linear-gradient(135deg, rgba(212,165,116,0.15), rgba(139,92,246,0.1))',
+                border: '1px solid rgba(212,165,116,0.2)',
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
+                position: 'relative',
               }}>
-                <Activity size={22} style={{ color: '#d4a574' }} />
+                <Activity size={22} style={{ color: COLORS.gold }} />
+                <div style={{
+                  position: 'absolute', inset: -1, borderRadius: 15,
+                  background: 'linear-gradient(135deg, rgba(212,165,116,0.1), transparent)',
+                  pointerEvents: 'none',
+                  animation: `acc-pulse-glow 4s ease-in-out infinite`,
+                }} />
               </div>
               <div>
-                <h1 style={{ fontSize: 28, fontWeight: 700, margin: 0, letterSpacing: '-0.01em' }}>
+                <h1 className="text-glow" style={{ fontSize: 28, fontWeight: 700, margin: 0, letterSpacing: '-0.02em' }}>
                   <span className="gradient-text">Steward Accountability Loops</span>
                 </h1>
-                <p style={{ fontSize: 13, color: '#a09888', margin: 0, marginTop: 2 }}>
+                <p style={{ fontSize: 13, color: COLORS.muted, margin: 0, marginTop: 4 }}>
                   Track morning commitments against end-of-day results. Build consistency across the steward team.
                 </p>
               </div>
@@ -1339,21 +1872,26 @@ export function AccountabilityView() {
           </div>
 
           {/* Member Selector */}
-          <div style={{ position: 'relative' }}>
+          <div style={{ position: 'relative' }} data-acc-dropdown>
             <button
               onClick={() => setDropdownOpen(!dropdownOpen)}
               style={{
                 display: 'flex', alignItems: 'center', gap: 12,
-                backgroundColor: '#131720', border: '1px solid #1e2638',
-                borderRadius: 14, padding: '10px 16px',
-                cursor: 'pointer', minWidth: 220, transition: 'border-color 0.2s',
+                background: GLASS.bg,
+                backdropFilter: GLASS.blur,
+                WebkitBackdropFilter: GLASS.blur,
+                border: `1px solid ${dropdownOpen ? GLASS.borderHover : GLASS.border}`,
+                borderRadius: 14, padding: '12px 18px',
+                cursor: 'pointer', minWidth: 230,
+                transition: `all 0.3s ${EASE}`,
+                boxShadow: dropdownOpen ? '0 8px 32px rgba(0,0,0,0.3)' : 'none',
               }}
             >
               {selectedMemberObj && (
                 <div
                   className={selectedMemberObj.color}
                   style={{
-                    width: 32, height: 32, borderRadius: 10,
+                    width: 34, height: 34, borderRadius: 10,
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
                     color: '#fff', fontSize: 11, fontWeight: 700,
                   }}
@@ -1362,11 +1900,12 @@ export function AccountabilityView() {
                 </div>
               )}
               <div style={{ flex: 1, textAlign: 'left' }}>
-                <p style={{ fontSize: 13, fontWeight: 600, color: '#f0ebe4', margin: 0 }}>{selectedMemberObj?.name}</p>
-                <p style={{ fontSize: 11, color: '#6b6358', margin: 0 }}>{selectedMemberObj?.shortRole}</p>
+                <p style={{ fontSize: 13, fontWeight: 600, color: COLORS.cream, margin: 0 }}>{selectedMemberObj?.name}</p>
+                <p style={{ fontSize: 11, color: COLORS.dimmed, margin: 0 }}>{selectedMemberObj?.shortRole}</p>
               </div>
               <ChevronDown size={16} style={{
-                color: '#6b6358', transition: 'transform 0.2s',
+                color: COLORS.dimmed,
+                transition: `transform 0.3s ${EASE}`,
                 transform: dropdownOpen ? 'rotate(180deg)' : 'rotate(0deg)',
               }} />
             </button>
@@ -1374,11 +1913,17 @@ export function AccountabilityView() {
             {dropdownOpen && (
               <div style={{
                 position: 'absolute', top: '100%', right: 0, marginTop: 8, width: '100%',
-                backgroundColor: '#131720', border: '1px solid #1e2638',
-                borderRadius: 14, boxShadow: '0 16px 48px rgba(0,0,0,0.4)',
-                zIndex: 50, padding: 4, maxHeight: 280, overflowY: 'auto',
-              }}>
-                {activeMembers.map((m) => (
+                background: 'rgba(19,23,32,0.95)',
+                backdropFilter: GLASS.blur,
+                WebkitBackdropFilter: GLASS.blur,
+                border: `1px solid ${COLORS.border}`,
+                borderRadius: 14, boxShadow: '0 20px 60px rgba(0,0,0,0.5)',
+                zIndex: 50, padding: 6, maxHeight: 280, overflowY: 'auto',
+                animation: `acc-stat-count-up 0.25s ${EASE} both`,
+              }}
+              className="scrollbar-autohide"
+              >
+                {activeMembers.map((m, i) => (
                   <button
                     key={m.id}
                     onClick={() => { setSelectedMember(m.id); setDropdownOpen(false); }}
@@ -1386,7 +1931,15 @@ export function AccountabilityView() {
                       width: '100%', display: 'flex', alignItems: 'center', gap: 10,
                       padding: '10px 12px', borderRadius: 10, border: 'none',
                       backgroundColor: m.id === selectedMember ? 'rgba(212,165,116,0.08)' : 'transparent',
-                      cursor: 'pointer', transition: 'background-color 0.15s',
+                      cursor: 'pointer',
+                      transition: `all 0.2s ${EASE}`,
+                      animation: `acc-stagger-in 0.3s ${EASE} ${i * 30}ms both`,
+                    }}
+                    onMouseEnter={(e) => {
+                      if (m.id !== selectedMember) e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.03)';
+                    }}
+                    onMouseLeave={(e) => {
+                      if (m.id !== selectedMember) e.currentTarget.style.backgroundColor = 'transparent';
                     }}
                   >
                     <div
@@ -1400,9 +1953,12 @@ export function AccountabilityView() {
                       {m.avatar}
                     </div>
                     <div style={{ textAlign: 'left' }}>
-                      <p style={{ fontSize: 12, color: '#f0ebe4', margin: 0 }}>{m.name}</p>
-                      <p style={{ fontSize: 10, color: '#6b6358', margin: 0 }}>{m.shortRole}</p>
+                      <p style={{ fontSize: 12, color: COLORS.cream, margin: 0 }}>{m.name}</p>
+                      <p style={{ fontSize: 10, color: COLORS.dimmed, margin: 0 }}>{m.shortRole}</p>
                     </div>
+                    {m.id === selectedMember && (
+                      <CheckCircle2 size={14} style={{ color: COLORS.gold, marginLeft: 'auto' }} />
+                    )}
                   </button>
                 ))}
               </div>
@@ -1412,22 +1968,24 @@ export function AccountabilityView() {
       </div>
 
       {/* ── Summary Stats Bar ── */}
-      <div className="animate-fade-in" style={{ animationDelay: '50ms', opacity: 0, marginBottom: 24 }}>
+      <div style={{
+        animation: `acc-slide-up 0.6s ${EASE} 60ms both`,
+        marginBottom: 28,
+      }}>
         <SummaryStatsBar
           streak={streak}
           completionRate={weeklyAvg}
           teamAvg={teamAvg}
           totalCompleted={totalCompleted}
-          delay={80}
+          previousWeekRate={previousWeekRate}
+          delay={100}
         />
       </div>
 
       {/* ── Score Ring + Streak + Heat Calendar Row ── */}
       <div
-        className="animate-fade-in"
         style={{
-          animationDelay: '120ms',
-          opacity: 0,
+          animation: `acc-slide-up 0.6s ${EASE} 140ms both`,
           display: 'grid',
           gridTemplateColumns: 'auto 1fr',
           gap: 24,
@@ -1435,12 +1993,45 @@ export function AccountabilityView() {
         }}
       >
         {/* Left: Score Ring */}
-        <div style={{
-          backgroundColor: '#131720', border: '1px solid #1e2638',
-          borderRadius: 20, padding: '28px 32px',
-          display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 12,
+        <div className="card-premium" style={{
+          background: GLASS.bg,
+          backdropFilter: GLASS.blur,
+          WebkitBackdropFilter: GLASS.blur,
+          border: `1px solid ${GLASS.border}`,
+          borderRadius: 20, padding: '32px 36px',
+          display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 14,
+          position: 'relative',
+          overflow: 'hidden',
         }}>
-          <ScoreRing score={weeklyAvg} size={150} strokeWidth={12} label="This Week" />
+          {/* Subtle radial background */}
+          <div style={{
+            position: 'absolute', inset: 0, pointerEvents: 'none',
+            background: weeklyAvg >= 80
+              ? 'radial-gradient(circle at 50% 50%, rgba(107,143,113,0.06) 0%, transparent 70%)'
+              : weeklyAvg >= 50
+                ? 'radial-gradient(circle at 50% 50%, rgba(232,180,76,0.06) 0%, transparent 70%)'
+                : 'none',
+          }} />
+          <ScoreRing score={weeklyAvg} size={160} strokeWidth={12} label="This Week" />
+          {/* Sub-metric badges */}
+          <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
+            <span style={{
+              fontSize: 9, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em',
+              color: COLORS.dimmed, backgroundColor: 'rgba(255,255,255,0.03)',
+              border: `1px solid ${COLORS.border}`, borderRadius: 8, padding: '3px 10px',
+            }}>
+              <Shield size={9} style={{ display: 'inline', verticalAlign: 'middle', marginRight: 3 }} />
+              {streak}d streak
+            </span>
+            <span style={{
+              fontSize: 9, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em',
+              color: COLORS.dimmed, backgroundColor: 'rgba(255,255,255,0.03)',
+              border: `1px solid ${COLORS.border}`, borderRadius: 8, padding: '3px 10px',
+            }}>
+              <BarChart3 size={9} style={{ display: 'inline', verticalAlign: 'middle', marginRight: 3 }} />
+              {totalCompleted} done
+            </span>
+          </div>
         </div>
 
         {/* Right: Streak + Heat Calendar */}
@@ -1448,21 +2039,28 @@ export function AccountabilityView() {
           <StreakCounter streak={streak} />
 
           {/* Heat Calendar */}
-          <div style={{
-            backgroundColor: '#131720', border: '1px solid #1e2638',
-            borderRadius: 16, padding: '18px 22px',
+          <div className="card-premium" style={{
+            background: GLASS.bg,
+            backdropFilter: GLASS.blur,
+            WebkitBackdropFilter: GLASS.blur,
+            border: `1px solid ${GLASS.border}`,
+            borderRadius: 16, padding: '20px 24px',
+            transition: `border-color 0.3s ${EASE}`,
           }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <Calendar size={14} style={{ color: '#8b5cf6' }} />
-                <span style={{ fontSize: 12, fontWeight: 600, color: '#a09888' }}>
+                <Calendar size={14} style={{ color: COLORS.purple }} />
+                <span style={{ fontSize: 12, fontWeight: 600, color: COLORS.muted }}>
                   Streak Calendar
                 </span>
               </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 9, color: '#6b6358' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 9, color: COLORS.dimmed }}>
                 <span>Less</span>
-                {['#1c2230', 'rgba(224,96,96,0.6)', '#e8b44c', 'rgba(107,143,113,0.6)', '#6b8f71'].map((c, i) => (
-                  <div key={i} style={{ width: 10, height: 10, borderRadius: 2, backgroundColor: c }} />
+                {['#1c2230', 'rgba(224,96,96,0.6)', COLORS.amber, 'rgba(107,143,113,0.6)', COLORS.green].map((c, i) => (
+                  <div key={i} style={{
+                    width: 10, height: 10, borderRadius: 3, backgroundColor: c,
+                    transition: `transform 0.2s ${EASE}`,
+                  }} />
                 ))}
                 <span>More</span>
               </div>
@@ -1476,41 +2074,43 @@ export function AccountabilityView() {
 
       {/* ── Weekly Accountability Grid ── */}
       <div
-        className="animate-fade-in"
+        className="card-premium"
         style={{
-          animationDelay: '200ms',
-          opacity: 0,
-          backgroundColor: '#131720',
-          border: '1px solid #1e2638',
+          animation: `acc-slide-up 0.6s ${EASE} 220ms both`,
+          background: GLASS.bg,
+          backdropFilter: GLASS.blur,
+          WebkitBackdropFilter: GLASS.blur,
+          border: `1px solid ${GLASS.border}`,
           borderRadius: 20,
-          padding: '24px 28px',
+          padding: '28px 32px',
           marginBottom: 28,
         }}
       >
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 22 }}>
           <div>
-            <h3 style={{ fontSize: 16, fontWeight: 600, color: '#f0ebe4', margin: 0 }}>
+            <h3 style={{ fontSize: 16, fontWeight: 600, color: COLORS.cream, margin: 0 }}>
               Weekly Tracker
             </h3>
-            <span style={{ fontSize: 11, color: '#6b6358' }}>
+            <span style={{ fontSize: 11, color: COLORS.dimmed }}>
               {dayLabel(currentWeek[0])} &mdash; {dayLabel(currentWeek[6])}
             </span>
           </div>
           <div style={{
-            display: 'flex', alignItems: 'center', gap: 16, fontSize: 10, color: '#6b6358',
+            display: 'flex', alignItems: 'center', gap: 16, fontSize: 10, color: COLORS.dimmed,
           }}>
-            <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-              <div style={{ width: 8, height: 8, borderRadius: '50%', backgroundColor: '#6b8f71' }} />
-              100%
-            </span>
-            <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-              <div style={{ width: 8, height: 8, borderRadius: '50%', backgroundColor: '#e8b44c' }} />
-              Partial
-            </span>
-            <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-              <div style={{ width: 8, height: 8, borderRadius: '50%', backgroundColor: '#e06060' }} />
-              Missed
-            </span>
+            {[
+              { label: '100%', color: COLORS.green },
+              { label: 'Partial', color: COLORS.amber },
+              { label: 'Missed', color: COLORS.red },
+            ].map((item) => (
+              <span key={item.label} style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                <div style={{
+                  width: 8, height: 8, borderRadius: '50%', backgroundColor: item.color,
+                  boxShadow: `0 0 6px ${item.color}30`,
+                }} />
+                {item.label}
+              </span>
+            ))}
           </div>
         </div>
 
@@ -1523,25 +2123,43 @@ export function AccountabilityView() {
               date={date}
               entry={memberData?.entries.find((e) => e.date === date)}
               isToday={date === today}
-              delay={240 + i * 50}
+              delay={260 + i * 50}
             />
           ))}
         </div>
 
         {/* Week progress bar */}
-        <div style={{ marginTop: 20 }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-            <span style={{ fontSize: 11, color: '#6b6358' }}>Weekly Progress</span>
-            <span style={{ fontSize: 12, fontWeight: 700, color: '#d4a574', fontVariantNumeric: 'tabular-nums' }}>
-              {weeklyAvg}%
-            </span>
+        <div style={{ marginTop: 22 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+            <span style={{ fontSize: 11, color: COLORS.dimmed }}>Weekly Progress</span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <TrendArrow current={weeklyAvg} previous={previousWeekRate} />
+              <span style={{
+                fontSize: 13, fontWeight: 700, color: COLORS.gold,
+                fontVariantNumeric: 'tabular-nums',
+              }}>
+                {weeklyAvg}%
+              </span>
+            </div>
           </div>
-          <div style={{ height: 6, backgroundColor: '#1e2638', borderRadius: 3, overflow: 'hidden' }}>
+          <div className="progress-bar-animated" style={{
+            height: 7, backgroundColor: COLORS.border, borderRadius: 4, overflow: 'hidden',
+            position: 'relative',
+          }}>
             <div style={{
-              height: '100%', width: `${weeklyAvg}%`, borderRadius: 3,
-              background: 'linear-gradient(90deg, #d4a574, #8b5cf6)',
-              transition: 'width 1s ease-out',
-            }} />
+              height: '100%', width: `${weeklyAvg}%`, borderRadius: 4,
+              background: `linear-gradient(90deg, ${COLORS.gold}, ${COLORS.purple})`,
+              transition: `width 1.2s ${EASE}`,
+              position: 'relative',
+            }}>
+              {/* Shimmer effect */}
+              <div style={{
+                position: 'absolute', inset: 0, borderRadius: 4,
+                background: 'linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.15) 50%, transparent 100%)',
+                backgroundSize: '200% 100%',
+                animation: 'acc-shimmer 2.5s ease-in-out infinite',
+              }} />
+            </div>
           </div>
         </div>
       </div>
@@ -1552,22 +2170,33 @@ export function AccountabilityView() {
       }}>
         {/* Today's Commitments */}
         <div
-          className="animate-fade-in"
+          className="card-premium"
           style={{
-            animationDelay: '300ms', opacity: 0,
-            backgroundColor: '#131720', border: '1px solid #1e2638',
-            borderRadius: 20, padding: '24px 28px',
+            animation: `acc-slide-up 0.6s ${EASE} 320ms both`,
+            background: GLASS.bg,
+            backdropFilter: GLASS.blur,
+            WebkitBackdropFilter: GLASS.blur,
+            border: `1px solid ${GLASS.border}`,
+            borderRadius: 20, padding: '28px 30px',
           }}
         >
-          <div style={{ marginBottom: 16 }}>
-            <h3 style={{ fontSize: 16, fontWeight: 600, color: '#f0ebe4', margin: 0 }}>
-              Top 3 Today
-            </h3>
-            <span style={{ fontSize: 11, color: '#6b6358' }}>{dayLabel(today)}</span>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 18 }}>
+            <div>
+              <h3 style={{ fontSize: 16, fontWeight: 600, color: COLORS.cream, margin: 0 }}>
+                Top 3 Today
+              </h3>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 4 }}>
+                <span style={{ fontSize: 11, color: COLORS.dimmed }}>{dayLabel(today)}</span>
+                <UrgencyBadge date={today} />
+              </div>
+            </div>
+            {todayEntry && todayEntry.commitments.length > 0 && (
+              <MiniProgressRing score={getHitRate(todayEntry)} size={38} strokeWidth={3} />
+            )}
           </div>
 
           {/* Add commitment */}
-          <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
+          <div style={{ display: 'flex', gap: 8, marginBottom: 18 }}>
             <input
               type="text"
               value={newCommitment}
@@ -1576,9 +2205,20 @@ export function AccountabilityView() {
               placeholder="Add a commitment..."
               disabled={(todayEntry?.commitments.length ?? 0) >= 5}
               style={{
-                flex: 1, backgroundColor: '#1c2230', border: '1px solid #1e2638',
-                borderRadius: 10, padding: '10px 14px', fontSize: 13,
-                color: '#f0ebe4', outline: 'none', transition: 'border-color 0.2s',
+                flex: 1,
+                backgroundColor: COLORS.surfaceAlt,
+                border: `1px solid ${COLORS.border}`,
+                borderRadius: 12, padding: '12px 16px', fontSize: 13,
+                color: COLORS.cream, outline: 'none',
+                transition: `all 0.3s ${EASE}`,
+              }}
+              onFocus={(e) => {
+                e.currentTarget.style.borderColor = COLORS.gold + '50';
+                e.currentTarget.style.boxShadow = `0 0 0 3px ${COLORS.gold}10`;
+              }}
+              onBlur={(e) => {
+                e.currentTarget.style.borderColor = COLORS.border;
+                e.currentTarget.style.boxShadow = 'none';
               }}
             />
             <button
@@ -1586,10 +2226,12 @@ export function AccountabilityView() {
               disabled={!newCommitment.trim() || (todayEntry?.commitments.length ?? 0) >= 5}
               style={{
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
-                width: 42, height: 42, borderRadius: 10, border: 'none',
-                backgroundColor: '#d4a574', color: '#0b0d14', cursor: 'pointer',
-                opacity: !newCommitment.trim() || (todayEntry?.commitments.length ?? 0) >= 5 ? 0.4 : 1,
-                transition: 'opacity 0.2s, background-color 0.2s',
+                width: 44, height: 44, borderRadius: 12, border: 'none',
+                background: `linear-gradient(135deg, ${COLORS.gold}, ${COLORS.gold}cc)`,
+                color: COLORS.bg, cursor: 'pointer',
+                opacity: !newCommitment.trim() || (todayEntry?.commitments.length ?? 0) >= 5 ? 0.3 : 1,
+                transition: `all 0.3s ${EASE}`,
+                boxShadow: newCommitment.trim() ? `0 4px 12px ${COLORS.gold}30` : 'none',
               }}
             >
               <Plus size={18} />
@@ -1605,16 +2247,26 @@ export function AccountabilityView() {
                 date={today}
                 onUpdateStatus={updateStatus}
                 onRemove={removeCommitment}
-                delay={350 + i * 60}
+                delay={370 + i * 60}
               />
             ))}
             {(!todayEntry || todayEntry.commitments.length === 0) && (
               <div style={{
                 display: 'flex', flexDirection: 'column', alignItems: 'center',
-                justifyContent: 'center', padding: '36px 20px', color: '#6b6358',
+                justifyContent: 'center', padding: '40px 20px', color: COLORS.dimmed,
+                borderRadius: 14,
+                border: `1px dashed ${COLORS.border}`,
+                backgroundColor: 'rgba(255,255,255,0.01)',
               }}>
-                <Save size={28} style={{ opacity: 0.3, marginBottom: 8 }} />
-                <p style={{ fontSize: 13, margin: 0 }}>No commitments yet for today</p>
+                <div style={{
+                  width: 48, height: 48, borderRadius: 14,
+                  backgroundColor: 'rgba(212,165,116,0.06)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  marginBottom: 12,
+                }}>
+                  <Save size={22} style={{ opacity: 0.4, color: COLORS.gold }} />
+                </div>
+                <p style={{ fontSize: 13, margin: 0, color: COLORS.muted }}>No commitments yet for today</p>
                 <p style={{ fontSize: 11, margin: '4px 0 0 0', opacity: 0.6 }}>Add your Top 3 priorities above</p>
               </div>
             )}
@@ -1623,16 +2275,27 @@ export function AccountabilityView() {
 
         {/* Weekly Hit Rate Chart */}
         <div
-          className="animate-fade-in"
+          className="card-premium"
           style={{
-            animationDelay: '350ms', opacity: 0,
-            backgroundColor: '#131720', border: '1px solid #1e2638',
-            borderRadius: 20, padding: '24px 28px',
+            animation: `acc-slide-up 0.6s ${EASE} 380ms both`,
+            background: GLASS.bg,
+            backdropFilter: GLASS.blur,
+            WebkitBackdropFilter: GLASS.blur,
+            border: `1px solid ${GLASS.border}`,
+            borderRadius: 20, padding: '28px 30px',
           }}
         >
-          <h3 style={{ fontSize: 16, fontWeight: 600, color: '#f0ebe4', margin: '0 0 20px 0' }}>
-            Weekly Hit Rate
-          </h3>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 22 }}>
+            <h3 style={{ fontSize: 16, fontWeight: 600, color: COLORS.cream, margin: 0 }}>
+              Weekly Hit Rate
+            </h3>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <BarChart3 size={14} style={{ color: COLORS.purple }} />
+              <span style={{ fontSize: 11, fontWeight: 600, color: COLORS.muted }}>
+                {weeklyAvg}% avg
+              </span>
+            </div>
+          </div>
 
           <div style={{ display: 'flex', alignItems: 'flex-end', gap: 10, height: 180, marginBottom: 16 }}>
             {currentWeek.map((date, i) => {
@@ -1640,40 +2303,65 @@ export function AccountabilityView() {
               const rate = getHitRate(entry);
               const isToday = date === today;
               const barColor = rate >= 80
-                ? 'linear-gradient(180deg, #6b8f71, #4a6f50)'
+                ? `linear-gradient(180deg, ${COLORS.green}, ${COLORS.greenDark})`
                 : rate >= 50
-                  ? 'linear-gradient(180deg, #e8b44c, #c99530)'
+                  ? `linear-gradient(180deg, ${COLORS.amber}, #c99530)`
                   : rate > 0
-                    ? 'linear-gradient(180deg, #e06060, #c04040)'
+                    ? `linear-gradient(180deg, ${COLORS.red}, ${COLORS.redDark})`
                     : '#1c2230';
 
               return (
                 <div key={date} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
                   <span style={{
                     fontSize: 11, fontWeight: 700,
-                    color: rate > 0 ? '#f0ebe4' : '#262e3e',
+                    color: rate > 0 ? COLORS.cream : '#262e3e',
                     fontVariantNumeric: 'tabular-nums',
+                    animation: rate > 0 ? `acc-number-pop 0.4s ${EASE} ${420 + i * 80 + 200}ms both` : 'none',
+                    opacity: rate > 0 ? undefined : 1,
                   }}>
                     {rate > 0 ? `${rate}%` : ''}
                   </span>
                   <div style={{
                     width: '100%', height: 130,
                     display: 'flex', flexDirection: 'column', justifyContent: 'flex-end',
-                    backgroundColor: '#0f1219', borderRadius: 10, overflow: 'hidden',
+                    backgroundColor: COLORS.surfaceAlt, borderRadius: 10, overflow: 'hidden',
+                    position: 'relative',
                   }}>
+                    {/* Average line */}
+                    {weeklyAvg > 0 && (
+                      <div style={{
+                        position: 'absolute',
+                        bottom: `${weeklyAvg * 1.3}%`,
+                        left: 0, right: 0,
+                        height: 1,
+                        backgroundColor: `${COLORS.gold}30`,
+                        borderTop: `1px dashed ${COLORS.gold}40`,
+                        zIndex: 1,
+                      }} />
+                    )}
                     <div
-                      className="animate-fade-in"
                       style={{
-                        animationDelay: `${400 + i * 80}ms`, opacity: 0,
                         width: '100%', borderRadius: 10, background: barColor,
                         height: `${rate}%`, minHeight: rate > 0 ? 4 : 0,
-                        transition: 'height 0.8s ease-out',
+                        transition: `height 1s ${EASE}`,
+                        transformOrigin: 'bottom',
+                        animation: `acc-bar-grow 0.8s ${EASE} ${420 + i * 80}ms both`,
+                        position: 'relative',
                       }}
-                    />
+                    >
+                      {rate === 100 && (
+                        <div style={{
+                          position: 'absolute', top: -2, left: '50%', transform: 'translateX(-50%)',
+                          animation: `acc-sparkle-rotate 3s ease-in-out infinite`,
+                        }}>
+                          <Sparkles size={10} style={{ color: COLORS.green }} />
+                        </div>
+                      )}
+                    </div>
                   </div>
                   <span style={{
                     fontSize: 10, fontWeight: isToday ? 700 : 500,
-                    color: isToday ? '#d4a574' : '#6b6358',
+                    color: isToday ? COLORS.gold : COLORS.dimmed,
                   }}>
                     {weekdayShort(date)}
                   </span>
@@ -1683,34 +2371,49 @@ export function AccountabilityView() {
           </div>
 
           {/* Monthly Trend Sparkline */}
-          <div style={{ borderTop: '1px solid #1e2638', paddingTop: 16 }}>
-            <span style={{ fontSize: 11, color: '#6b6358', display: 'block', marginBottom: 10 }}>4-Week Trend</span>
+          <div style={{ borderTop: `1px solid ${COLORS.border}`, paddingTop: 18 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+              <TrendingUp size={12} style={{ color: COLORS.muted }} />
+              <span style={{ fontSize: 11, color: COLORS.dimmed }}>4-Week Trend</span>
+            </div>
             <div style={{ display: 'flex', gap: 10 }}>
               {monthlyTrend.map((week, i) => {
                 const isCurrentWeek = i === monthlyTrend.length - 1;
-                const barColor = week.rate >= 80 ? '#6b8f71' : week.rate >= 50 ? '#e8b44c' : week.rate > 0 ? '#e06060' : '#1c2230';
+                const prevRate = i > 0 ? monthlyTrend[i - 1].rate : week.rate;
+                const barGradient = week.rate >= 80
+                  ? `linear-gradient(90deg, ${COLORS.green}, ${COLORS.purple})`
+                  : week.rate >= 50
+                    ? `linear-gradient(90deg, ${COLORS.amber}, ${COLORS.gold})`
+                    : week.rate > 0
+                      ? `linear-gradient(90deg, ${COLORS.red}, ${COLORS.redDark})`
+                      : '#1c2230';
                 return (
                   <div key={i} style={{ flex: 1 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 5 }}>
                       <span style={{
-                        fontSize: 10, color: isCurrentWeek ? '#d4a574' : '#6b6358',
+                        fontSize: 10, color: isCurrentWeek ? COLORS.gold : COLORS.dimmed,
                         fontWeight: isCurrentWeek ? 600 : 400,
                       }}>
                         {week.label}
                       </span>
-                      <span style={{
-                        fontSize: 10, fontWeight: 700,
-                        color: isCurrentWeek ? '#d4a574' : '#a09888',
-                        fontVariantNumeric: 'tabular-nums',
-                      }}>
-                        {week.rate}%
-                      </span>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                        <span style={{
+                          fontSize: 10, fontWeight: 700,
+                          color: isCurrentWeek ? COLORS.gold : COLORS.muted,
+                          fontVariantNumeric: 'tabular-nums',
+                        }}>
+                          {week.rate}%
+                        </span>
+                        {i > 0 && <TrendArrow current={week.rate} previous={prevRate} />}
+                      </div>
                     </div>
-                    <div style={{ height: 4, backgroundColor: '#1c2230', borderRadius: 2, overflow: 'hidden' }}>
+                    <div style={{
+                      height: 5, backgroundColor: '#1c2230', borderRadius: 3, overflow: 'hidden',
+                    }}>
                       <div style={{
                         height: '100%', width: `${week.rate}%`,
-                        backgroundColor: barColor, borderRadius: 2,
-                        transition: 'width 0.8s ease',
+                        background: barGradient, borderRadius: 3,
+                        transition: `width 0.8s ${EASE}`,
                       }} />
                     </div>
                   </div>
@@ -1723,18 +2426,30 @@ export function AccountabilityView() {
 
       {/* ── Individual Accountability Cards ── */}
       <div
-        className="animate-fade-in"
-        style={{ animationDelay: '450ms', opacity: 0, marginBottom: 28 }}
+        style={{
+          animation: `acc-slide-up 0.6s ${EASE} 460ms both`,
+          marginBottom: 28,
+        }}
       >
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
-          <Users size={18} style={{ color: '#8b5cf6' }} />
-          <h3 style={{ fontSize: 16, fontWeight: 600, color: '#f0ebe4', margin: 0 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 18 }}>
+          <div style={{
+            width: 28, height: 28, borderRadius: 8,
+            backgroundColor: 'rgba(139,92,246,0.1)',
+            border: '1px solid rgba(139,92,246,0.2)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+          }}>
+            <Users size={14} style={{ color: COLORS.purple }} />
+          </div>
+          <h3 style={{ fontSize: 16, fontWeight: 600, color: COLORS.cream, margin: 0 }}>
             Individual Accountability
           </h3>
           <span style={{
-            fontSize: 10, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em',
-            color: '#6b6358', backgroundColor: 'rgba(255,255,255,0.04)',
-            borderRadius: 12, padding: '2px 10px', marginLeft: 4,
+            fontSize: 10, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.08em',
+            color: COLORS.dimmed,
+            background: GLASS.bg,
+            backdropFilter: GLASS.blur,
+            border: `1px solid ${GLASS.border}`,
+            borderRadius: 12, padding: '3px 12px', marginLeft: 4,
           }}>
             {leaderboard.length} members tracking
           </span>
@@ -1749,7 +2464,7 @@ export function AccountabilityView() {
               weeklyAvg={row.weeklyAvg}
               totalCompleted={row.completed}
               totalCommitments={row.total}
-              delay={500 + i * 80}
+              delay={520 + i * 80}
             />
           ))}
         </div>
@@ -1761,16 +2476,26 @@ export function AccountabilityView() {
       }}>
         {/* Team Accountability Leaderboard */}
         <div
-          className="animate-fade-in"
+          className="card-premium"
           style={{
-            animationDelay: '550ms', opacity: 0,
-            backgroundColor: '#131720', border: '1px solid #1e2638',
-            borderRadius: 20, padding: '24px 28px',
+            animation: `acc-slide-up 0.6s ${EASE} 560ms both`,
+            background: GLASS.bg,
+            backdropFilter: GLASS.blur,
+            WebkitBackdropFilter: GLASS.blur,
+            border: `1px solid ${GLASS.border}`,
+            borderRadius: 20, padding: '28px 30px',
           }}
         >
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 20 }}>
-            <Trophy size={18} style={{ color: '#e8b44c' }} />
-            <h3 style={{ fontSize: 16, fontWeight: 600, color: '#f0ebe4', margin: 0 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 22 }}>
+            <div style={{
+              width: 28, height: 28, borderRadius: 8,
+              backgroundColor: 'rgba(232,180,76,0.1)',
+              border: '1px solid rgba(232,180,76,0.2)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+            }}>
+              <Trophy size={14} style={{ color: COLORS.amber }} />
+            </div>
+            <h3 style={{ fontSize: 16, fontWeight: 600, color: COLORS.cream, margin: 0 }}>
               Team Leaderboard
             </h3>
           </div>
@@ -1778,11 +2503,11 @@ export function AccountabilityView() {
           {/* Header */}
           <div style={{
             display: 'grid',
-            gridTemplateColumns: '32px 34px 1fr 50px 40px 60px',
-            gap: 12, padding: '0 16px 10px',
+            gridTemplateColumns: '34px 36px 1fr 50px 40px 70px',
+            gap: 12, padding: '0 18px 12px',
             fontSize: 9, fontWeight: 600, textTransform: 'uppercase',
-            letterSpacing: '0.08em', color: '#6b6358',
-            borderBottom: '1px solid #1e2638', marginBottom: 4,
+            letterSpacing: '0.1em', color: COLORS.dimmed,
+            borderBottom: `1px solid ${COLORS.border}`, marginBottom: 6,
           }}>
             <span>#</span>
             <span></span>
@@ -1794,7 +2519,7 @@ export function AccountabilityView() {
             <span style={{ textAlign: 'center' }}>Done</span>
           </div>
 
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
             {leaderboard.map((row, i) => (
               <LeaderboardRow
                 key={row.member.id}
@@ -1804,7 +2529,7 @@ export function AccountabilityView() {
                 streak={row.streak}
                 completed={row.completed}
                 total={row.total}
-                delay={600 + i * 80}
+                delay={620 + i * 80}
               />
             ))}
           </div>
@@ -1812,7 +2537,7 @@ export function AccountabilityView() {
           {leaderboard.length === 0 && (
             <div style={{
               display: 'flex', flexDirection: 'column', alignItems: 'center',
-              padding: '32px 0', color: '#6b6358',
+              padding: '36px 0', color: COLORS.dimmed,
             }}>
               <Trophy size={24} style={{ opacity: 0.2, marginBottom: 8 }} />
               <span style={{ fontSize: 12 }}>No data yet</span>
@@ -1822,86 +2547,117 @@ export function AccountabilityView() {
 
         {/* This Week's Commitments History */}
         <div
-          className="animate-fade-in"
+          className="card-premium"
           style={{
-            animationDelay: '600ms', opacity: 0,
-            backgroundColor: '#131720', border: '1px solid #1e2638',
-            borderRadius: 20, padding: '24px 28px',
+            animation: `acc-slide-up 0.6s ${EASE} 620ms both`,
+            background: GLASS.bg,
+            backdropFilter: GLASS.blur,
+            WebkitBackdropFilter: GLASS.blur,
+            border: `1px solid ${GLASS.border}`,
+            borderRadius: 20, padding: '28px 30px',
           }}
         >
-          <h3 style={{ fontSize: 16, fontWeight: 600, color: '#f0ebe4', margin: '0 0 16px 0' }}>
-            This Week&apos;s History
-          </h3>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 18 }}>
+            <div style={{
+              width: 28, height: 28, borderRadius: 8,
+              backgroundColor: 'rgba(107,143,113,0.1)',
+              border: '1px solid rgba(107,143,113,0.2)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+            }}>
+              <Calendar size={14} style={{ color: COLORS.green }} />
+            </div>
+            <h3 style={{ fontSize: 16, fontWeight: 600, color: COLORS.cream, margin: 0 }}>
+              This Week&apos;s History
+            </h3>
+          </div>
 
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 10, maxHeight: 400, overflowY: 'auto' }}>
+          <div className="scrollbar-autohide" style={{ display: 'flex', flexDirection: 'column', gap: 12, maxHeight: 400, overflowY: 'auto' }}>
             {currentWeek.map((date, dayIdx) => {
               const entry = memberData?.entries.find((e) => e.date === date);
               const isToday = date === today;
+              const hitRate = getHitRate(entry);
               if (!entry || entry.commitments.length === 0) return null;
 
               return (
                 <div
                   key={date}
-                  className="animate-fade-in"
                   style={{
-                    animationDelay: `${650 + dayIdx * 60}ms`, opacity: 0,
+                    animation: `acc-stagger-in 0.4s ${EASE} ${680 + dayIdx * 60}ms both`,
                     borderRadius: 14,
-                    border: `1px solid ${isToday ? 'rgba(212,165,116,0.25)' : '#1e2638'}`,
-                    backgroundColor: isToday ? 'rgba(212,165,116,0.04)' : '#0f1219',
-                    padding: '14px 16px',
+                    border: `1px solid ${isToday ? 'rgba(212,165,116,0.2)' : COLORS.border}`,
+                    backgroundColor: isToday ? 'rgba(212,165,116,0.04)' : COLORS.surfaceAlt,
+                    padding: '16px 18px',
+                    transition: `all 0.3s ${EASE}`,
                   }}
                 >
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-                    <span style={{
-                      fontSize: 11, fontWeight: 600,
-                      color: isToday ? '#d4a574' : '#a09888',
-                    }}>
-                      {dayLabel(date)} {isToday && '(Today)'}
-                    </span>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <span style={{
+                        fontSize: 11, fontWeight: 600,
+                        color: isToday ? COLORS.gold : COLORS.muted,
+                      }}>
+                        {dayLabel(date)}
+                      </span>
+                      {isToday && <UrgencyBadge date={date} />}
+                    </div>
                     <span style={{
                       fontSize: 10, fontWeight: 700,
-                      padding: '2px 10px', borderRadius: 10,
+                      padding: '3px 12px', borderRadius: 10,
                       fontVariantNumeric: 'tabular-nums',
                       backgroundColor:
-                        getHitRate(entry) >= 80 ? 'rgba(107,143,113,0.15)'
-                          : getHitRate(entry) >= 50 ? 'rgba(232,180,76,0.15)'
-                            : 'rgba(224,96,96,0.15)',
+                        hitRate >= 80 ? 'rgba(107,143,113,0.12)'
+                          : hitRate >= 50 ? 'rgba(232,180,76,0.12)'
+                            : 'rgba(224,96,96,0.12)',
                       color:
-                        getHitRate(entry) >= 80 ? '#6b8f71'
-                          : getHitRate(entry) >= 50 ? '#e8b44c'
-                            : '#e06060',
+                        hitRate >= 80 ? COLORS.green
+                          : hitRate >= 50 ? COLORS.amber
+                            : COLORS.red,
+                      border: `1px solid ${
+                        hitRate >= 80 ? 'rgba(107,143,113,0.2)'
+                          : hitRate >= 50 ? 'rgba(232,180,76,0.2)'
+                            : 'rgba(224,96,96,0.2)'
+                      }`,
                     }}>
-                      {getHitRate(entry)}%
+                      {hitRate}%
                     </span>
                   </div>
 
-                  {/* Completion bar */}
+                  {/* Completion bar with gradient */}
                   <div style={{
-                    height: 3, backgroundColor: '#1e2638', borderRadius: 2,
-                    overflow: 'hidden', marginBottom: 10,
+                    height: 4, backgroundColor: COLORS.border, borderRadius: 3,
+                    overflow: 'hidden', marginBottom: 12,
                   }}>
                     <div style={{
-                      height: '100%', width: `${getHitRate(entry)}%`,
-                      backgroundColor:
-                        getHitRate(entry) >= 80 ? '#6b8f71'
-                          : getHitRate(entry) >= 50 ? '#e8b44c' : '#e06060',
-                      borderRadius: 2, transition: 'width 0.6s ease',
+                      height: '100%', width: `${hitRate}%`,
+                      background:
+                        hitRate >= 80 ? `linear-gradient(90deg, ${COLORS.green}, ${COLORS.purple})`
+                          : hitRate >= 50 ? `linear-gradient(90deg, ${COLORS.amber}, ${COLORS.gold})`
+                            : `linear-gradient(90deg, ${COLORS.red}, ${COLORS.redDark})`,
+                      borderRadius: 3,
+                      transition: `width 0.8s ${EASE}`,
                     }} />
                   </div>
 
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                     {entry.commitments.map((c) => (
-                      <div key={c.id} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                        {c.status === 'completed' && <CheckCircle2 size={13} style={{ color: '#6b8f71', flexShrink: 0 }} />}
-                        {c.status === 'partial' && <MinusCircle size={13} style={{ color: '#e8b44c', flexShrink: 0 }} />}
-                        {c.status === 'missed' && <XCircle size={13} style={{ color: '#e06060', flexShrink: 0 }} />}
+                      <div key={c.id} style={{
+                        display: 'flex', alignItems: 'center', gap: 8,
+                        padding: '2px 0',
+                      }}>
+                        {c.status === 'completed' && <CheckCircle2 size={13} style={{ color: COLORS.green, flexShrink: 0 }} />}
+                        {c.status === 'partial' && <MinusCircle size={13} style={{ color: COLORS.amber, flexShrink: 0 }} />}
+                        {c.status === 'missed' && <XCircle size={13} style={{ color: COLORS.red, flexShrink: 0 }} />}
                         {c.status === 'pending' && (
-                          <div style={{ width: 13, height: 13, borderRadius: '50%', border: '1.5px solid #6b6358', flexShrink: 0 }} />
+                          <div style={{
+                            width: 13, height: 13, borderRadius: '50%',
+                            border: `1.5px solid ${COLORS.dimmed}`, flexShrink: 0,
+                          }} />
                         )}
                         <span style={{
                           fontSize: 12,
-                          color: c.status === 'completed' ? '#a09888' : c.status === 'missed' ? '#e06060' : '#f0ebe4',
+                          color: c.status === 'completed' ? COLORS.muted : c.status === 'missed' ? COLORS.red : COLORS.cream,
                           textDecoration: c.status === 'completed' ? 'line-through' : 'none',
+                          transition: `color 0.2s ${EASE}`,
                         }}>
                           {c.text}
                         </span>

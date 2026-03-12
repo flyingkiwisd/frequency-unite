@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   Heart,
   AlertTriangle,
@@ -8,8 +8,6 @@ import {
   Clock,
   Filter,
   Users,
-  TrendingDown,
-  TrendingUp,
   Calendar,
   ChevronDown,
   ChevronUp,
@@ -20,8 +18,8 @@ import {
   ArrowUpRight,
   ArrowDownRight,
   Minus,
-  Shield,
-  Flame,
+  Eye,
+  BarChart3,
 } from 'lucide-react';
 
 /* --- Types --- */
@@ -192,6 +190,12 @@ const SAGE = '#6b8f71';
 const ROSE = '#e879a0';
 const GOLD = '#e8b44c';
 const DANGER = '#e06060';
+const CREAM = '#f0ebe4';
+const MUTED = '#a09888';
+const BG_DARK = '#0b0d14';
+const BG_CARD = 'rgba(19,23,32,0.7)';
+const BORDER_SUBTLE = 'rgba(212,165,116,0.08)';
+const EASE_SPRING = 'cubic-bezier(0.16,1,0.3,1)';
 
 /* --- Helpers --- */
 const statusColors: Record<string, { color: string; bg: string; borderColor: string }> = {
@@ -224,73 +228,342 @@ const scoreColor = (score: number) => {
   return DANGER;
 };
 
-/* --- SVG Radial Health Gauge --- */
-function HealthGauge({ score, size = 140 }: { score: number; size?: number }) {
-  const strokeWidth = 10;
+/* --- Scoped Keyframes Injection --- */
+const MH_KEYFRAMES_ID = 'mh-view-keyframes';
+
+function injectMhKeyframes() {
+  if (typeof document === 'undefined') return;
+  if (document.getElementById(MH_KEYFRAMES_ID)) return;
+  const style = document.createElement('style');
+  style.id = MH_KEYFRAMES_ID;
+  style.textContent = `
+    @keyframes mh-fade-in {
+      from { opacity: 0; transform: translateY(12px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    @keyframes mh-fade-in-scale {
+      from { opacity: 0; transform: scale(0.95) translateY(8px); }
+      to { opacity: 1; transform: scale(1) translateY(0); }
+    }
+    @keyframes mh-slide-in-left {
+      from { opacity: 0; transform: translateX(-16px); }
+      to { opacity: 1; transform: translateX(0); }
+    }
+    @keyframes mh-slide-in-right {
+      from { opacity: 0; transform: translateX(16px); }
+      to { opacity: 1; transform: translateX(0); }
+    }
+    @keyframes mh-ring-fill {
+      from { stroke-dashoffset: var(--mh-ring-circumference); }
+      to { stroke-dashoffset: var(--mh-ring-target); }
+    }
+    @keyframes mh-pulse-risk {
+      0%, 100% { opacity: 0.4; transform: scale(1); }
+      50% { opacity: 1; transform: scale(1.6); }
+    }
+    @keyframes mh-pulse-risk-glow {
+      0%, 100% { box-shadow: 0 0 4px rgba(224,96,96,0.3); }
+      50% { box-shadow: 0 0 12px rgba(224,96,96,0.7); }
+    }
+    @keyframes mh-pulse-warn {
+      0%, 100% { opacity: 0.4; transform: scale(1); }
+      50% { opacity: 1; transform: scale(1.5); }
+    }
+    @keyframes mh-shimmer {
+      0% { background-position: -200% 0; }
+      100% { background-position: 200% 0; }
+    }
+    @keyframes mh-alert-gradient {
+      0% { background-position: 0% 50%; }
+      50% { background-position: 100% 50%; }
+      100% { background-position: 0% 50%; }
+    }
+    @keyframes mh-counter-pulse {
+      0% { transform: scale(1); }
+      50% { transform: scale(1.08); }
+      100% { transform: scale(1); }
+    }
+    @keyframes mh-bar-fill {
+      from { width: 0%; }
+      to { width: var(--mh-bar-width); }
+    }
+    @keyframes mh-sparkline-draw {
+      from { stroke-dashoffset: var(--mh-sparkline-length); }
+      to { stroke-dashoffset: 0; }
+    }
+    @keyframes mh-dot-appear {
+      from { opacity: 0; r: 0; }
+      to { opacity: 1; r: 2.5; }
+    }
+    @keyframes mh-avatar-ring-rotate {
+      from { transform: rotate(0deg); }
+      to { transform: rotate(360deg); }
+    }
+    @keyframes mh-matrix-cell-in {
+      from { opacity: 0; transform: scale(0.5); }
+      to { opacity: 1; transform: scale(1); }
+    }
+    @keyframes mh-number-in {
+      from { opacity: 0; transform: translateY(8px) scale(0.8); }
+      to { opacity: 1; transform: translateY(0) scale(1); }
+    }
+    @keyframes mh-header-glow {
+      0%, 100% { filter: drop-shadow(0 0 8px rgba(212,165,116,0.15)); }
+      50% { filter: drop-shadow(0 0 20px rgba(212,165,116,0.35)); }
+    }
+  `;
+  document.head.appendChild(style);
+}
+
+/* --- Glassmorphism card style helper --- */
+const glassCard = (borderColor = BORDER_SUBTLE): React.CSSProperties => ({
+  background: BG_CARD,
+  backdropFilter: 'blur(20px)',
+  WebkitBackdropFilter: 'blur(20px)',
+  border: `1px solid ${borderColor}`,
+  borderRadius: 16,
+});
+
+/* --- Animated Circular Progress Ring (Full Circle) --- */
+function HealthRing({
+  score,
+  size = 160,
+  strokeWidth = 10,
+  delay = '0.3s',
+}: {
+  score: number;
+  size?: number;
+  strokeWidth?: number;
+  delay?: string;
+}) {
   const radius = (size - strokeWidth) / 2;
-  const circumference = Math.PI * radius; // half circle
+  const circumference = 2 * Math.PI * radius;
   const pct = Math.min(score / 100, 1);
-  const offset = circumference * (1 - pct);
+  const target = circumference * (1 - pct);
   const color = scoreColor(score);
 
+  // Color-coded segments: red 0-50, gold 50-80, green 80-100
+  const segments = [
+    { start: 0, end: 0.5, color: DANGER },
+    { start: 0.5, end: 0.8, color: GOLD },
+    { start: 0.8, end: 1, color: SAGE },
+  ];
+
   return (
-    <div style={{ position: 'relative', width: size, height: size / 2 + 20 }}>
-      <svg width={size} height={size / 2 + 10} viewBox={`0 0 ${size} ${size / 2 + 10}`}>
-        <defs>
-          <linearGradient id="gauge-grad" x1="0" y1="0" x2="1" y2="0">
-            <stop offset="0%" stopColor={DANGER} />
-            <stop offset="50%" stopColor={GOLD} />
-            <stop offset="100%" stopColor={SAGE} />
-          </linearGradient>
-        </defs>
-        {/* Track */}
-        <path
-          d={`M ${strokeWidth / 2} ${size / 2} A ${radius} ${radius} 0 0 1 ${size - strokeWidth / 2} ${size / 2}`}
+    <div style={{ position: 'relative', width: size, height: size }}>
+      <svg
+        width={size}
+        height={size}
+        viewBox={`0 0 ${size} ${size}`}
+        style={{ transform: 'rotate(-90deg)' }}
+      >
+        {/* Background track */}
+        <circle
+          cx={size / 2}
+          cy={size / 2}
+          r={radius}
           fill="none"
-          stroke="rgba(255,255,255,0.06)"
+          stroke="rgba(255,255,255,0.04)"
           strokeWidth={strokeWidth}
-          strokeLinecap="round"
         />
-        {/* Progress */}
-        <path
-          d={`M ${strokeWidth / 2} ${size / 2} A ${radius} ${radius} 0 0 1 ${size - strokeWidth / 2} ${size / 2}`}
+        {/* Color segment indicators on the track */}
+        {segments.map((seg, i) => {
+          const segLen = (seg.end - seg.start) * circumference;
+          const segOffset = circumference - seg.start * circumference;
+          return (
+            <circle
+              key={i}
+              cx={size / 2}
+              cy={size / 2}
+              r={radius}
+              fill="none"
+              stroke={seg.color}
+              strokeWidth={strokeWidth * 0.25}
+              strokeDasharray={`${segLen} ${circumference - segLen}`}
+              strokeDashoffset={segOffset}
+              opacity={0.12}
+            />
+          );
+        })}
+        {/* Animated progress arc */}
+        <circle
+          cx={size / 2}
+          cy={size / 2}
+          r={radius}
           fill="none"
-          stroke={color}
+          stroke={`url(#mh-ring-gradient)`}
           strokeWidth={strokeWidth}
           strokeLinecap="round"
           strokeDasharray={circumference}
-          strokeDashoffset={offset}
+          strokeDashoffset={target}
           style={{
-            transition: 'stroke-dashoffset 1s ease-out, stroke 0.5s ease',
-            filter: `drop-shadow(0 0 6px ${color}50)`,
-          }}
+            '--mh-ring-circumference': circumference,
+            '--mh-ring-target': target,
+            animation: `mh-ring-fill 1.6s ${EASE_SPRING} ${delay} both`,
+            filter: `drop-shadow(0 0 8px ${color}60)`,
+          } as React.CSSProperties}
         />
-        {/* Tick marks */}
-        {[0, 25, 50, 75, 100].map((tick) => {
-          const angle = Math.PI * (1 - tick / 100);
-          const x1 = size / 2 + (radius - 16) * Math.cos(angle);
-          const y1 = size / 2 - (radius - 16) * Math.sin(angle);
-          const x2 = size / 2 + (radius - 8) * Math.cos(angle);
-          const y2 = size / 2 - (radius - 8) * Math.sin(angle);
-          return (
-            <line key={tick} x1={x1} y1={y1} x2={x2} y2={y2} stroke="rgba(255,255,255,0.15)" strokeWidth="1" />
-          );
-        })}
+        {/* Gradient definition */}
+        <defs>
+          <linearGradient id="mh-ring-gradient" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0%" stopColor={SAGE} />
+            <stop offset="40%" stopColor={GOLD} />
+            <stop offset="100%" stopColor={DANGER} />
+          </linearGradient>
+        </defs>
       </svg>
+      {/* Center label */}
       <div
         style={{
           position: 'absolute',
-          bottom: 0,
+          top: '50%',
           left: '50%',
-          transform: 'translateX(-50%)',
+          transform: 'translate(-50%, -50%)',
           textAlign: 'center',
         }}
       >
-        <div style={{ fontSize: 32, fontWeight: 800, color: '#f0ebe4', fontFamily: 'monospace', lineHeight: 1 }}>
+        <div
+          style={{
+            fontSize: 38,
+            fontWeight: 800,
+            color: CREAM,
+            fontFamily: 'monospace',
+            lineHeight: 1,
+            animation: `mh-number-in 0.8s ${EASE_SPRING} ${delay} both`,
+          }}
+        >
           {score}
         </div>
-        <div style={{ fontSize: 10, color: '#6b6358', marginTop: 2 }}>AVG HEALTH</div>
+        <div
+          style={{
+            fontSize: 9,
+            color: MUTED,
+            marginTop: 4,
+            textTransform: 'uppercase',
+            letterSpacing: '0.1em',
+            fontWeight: 600,
+          }}
+        >
+          Health Score
+        </div>
       </div>
+    </div>
+  );
+}
+
+/* --- Mini Member Health Ring (for cards) --- */
+function MiniHealthRing({ score, size = 40, strokeWidth = 3 }: { score: number; size?: number; strokeWidth?: number }) {
+  const radius = (size - strokeWidth) / 2;
+  const circumference = 2 * Math.PI * radius;
+  const pct = Math.min(score / 100, 1);
+  const target = circumference * (1 - pct);
+  const color = scoreColor(score);
+
+  return (
+    <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} style={{ transform: 'rotate(-90deg)' }}>
+      <circle cx={size / 2} cy={size / 2} r={radius} fill="none" stroke="rgba(255,255,255,0.06)" strokeWidth={strokeWidth} />
+      <circle
+        cx={size / 2}
+        cy={size / 2}
+        r={radius}
+        fill="none"
+        stroke={color}
+        strokeWidth={strokeWidth}
+        strokeLinecap="round"
+        strokeDasharray={circumference}
+        strokeDashoffset={target}
+        style={{ filter: `drop-shadow(0 0 4px ${color}50)` }}
+      />
+    </svg>
+  );
+}
+
+/* --- Gradient Avatar Ring --- */
+function AvatarRing({
+  name,
+  status,
+  score,
+  size = 44,
+}: {
+  name: string;
+  status: string;
+  score: number;
+  size?: number;
+}) {
+  const sc = statusColors[status];
+  const color = sc?.color || AMBER;
+  const initials = name
+    .split(' ')
+    .map((n) => n[0])
+    .join('')
+    .toUpperCase();
+
+  const isAtRisk = status === 'At Risk';
+
+  return (
+    <div style={{ position: 'relative', width: size, height: size, flexShrink: 0 }}>
+      {/* Animated gradient ring */}
+      <div
+        style={{
+          position: 'absolute',
+          inset: 0,
+          borderRadius: '50%',
+          padding: 2,
+          background: `conic-gradient(from 0deg, ${color}, ${color}40, ${color})`,
+          animation: isAtRisk ? `mh-avatar-ring-rotate 3s linear infinite` : undefined,
+        }}
+      >
+        <div
+          style={{
+            width: '100%',
+            height: '100%',
+            borderRadius: '50%',
+            background: `linear-gradient(135deg, ${color}15, ${color}08)`,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            fontSize: size * 0.3,
+            fontWeight: 700,
+            color,
+            letterSpacing: '0.02em',
+          }}
+        >
+          {initials}
+        </div>
+      </div>
+      {/* Risk pulse dot */}
+      {isAtRisk && (
+        <div
+          style={{
+            position: 'absolute',
+            top: -1,
+            right: -1,
+            width: 10,
+            height: 10,
+            borderRadius: '50%',
+            backgroundColor: DANGER,
+            border: `2px solid ${BG_DARK}`,
+            animation: `mh-pulse-risk 2s ease-in-out infinite`,
+            zIndex: 2,
+          }}
+        />
+      )}
+      {status === 'Watch' && (
+        <div
+          style={{
+            position: 'absolute',
+            top: -1,
+            right: -1,
+            width: 9,
+            height: 9,
+            borderRadius: '50%',
+            backgroundColor: GOLD,
+            border: `2px solid ${BG_DARK}`,
+            animation: `mh-pulse-warn 2.5s ease-in-out infinite`,
+            zIndex: 2,
+          }}
+        />
+      )}
     </div>
   );
 }
@@ -317,33 +590,180 @@ function TrendArrow({ current, previous }: { current: number; previous: number }
   );
 }
 
+/* --- Multi-Dimension Health Bar --- */
+function HealthDimensionBar({
+  label,
+  value,
+  max,
+  color,
+  delay = '0s',
+}: {
+  label: string;
+  value: number;
+  max: number;
+  color: string;
+  delay?: string;
+}) {
+  const pct = Math.min((value / max) * 100, 100);
+
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+      <span style={{ fontSize: 9, color: MUTED, width: 54, flexShrink: 0, textTransform: 'uppercase', letterSpacing: '0.04em', fontWeight: 600 }}>
+        {label}
+      </span>
+      <div
+        className="progress-bar-animated"
+        style={{
+          flex: 1,
+          height: 5,
+          borderRadius: 3,
+          backgroundColor: 'rgba(255,255,255,0.04)',
+          overflow: 'hidden',
+          position: 'relative',
+        }}
+      >
+        <div
+          style={{
+            height: '100%',
+            width: `${pct}%`,
+            borderRadius: 3,
+            background: `linear-gradient(90deg, ${color}90, ${color})`,
+            boxShadow: `0 0 8px ${color}30`,
+            '--mh-bar-width': `${pct}%`,
+            animation: `mh-bar-fill 1s ${EASE_SPRING} ${delay} both`,
+          } as React.CSSProperties}
+        />
+      </div>
+      <span style={{ fontSize: 10, fontWeight: 700, color, fontFamily: 'monospace', width: 28, textAlign: 'right' }}>
+        {Math.round(pct)}%
+      </span>
+    </div>
+  );
+}
+
+/* --- Trend Sparkline (7-point with area fill) --- */
+function TrendSparkline({
+  values,
+  color = SAGE,
+  width = 80,
+  height = 28,
+}: {
+  values: number[];
+  color?: string;
+  width?: number;
+  height?: number;
+}) {
+  // Take last 7 data points for 7-day trend
+  const data = values.slice(-7);
+  const max = Math.max(...data, 1);
+  const min = Math.min(...data);
+  const range = max - min || 1;
+  const padding = 3;
+  const effectiveW = width - padding * 2;
+  const effectiveH = height - padding * 2;
+
+  const points = data.map((v, i) => {
+    const x = padding + (i / (data.length - 1)) * effectiveW;
+    const y = padding + effectiveH - ((v - min) / range) * effectiveH;
+    return { x, y };
+  });
+
+  const linePoints = points.map((p) => `${p.x},${p.y}`).join(' ');
+  const areaPoints = `${points[0].x},${height} ${linePoints} ${points[points.length - 1].x},${height}`;
+
+  // Estimate total path length for animation
+  let totalLength = 0;
+  for (let i = 1; i < points.length; i++) {
+    const dx = points[i].x - points[i - 1].x;
+    const dy = points[i].y - points[i - 1].y;
+    totalLength += Math.sqrt(dx * dx + dy * dy);
+  }
+
+  const lastPt = points[points.length - 1];
+
+  return (
+    <svg width={width} height={height} viewBox={`0 0 ${width} ${height}`} style={{ overflow: 'visible' }}>
+      <defs>
+        <linearGradient id={`mh-spark-fill-${color.replace('#', '')}`} x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor={color} stopOpacity={0.2} />
+          <stop offset="100%" stopColor={color} stopOpacity={0} />
+        </linearGradient>
+      </defs>
+      {/* Area fill */}
+      <polygon
+        points={areaPoints}
+        fill={`url(#mh-spark-fill-${color.replace('#', '')})`}
+        opacity={0.8}
+      />
+      {/* Line */}
+      <polyline
+        points={linePoints}
+        fill="none"
+        stroke={color}
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        style={{
+          '--mh-sparkline-length': totalLength,
+          strokeDasharray: totalLength,
+          animation: `mh-sparkline-draw 1.2s ${EASE_SPRING} 0.4s both`,
+        } as React.CSSProperties}
+      />
+      {/* End dot */}
+      <circle
+        cx={lastPt.x}
+        cy={lastPt.y}
+        r={2.5}
+        fill={color}
+        style={{
+          animation: `mh-dot-appear 0.3s ${EASE_SPRING} 1.5s both`,
+          filter: `drop-shadow(0 0 3px ${color}80)`,
+        }}
+      />
+    </svg>
+  );
+}
+
 /* --- Engagement Heatmap --- */
 function EngagementHeatmap({ data, label }: { data: number[]; label?: string }) {
   const weekLabels = ['W1', 'W2', 'W3', 'W4', 'W5', 'W6', 'W7', 'W8', 'W9', 'W10', 'W11', 'W12'];
   return (
     <div>
-      {label && <div style={{ fontSize: 10, color: '#6b6358', marginBottom: 4, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>{label}</div>}
-      <div style={{ display: 'flex', gap: 2 }}>
+      {label && (
+        <div style={{ fontSize: 10, color: '#6b6358', marginBottom: 4, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+          {label}
+        </div>
+      )}
+      <div style={{ display: 'flex', gap: 3 }}>
         {data.map((val, i) => {
           const intensity = Math.min(val / 10, 1);
-          const bg = val === 0
-            ? 'rgba(255,255,255,0.03)'
-            : `rgba(107, 143, 113, ${0.1 + intensity * 0.6})`;
+          const bg =
+            val === 0
+              ? 'rgba(255,255,255,0.03)'
+              : `rgba(107, 143, 113, ${0.1 + intensity * 0.6})`;
           return (
             <div
               key={i}
               title={`${weekLabels[i]}: ${val}/10`}
               style={{
-                width: 18,
-                height: 18,
-                borderRadius: 3,
+                width: 20,
+                height: 20,
+                borderRadius: 4,
                 backgroundColor: bg,
-                border: val === 0 ? '1px solid rgba(255,255,255,0.05)' : `1px solid rgba(107, 143, 113, ${0.15 + intensity * 0.3})`,
-                transition: 'transform 0.15s',
+                border:
+                  val === 0
+                    ? '1px solid rgba(255,255,255,0.05)'
+                    : `1px solid rgba(107, 143, 113, ${0.15 + intensity * 0.3})`,
+                transition: `transform 0.2s ${EASE_SPRING}`,
                 cursor: 'default',
+                animation: `mh-matrix-cell-in 0.3s ${EASE_SPRING} ${i * 0.03}s both`,
               }}
-              onMouseEnter={(e) => { e.currentTarget.style.transform = 'scale(1.2)'; }}
-              onMouseLeave={(e) => { e.currentTarget.style.transform = 'scale(1)'; }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.transform = 'scale(1.3)';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.transform = 'scale(1)';
+              }}
             />
           );
         })}
@@ -352,22 +772,125 @@ function EngagementHeatmap({ data, label }: { data: number[]; label?: string }) 
   );
 }
 
-/* --- Mini Sparkline --- */
-function MiniSparkline({ values, color = SAGE }: { values: number[]; color?: string }) {
-  const width = 60;
-  const height = 20;
-  const max = Math.max(...values, 1);
-  const points = values.map((v, i) => {
-    const x = (i / (values.length - 1)) * width;
-    const y = height - (v / max) * height;
-    return `${x},${y}`;
-  }).join(' ');
+/* --- Health Matrix Grid --- */
+function HealthMatrix({ members }: { members: Member[] }) {
+  const dimensions = [
+    { key: 'events', label: 'Events', getValue: (m: Member) => (m.eventsAttended / m.totalEvents) * 100 },
+    { key: 'comms', label: 'Comms', getValue: (m: Member) => Math.min((m.communicationsOpened / 22) * 100, 100) },
+    { key: 'nps', label: 'NPS', getValue: (m: Member) => m.npsScore * 10 },
+    { key: 'health', label: 'Health', getValue: (m: Member) => m.healthScore },
+  ];
+
+  const matrixColor = (val: number) => {
+    if (val >= 80) return SAGE;
+    if (val >= 50) return GOLD;
+    return DANGER;
+  };
+
+  const matrixOpacity = (val: number) => {
+    return 0.15 + (val / 100) * 0.7;
+  };
+
+  // Sort by healthScore for matrix
+  const sorted = [...members].sort((a, b) => b.healthScore - a.healthScore);
 
   return (
-    <svg width={width} height={height} viewBox={`0 0 ${width} ${height}`} style={{ overflow: 'visible' }}>
-      <polyline points={points} fill="none" stroke={color} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-      <circle cx={width} cy={height - (values[values.length - 1] / max) * height} r="2" fill={color} />
-    </svg>
+    <div>
+      {/* Header row */}
+      <div style={{ display: 'flex', gap: 0, marginBottom: 4, paddingLeft: 100 }}>
+        {dimensions.map((d) => (
+          <div
+            key={d.key}
+            style={{
+              width: 48,
+              fontSize: 8,
+              color: MUTED,
+              textAlign: 'center',
+              textTransform: 'uppercase',
+              letterSpacing: '0.06em',
+              fontWeight: 700,
+            }}
+          >
+            {d.label}
+          </div>
+        ))}
+      </div>
+      {/* Data rows */}
+      {sorted.map((member, mi) => (
+        <div
+          key={member.id}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 0,
+            marginBottom: 2,
+            animation: `mh-fade-in 0.4s ${EASE_SPRING} ${0.02 * mi}s both`,
+          }}
+        >
+          <div
+            style={{
+              width: 100,
+              fontSize: 10,
+              color: CREAM,
+              fontWeight: 500,
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap',
+              paddingRight: 8,
+            }}
+          >
+            {member.name}
+          </div>
+          {dimensions.map((d, di) => {
+            const val = d.getValue(member);
+            const c = matrixColor(val);
+            return (
+              <div
+                key={d.key}
+                title={`${member.name} - ${d.label}: ${Math.round(val)}%`}
+                style={{
+                  width: 48,
+                  height: 22,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  animation: `mh-matrix-cell-in 0.3s ${EASE_SPRING} ${(mi * 4 + di) * 0.02}s both`,
+                }}
+              >
+                <div
+                  style={{
+                    width: 40,
+                    height: 18,
+                    borderRadius: 4,
+                    backgroundColor: c,
+                    opacity: matrixOpacity(val),
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    fontSize: 8,
+                    fontWeight: 700,
+                    fontFamily: 'monospace',
+                    color: 'rgba(255,255,255,0.9)',
+                    transition: `all 0.2s ${EASE_SPRING}`,
+                    cursor: 'default',
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.opacity = '1';
+                    e.currentTarget.style.transform = 'scale(1.15)';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.opacity = String(matrixOpacity(val));
+                    e.currentTarget.style.transform = 'scale(1)';
+                  }}
+                >
+                  {Math.round(val)}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      ))}
+    </div>
   );
 }
 
@@ -378,6 +901,10 @@ function MiniSparkline({ values, color = SAGE }: { values: number[]; color?: str
 export function MemberHealthView() {
   const [filterStatus, setFilterStatus] = useState<string>('all');
   const [expandedMember, setExpandedMember] = useState<string | null>(null);
+
+  useEffect(() => {
+    injectMhKeyframes();
+  }, []);
 
   const sortedMembers = [...defaultMembers].sort((a, b) => a.healthScore - b.healthScore);
   const filteredMembers =
@@ -395,56 +922,175 @@ export function MemberHealthView() {
   const avgPrevScore = Math.round(
     defaultMembers.reduce((sum, m) => sum + m.prevHealthScore, 0) / defaultMembers.length,
   );
+  const dangerAlerts = alerts.filter((a) => a.type === 'danger');
+  const hasCritical = dangerAlerts.length > 0;
 
   return (
     <div style={{ maxWidth: 1080, margin: '0 auto', padding: '32px 40px' }}>
-      {/* -- Header -- */}
-      <div
-        className="animate-fade-in"
-        style={{ marginBottom: 32, opacity: 0, animationDelay: '0ms' }}
-      >
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 6 }}>
-          <Heart size={28} style={{ color: AMBER }} />
-          <h1 style={{ fontSize: 28, fontWeight: 700, color: '#f0ebe4', margin: 0, letterSpacing: '-0.01em' }}>
-            Member Health
-          </h1>
-        </div>
-        <p style={{ fontSize: 14, color: '#a09888', margin: 0, paddingLeft: 40 }}>
-          Composite health scoring for every well-steward. Monitor engagement,
-          satisfaction, and proactively nurture your community.
-        </p>
-      </div>
 
-      {/* -- Summary Stats with Gauge -- */}
+      {/* ============================================
+          Critical Alert Banner (animated gradient)
+          ============================================ */}
+      {hasCritical && (
+        <div
+          className="card-premium"
+          style={{
+            marginBottom: 24,
+            borderRadius: 14,
+            overflow: 'hidden',
+            animation: `mh-fade-in 0.6s ${EASE_SPRING} 0s both`,
+          }}
+        >
+          <div
+            style={{
+              padding: '14px 20px',
+              background: `linear-gradient(90deg, rgba(224,96,96,0.15), rgba(232,180,76,0.1), rgba(224,96,96,0.15))`,
+              backgroundSize: '200% 100%',
+              animation: `mh-alert-gradient 4s ease infinite`,
+              border: `1px solid rgba(224,96,96,0.25)`,
+              borderRadius: 14,
+              display: 'flex',
+              alignItems: 'center',
+              gap: 14,
+              backdropFilter: 'blur(20px)',
+              WebkitBackdropFilter: 'blur(20px)',
+            }}
+          >
+            <div
+              style={{
+                width: 36,
+                height: 36,
+                borderRadius: 10,
+                background: `rgba(224,96,96,0.15)`,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                flexShrink: 0,
+              }}
+            >
+              <AlertTriangle size={18} style={{ color: DANGER }} />
+            </div>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: 12, fontWeight: 700, color: DANGER, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 2 }}>
+                {dangerAlerts.length} Critical Alert{dangerAlerts.length > 1 ? 's' : ''} Requiring Attention
+              </div>
+              <div style={{ fontSize: 12, color: CREAM, opacity: 0.8, lineHeight: 1.4 }}>
+                {dangerAlerts[0].message.split(' \u2014')[0]}
+                {dangerAlerts.length > 1 && ` and ${dangerAlerts.length - 1} more`}
+              </div>
+            </div>
+            <div
+              style={{
+                padding: '6px 14px',
+                borderRadius: 8,
+                border: `1px solid rgba(224,96,96,0.3)`,
+                fontSize: 11,
+                fontWeight: 600,
+                color: DANGER,
+                background: 'rgba(224,96,96,0.08)',
+                cursor: 'pointer',
+                transition: `all 0.2s ${EASE_SPRING}`,
+                flexShrink: 0,
+                whiteSpace: 'nowrap',
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.background = 'rgba(224,96,96,0.18)';
+                e.currentTarget.style.borderColor = 'rgba(224,96,96,0.5)';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.background = 'rgba(224,96,96,0.08)';
+                e.currentTarget.style.borderColor = 'rgba(224,96,96,0.3)';
+              }}
+            >
+              Review Alerts
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ============================================
+          Header
+          ============================================ */}
       <div
-        className="animate-fade-in"
         style={{
-          display: 'grid',
-          gridTemplateColumns: '180px 1fr',
-          gap: 24,
-          marginBottom: 24,
-          animationDelay: '0.04s',
-          opacity: 0,
+          marginBottom: 32,
+          animation: `mh-fade-in 0.7s ${EASE_SPRING} 0.05s both`,
+          position: 'relative',
         }}
       >
-        {/* Radial Gauge */}
+        <div className="noise-overlay" style={{ position: 'absolute', inset: 0, borderRadius: 'inherit', pointerEvents: 'none' }} />
+        <div className="dot-pattern" style={{ position: 'absolute', inset: 0, borderRadius: 'inherit', pointerEvents: 'none', opacity: 0.3 }} />
+        <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 8 }}>
+          <div
+            style={{
+              width: 44,
+              height: 44,
+              borderRadius: 12,
+              background: `linear-gradient(135deg, ${AMBER}20, ${AMBER}08)`,
+              border: `1px solid ${AMBER}20`,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              animation: `mh-header-glow 3s ease-in-out infinite`,
+            }}
+          >
+            <Heart size={22} style={{ color: AMBER }} />
+          </div>
+          <div>
+            <h1
+              className="text-glow"
+              style={{
+                fontSize: 28,
+                fontWeight: 700,
+                color: CREAM,
+                margin: 0,
+                letterSpacing: '-0.02em',
+                lineHeight: 1.2,
+              }}
+            >
+              Member Health
+            </h1>
+            <p style={{ fontSize: 13, color: MUTED, margin: 0, marginTop: 2 }}>
+              Composite health scoring for every well-steward. Monitor engagement,
+              satisfaction, and proactively nurture your community.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {/* ============================================
+          Dashboard Header: Ring + Stats
+          ============================================ */}
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: '200px 1fr',
+          gap: 20,
+          marginBottom: 24,
+          animation: `mh-fade-in-scale 0.7s ${EASE_SPRING} 0.1s both`,
+        }}
+      >
+        {/* Animated Circular Progress Ring */}
         <div
+          className="card-premium"
           style={{
-            backgroundColor: '#131720',
-            border: '1px solid #1e2638',
-            borderRadius: 16,
-            padding: '20px 16px 12px',
+            ...glassCard(),
+            padding: '24px 16px 16px',
             display: 'flex',
             flexDirection: 'column',
             alignItems: 'center',
             justifyContent: 'center',
+            gap: 8,
           }}
         >
-          <HealthGauge score={avgScore} size={150} />
-          <TrendArrow current={avgScore} previous={avgPrevScore} />
+          <HealthRing score={avgScore} size={140} strokeWidth={9} delay="0.4s" />
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 4 }}>
+            <TrendArrow current={avgScore} previous={avgPrevScore} />
+            <span style={{ fontSize: 10, color: '#5a5248' }}>vs last period</span>
+          </div>
         </div>
 
-        {/* Stat cards */}
+        {/* Stat cards with glassmorphism */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12 }}>
           {[
             { label: 'Total Members', value: '~65', sub: `Tracked: ${totalMembers} sample`, color: AMBER, icon: Users },
@@ -453,60 +1099,111 @@ export function MemberHealthView() {
             { label: 'At Risk', value: atRiskCount.toString(), sub: 'Score <50', color: DANGER, icon: AlertTriangle },
           ].map((stat, i) => {
             const Icon = stat.icon;
+            const isRisk = stat.label === 'At Risk' && atRiskCount > 0;
             return (
               <div
                 key={stat.label}
-                className="animate-fade-in glow-card"
+                className="card-stat"
                 style={{
-                  backgroundColor: `${stat.color}0a`,
-                  border: `1px solid ${stat.color}20`,
-                  borderRadius: 12,
+                  ...glassCard(`${stat.color}15`),
                   padding: '16px 14px',
-                  animationDelay: `${0.06 + i * 0.03}s`,
-                  opacity: 0,
-                  transition: 'border-color 0.3s, transform 0.2s',
+                  animation: `mh-slide-in-right 0.6s ${EASE_SPRING} ${0.15 + i * 0.06}s both`,
+                  transition: `border-color 0.3s ${EASE_SPRING}, transform 0.3s ${EASE_SPRING}, box-shadow 0.3s`,
+                  cursor: 'default',
+                  position: 'relative',
+                  overflow: 'hidden',
                 }}
                 onMouseEnter={(e) => {
-                  e.currentTarget.style.borderColor = `${stat.color}40`;
-                  e.currentTarget.style.transform = 'translateY(-2px)';
+                  e.currentTarget.style.borderColor = `${stat.color}35`;
+                  e.currentTarget.style.transform = 'translateY(-3px)';
+                  e.currentTarget.style.boxShadow = `0 8px 24px ${stat.color}12`;
                 }}
                 onMouseLeave={(e) => {
-                  e.currentTarget.style.borderColor = `${stat.color}20`;
+                  e.currentTarget.style.borderColor = `${stat.color}15`;
                   e.currentTarget.style.transform = 'none';
+                  e.currentTarget.style.boxShadow = 'none';
                 }}
               >
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
-                  <Icon size={14} style={{ color: stat.color }} />
-                  <span style={{ fontSize: 10, fontWeight: 600, color: stat.color, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+                {/* Shimmer overlay for At Risk */}
+                {isRisk && (
+                  <div
+                    style={{
+                      position: 'absolute',
+                      inset: 0,
+                      background: `linear-gradient(90deg, transparent, ${DANGER}08, transparent)`,
+                      backgroundSize: '200% 100%',
+                      animation: `mh-shimmer 3s ease-in-out infinite`,
+                      pointerEvents: 'none',
+                    }}
+                  />
+                )}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 10 }}>
+                  <div
+                    style={{
+                      width: 24,
+                      height: 24,
+                      borderRadius: 7,
+                      background: `${stat.color}12`,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                    }}
+                  >
+                    <Icon size={12} style={{ color: stat.color }} />
+                  </div>
+                  <span
+                    style={{
+                      fontSize: 9,
+                      fontWeight: 700,
+                      color: stat.color,
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.08em',
+                    }}
+                  >
                     {stat.label}
                   </span>
                 </div>
-                <div style={{ fontSize: 28, fontWeight: 800, color: stat.color, fontFamily: 'monospace', lineHeight: 1 }}>
+                <div
+                  style={{
+                    fontSize: 30,
+                    fontWeight: 800,
+                    color: stat.color,
+                    fontFamily: 'monospace',
+                    lineHeight: 1,
+                    animation: `mh-number-in 0.6s ${EASE_SPRING} ${0.3 + i * 0.06}s both`,
+                  }}
+                >
                   {stat.value}
                 </div>
-                <div style={{ fontSize: 10, color: '#6b6358', marginTop: 4 }}>{stat.sub}</div>
+                <div style={{ fontSize: 10, color: '#5a5248', marginTop: 6 }}>{stat.sub}</div>
               </div>
             );
           })}
         </div>
       </div>
 
-      {/* -- Proactive Alerts -- */}
+      {/* ============================================
+          Proactive Alerts
+          ============================================ */}
       <div
-        className="animate-fade-in"
-        style={{ marginBottom: 24, animationDelay: '0.1s', opacity: 0 }}
+        style={{
+          marginBottom: 24,
+          animation: `mh-fade-in 0.6s ${EASE_SPRING} 0.25s both`,
+        }}
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
           <AlertTriangle size={16} style={{ color: GOLD }} />
-          <span style={{ fontSize: 14, fontWeight: 700, color: '#f0ebe4' }}>Proactive Alerts</span>
+          <span style={{ fontSize: 14, fontWeight: 700, color: CREAM }}>Proactive Alerts</span>
           <span
             style={{
               fontSize: 10,
-              fontWeight: 600,
-              padding: '2px 8px',
+              fontWeight: 700,
+              padding: '3px 10px',
               borderRadius: 20,
               color: GOLD,
               backgroundColor: `rgba(232,180,76,0.15)`,
+              border: `1px solid rgba(232,180,76,0.2)`,
+              animation: `mh-counter-pulse 2s ease-in-out infinite`,
             }}
           >
             {alerts.length}
@@ -516,31 +1213,89 @@ export function MemberHealthView() {
           {alerts.map((alert, idx) => {
             const ac = alertTypeColors[alert.type];
             const AlertIcon = alertTypeIcons[alert.type];
+            const isDanger = alert.type === 'danger';
             return (
               <div
                 key={idx}
-                className="animate-fade-in"
+                className="card-interactive"
                 style={{
                   display: 'flex',
                   alignItems: 'flex-start',
-                  gap: 12,
-                  padding: '12px 16px',
-                  borderRadius: 10,
-                  backgroundColor: ac.bg,
-                  border: `1px solid ${ac.borderColor}`,
-                  animationDelay: `${0.12 + idx * 0.03}s`,
-                  opacity: 0,
-                  transition: 'transform 0.2s',
+                  gap: 14,
+                  padding: '14px 18px',
+                  borderRadius: 12,
+                  ...glassCard(ac.borderColor),
+                  background: ac.bg,
+                  animation: `mh-slide-in-left 0.5s ${EASE_SPRING} ${0.3 + idx * 0.05}s both`,
+                  transition: `transform 0.3s ${EASE_SPRING}, box-shadow 0.3s`,
+                  position: 'relative',
+                  overflow: 'hidden',
                 }}
-                onMouseEnter={(e) => { e.currentTarget.style.transform = 'translateX(4px)'; }}
-                onMouseLeave={(e) => { e.currentTarget.style.transform = 'none'; }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.transform = 'translateX(6px)';
+                  e.currentTarget.style.boxShadow = `0 4px 16px ${ac.color}15`;
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.transform = 'none';
+                  e.currentTarget.style.boxShadow = 'none';
+                }}
               >
-                <AlertIcon size={16} style={{ color: ac.color, flexShrink: 0, marginTop: 2 }} />
+                {/* Pulsing dot for danger alerts */}
+                {isDanger && (
+                  <div
+                    style={{
+                      position: 'absolute',
+                      top: 8,
+                      left: 8,
+                      width: 6,
+                      height: 6,
+                      borderRadius: '50%',
+                      backgroundColor: DANGER,
+                      animation: `mh-pulse-risk 1.5s ease-in-out infinite`,
+                    }}
+                  />
+                )}
+                <div
+                  style={{
+                    width: 30,
+                    height: 30,
+                    borderRadius: 8,
+                    background: `${ac.color}15`,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    flexShrink: 0,
+                    marginTop: 1,
+                  }}
+                >
+                  <AlertIcon size={14} style={{ color: ac.color }} />
+                </div>
                 <div style={{ flex: 1 }}>
-                  <p style={{ fontSize: 13, color: '#f0ebe4', margin: 0, lineHeight: 1.5 }}>{alert.message}</p>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 6 }}>
-                    <ArrowRight size={10} style={{ color: '#6b6358' }} />
-                    <span style={{ fontSize: 11, color: '#a09888' }}>{alert.action}</span>
+                  <p style={{ fontSize: 13, color: CREAM, margin: 0, lineHeight: 1.5, fontWeight: 500 }}>
+                    {alert.message}
+                  </p>
+                  <div
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: 6,
+                      marginTop: 8,
+                      padding: '4px 10px',
+                      borderRadius: 6,
+                      backgroundColor: `${ac.color}08`,
+                      border: `1px solid ${ac.color}15`,
+                      transition: `all 0.2s ${EASE_SPRING}`,
+                      cursor: 'pointer',
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.backgroundColor = `${ac.color}15`;
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.backgroundColor = `${ac.color}08`;
+                    }}
+                  >
+                    <ArrowRight size={10} style={{ color: ac.color }} />
+                    <span style={{ fontSize: 11, color: ac.color, fontWeight: 600 }}>{alert.action}</span>
                   </div>
                 </div>
               </div>
@@ -549,25 +1304,36 @@ export function MemberHealthView() {
         </div>
       </div>
 
-      {/* -- Filter Controls -- */}
+      {/* ============================================
+          Category Filter Pills (Premium Toggle)
+          ============================================ */}
       <div
-        className="animate-fade-in"
         style={{
           display: 'flex',
           alignItems: 'center',
           gap: 8,
-          marginBottom: 16,
-          animationDelay: '0.18s',
-          opacity: 0,
+          marginBottom: 20,
+          animation: `mh-fade-in 0.5s ${EASE_SPRING} 0.4s both`,
         }}
       >
-        <Filter size={13} style={{ color: '#6b6358' }} />
-        <span style={{ fontSize: 10, fontWeight: 600, color: '#6b6358', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-          Filter:
-        </span>
+        <div
+          style={{
+            width: 28,
+            height: 28,
+            borderRadius: 8,
+            background: 'rgba(255,255,255,0.03)',
+            border: '1px solid rgba(255,255,255,0.06)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}
+        >
+          <Filter size={12} style={{ color: MUTED }} />
+        </div>
         {['all', 'Healthy', 'Watch', 'At Risk'].map((status) => {
           const isActive = filterStatus === status;
           const c = status === 'all' ? AMBER : statusColors[status]?.color || AMBER;
+          const StatusIcon = status === 'all' ? Eye : statusIcons[status];
           return (
             <button
               key={status}
@@ -575,123 +1341,191 @@ export function MemberHealthView() {
               style={{
                 fontSize: 11,
                 fontWeight: 600,
-                padding: '5px 12px',
-                borderRadius: 8,
-                border: `1px solid ${isActive ? c + '40' : '#1e2638'}`,
-                backgroundColor: isActive ? `${c}15` : '#131720',
+                padding: '7px 16px',
+                borderRadius: 10,
+                border: isActive ? `1px solid ${c}40` : `1px solid rgba(255,255,255,0.06)`,
+                backgroundColor: isActive ? `${c}15` : 'rgba(255,255,255,0.02)',
                 color: isActive ? c : '#6b6358',
                 cursor: 'pointer',
-                transition: 'all 0.2s',
+                transition: `all 0.3s ${EASE_SPRING}`,
                 fontFamily: 'inherit',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6,
+                backdropFilter: 'blur(10px)',
+                WebkitBackdropFilter: 'blur(10px)',
+                boxShadow: isActive ? `0 0 16px ${c}10, inset 0 0 0 0.5px ${c}20` : 'none',
+              }}
+              onMouseEnter={(e) => {
+                if (!isActive) {
+                  e.currentTarget.style.borderColor = `${c}25`;
+                  e.currentTarget.style.color = c;
+                  e.currentTarget.style.backgroundColor = `${c}08`;
+                }
+              }}
+              onMouseLeave={(e) => {
+                if (!isActive) {
+                  e.currentTarget.style.borderColor = 'rgba(255,255,255,0.06)';
+                  e.currentTarget.style.color = '#6b6358';
+                  e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.02)';
+                }
               }}
             >
+              {StatusIcon && <StatusIcon size={11} />}
               {status === 'all' ? 'All Members' : status}
             </button>
           );
         })}
-        <span style={{ marginLeft: 'auto', fontSize: 11, color: '#6b6358' }}>
-          Showing {filteredMembers.length} of {totalMembers}
+        <span style={{ marginLeft: 'auto', fontSize: 11, color: '#5a5248', fontWeight: 500 }}>
+          <span style={{ color: AMBER, fontWeight: 700, fontFamily: 'monospace' }}>{filteredMembers.length}</span>
+          <span style={{ margin: '0 4px' }}>/</span>
+          {totalMembers} members
         </span>
       </div>
 
-      {/* -- Member Health Cards -- */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+      {/* ============================================
+          Member Health Cards
+          ============================================ */}
+      <div className="scrollbar-autohide" style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
         {filteredMembers.map((member, idx) => {
           const sc = statusColors[member.status];
           const StatusIcon = statusIcons[member.status];
           const isExpanded = expandedMember === member.id;
           const color = sc.color;
+          const isAtRisk = member.status === 'At Risk';
+
+          // Compute dimension scores
+          const engagementScore = (member.eventsAttended / member.totalEvents) * 100;
+          const capacityScore = Math.min((member.communicationsOpened / 22) * 100, 100);
+          const alignmentScore = member.npsScore * 10;
 
           return (
             <div
               key={member.id}
-              className="animate-fade-in glow-card"
+              className="card-interactive"
               style={{
-                backgroundColor: '#131720',
-                border: `1px solid ${isExpanded ? sc.borderColor : '#1e2638'}`,
-                borderRadius: 14,
-                padding: '16px 20px',
-                animationDelay: `${0.2 + idx * 0.03}s`,
-                opacity: 0,
-                transition: 'border-color 0.3s, box-shadow 0.3s',
+                ...glassCard(isExpanded ? sc.borderColor : 'rgba(255,255,255,0.05)'),
+                padding: 0,
+                animation: `mh-fade-in-scale 0.5s ${EASE_SPRING} ${0.45 + idx * 0.04}s both`,
+                transition: `border-color 0.3s ${EASE_SPRING}, box-shadow 0.3s, transform 0.3s ${EASE_SPRING}`,
+                overflow: 'hidden',
+                position: 'relative',
               }}
               onMouseEnter={(e) => {
-                if (!isExpanded) e.currentTarget.style.borderColor = '#2e3a4e';
+                if (!isExpanded) {
+                  e.currentTarget.style.borderColor = `${color}25`;
+                  e.currentTarget.style.transform = 'translateY(-2px) scale(1.005)';
+                  e.currentTarget.style.boxShadow = `0 8px 32px rgba(0,0,0,0.2), 0 0 0 1px ${color}10`;
+                }
               }}
               onMouseLeave={(e) => {
-                if (!isExpanded) e.currentTarget.style.borderColor = '#1e2638';
+                if (!isExpanded) {
+                  e.currentTarget.style.borderColor = 'rgba(255,255,255,0.05)';
+                  e.currentTarget.style.transform = 'none';
+                  e.currentTarget.style.boxShadow = 'none';
+                }
               }}
             >
+              {/* At-risk glow strip */}
+              {isAtRisk && (
+                <div
+                  style={{
+                    position: 'absolute',
+                    top: 0,
+                    left: 0,
+                    right: 0,
+                    height: 2,
+                    background: `linear-gradient(90deg, transparent, ${DANGER}60, transparent)`,
+                    backgroundSize: '200% 100%',
+                    animation: `mh-shimmer 2s ease-in-out infinite`,
+                  }}
+                />
+              )}
+
+              {/* Main row */}
               <div
-                style={{ display: 'flex', alignItems: 'center', gap: 16, cursor: 'pointer' }}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 16,
+                  cursor: 'pointer',
+                  padding: '16px 20px',
+                }}
                 onClick={() => setExpandedMember(isExpanded ? null : member.id)}
               >
-                {/* Status icon + name */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10, width: 200, flexShrink: 0 }}>
-                  <StatusIcon size={16} style={{ color }} />
-                  <div>
-                    <div style={{ fontSize: 13, fontWeight: 600, color: '#f0ebe4' }}>{member.name}</div>
-                    <span
-                      style={{
-                        fontSize: 9,
-                        fontWeight: 600,
-                        padding: '2px 7px',
-                        borderRadius: 20,
-                        color,
-                        backgroundColor: sc.bg,
-                        textTransform: 'uppercase',
-                        letterSpacing: '0.05em',
-                      }}
-                    >
-                      {member.status}
-                    </span>
-                  </div>
+                {/* Avatar ring */}
+                <AvatarRing name={member.name} status={member.status} score={member.healthScore} size={42} />
+
+                {/* Name + status */}
+                <div style={{ width: 155, flexShrink: 0 }}>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: CREAM, marginBottom: 3 }}>{member.name}</div>
+                  <span
+                    style={{
+                      fontSize: 9,
+                      fontWeight: 700,
+                      padding: '2px 8px',
+                      borderRadius: 20,
+                      color,
+                      backgroundColor: sc.bg,
+                      border: `1px solid ${color}20`,
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.06em',
+                    }}
+                  >
+                    {member.status}
+                  </span>
                 </div>
 
-                {/* Health score bar */}
-                <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 10 }}>
-                  <div style={{ flex: 1, height: 8, borderRadius: 4, backgroundColor: '#1c2230', overflow: 'hidden' }}>
-                    <div
-                      style={{
-                        height: '100%',
-                        width: `${member.healthScore}%`,
-                        borderRadius: 4,
-                        backgroundColor: scoreColor(member.healthScore),
-                        transition: 'width 0.7s ease-out',
-                      }}
-                    />
-                  </div>
-                  <span style={{ fontSize: 14, fontWeight: 700, color: scoreColor(member.healthScore), fontFamily: 'monospace', width: 32, textAlign: 'right' }}>
+                {/* Multi-dimension health bars */}
+                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 3 }}>
+                  <HealthDimensionBar label="Engage" value={engagementScore} max={100} color={VIOLET} delay={`${0.5 + idx * 0.04}s`} />
+                  <HealthDimensionBar label="Capacity" value={capacityScore} max={100} color="#5eaed4" delay={`${0.55 + idx * 0.04}s`} />
+                  <HealthDimensionBar label="Align" value={alignmentScore} max={100} color={SAGE} delay={`${0.6 + idx * 0.04}s`} />
+                </div>
+
+                {/* Sparkline */}
+                <div style={{ flexShrink: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
+                  <TrendSparkline values={member.engagementByWeek} color={scoreColor(member.healthScore)} width={70} height={26} />
+                  <span style={{ fontSize: 8, color: '#5a5248', letterSpacing: '0.04em' }}>7-day trend</span>
+                </div>
+
+                {/* Health score ring */}
+                <div style={{ position: 'relative', width: 40, height: 40, flexShrink: 0 }}>
+                  <MiniHealthRing score={member.healthScore} size={40} strokeWidth={3} />
+                  <span
+                    style={{
+                      position: 'absolute',
+                      top: '50%',
+                      left: '50%',
+                      transform: 'translate(-50%, -50%)',
+                      fontSize: 11,
+                      fontWeight: 800,
+                      color: scoreColor(member.healthScore),
+                      fontFamily: 'monospace',
+                    }}
+                  >
                     {member.healthScore}
                   </span>
-                  <TrendArrow current={member.healthScore} previous={member.prevHealthScore} />
                 </div>
 
-                {/* Quick info */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: 20, flexShrink: 0 }}>
-                  <div style={{ textAlign: 'right' }}>
-                    <div style={{ fontSize: 10, color: '#6b6358' }}>Tier</div>
-                    <div style={{ fontSize: 12, fontWeight: 600, color: '#d8cfc4' }}>{member.membershipTier}</div>
-                    <div style={{ fontSize: 10, color: AMBER }}>${member.monthlyRate.toLocaleString()}/mo</div>
-                  </div>
-                  <div style={{ textAlign: 'right' }}>
-                    <div style={{ fontSize: 10, color: '#6b6358' }}>Last Active</div>
-                    <div style={{ fontSize: 12, fontWeight: 500, color: '#a09888' }}>{member.lastEngagement}</div>
-                  </div>
-                  <div style={{ textAlign: 'right' }}>
-                    <div style={{ fontSize: 10, color: '#6b6358' }}>NPS</div>
-                    <div
-                      style={{
-                        fontSize: 14,
-                        fontWeight: 700,
-                        color: member.npsScore >= 9 ? SAGE : member.npsScore >= 7 ? GOLD : DANGER,
-                      }}
-                    >
-                      {member.npsScore}
-                    </div>
-                  </div>
+                <TrendArrow current={member.healthScore} previous={member.prevHealthScore} />
+
+                {/* Chevron */}
+                <div
+                  style={{
+                    width: 24,
+                    height: 24,
+                    borderRadius: 6,
+                    background: isExpanded ? `${color}12` : 'rgba(255,255,255,0.03)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    transition: `all 0.3s ${EASE_SPRING}`,
+                    flexShrink: 0,
+                  }}
+                >
                   {isExpanded ? (
-                    <ChevronUp size={14} style={{ color: '#6b6358' }} />
+                    <ChevronUp size={14} style={{ color: color }} />
                   ) : (
                     <ChevronDown size={14} style={{ color: '#6b6358' }} />
                   )}
@@ -700,77 +1534,125 @@ export function MemberHealthView() {
 
               {/* Expanded Details */}
               {isExpanded && (
-                <div style={{ marginTop: 16, paddingTop: 16, borderTop: '1px solid #1e2638' }}>
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, marginBottom: 12 }}>
-                    <div style={{ backgroundColor: '#0f1219', borderRadius: 10, padding: 12 }}>
-                      <div style={{ fontSize: 10, color: '#6b6358', marginBottom: 6, display: 'flex', alignItems: 'center', gap: 4 }}>
-                        <Calendar size={10} /> Events Attended
+                <div
+                  style={{
+                    padding: '0 20px 20px',
+                    borderTop: `1px solid ${color}15`,
+                    animation: `mh-fade-in 0.4s ${EASE_SPRING} both`,
+                  }}
+                >
+                  {/* Detail grid */}
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, marginTop: 16, marginBottom: 14 }}>
+                    <div
+                      style={{
+                        ...glassCard(`${VIOLET}15`),
+                        borderRadius: 12,
+                        padding: 14,
+                      }}
+                    >
+                      <div style={{ fontSize: 10, color: MUTED, marginBottom: 8, display: 'flex', alignItems: 'center', gap: 5 }}>
+                        <Calendar size={10} style={{ color: VIOLET }} /> Events Attended
                       </div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                        <div style={{ flex: 1, height: 6, borderRadius: 3, backgroundColor: '#1c2230', overflow: 'hidden' }}>
+                        <div style={{ flex: 1, height: 6, borderRadius: 3, backgroundColor: 'rgba(255,255,255,0.04)', overflow: 'hidden' }}>
                           <div
                             style={{
                               height: '100%',
                               width: `${(member.eventsAttended / member.totalEvents) * 100}%`,
-                              backgroundColor: VIOLET,
+                              background: `linear-gradient(90deg, ${VIOLET}80, ${VIOLET})`,
                               borderRadius: 3,
+                              boxShadow: `0 0 8px ${VIOLET}30`,
                             }}
                           />
                         </div>
-                        <span style={{ fontSize: 12, fontWeight: 700, color: '#f0ebe4', fontFamily: 'monospace' }}>
+                        <span style={{ fontSize: 13, fontWeight: 700, color: CREAM, fontFamily: 'monospace' }}>
                           {member.eventsAttended}/{member.totalEvents}
                         </span>
                       </div>
                     </div>
-                    <div style={{ backgroundColor: '#0f1219', borderRadius: 10, padding: 12 }}>
-                      <div style={{ fontSize: 10, color: '#6b6358', marginBottom: 6, display: 'flex', alignItems: 'center', gap: 4 }}>
-                        <Users size={10} /> Pod Participation
+
+                    <div
+                      style={{
+                        ...glassCard('rgba(94,174,212,0.15)'),
+                        borderRadius: 12,
+                        padding: 14,
+                      }}
+                    >
+                      <div style={{ fontSize: 10, color: MUTED, marginBottom: 8, display: 'flex', alignItems: 'center', gap: 5 }}>
+                        <Users size={10} style={{ color: '#5eaed4' }} /> Pod Participation
                       </div>
-                      <div style={{ fontSize: 11, color: '#a09888', lineHeight: 1.4 }}>{member.podParticipation}</div>
+                      <div style={{ fontSize: 11, color: '#b8b0a6', lineHeight: 1.5 }}>{member.podParticipation}</div>
                     </div>
-                    <div style={{ backgroundColor: '#0f1219', borderRadius: 10, padding: 12 }}>
-                      <div style={{ fontSize: 10, color: '#6b6358', marginBottom: 6, display: 'flex', alignItems: 'center', gap: 4 }}>
-                        <MessageSquare size={10} /> Comms Opened
+
+                    <div
+                      style={{
+                        ...glassCard('rgba(94,174,212,0.15)'),
+                        borderRadius: 12,
+                        padding: 14,
+                      }}
+                    >
+                      <div style={{ fontSize: 10, color: MUTED, marginBottom: 8, display: 'flex', alignItems: 'center', gap: 5 }}>
+                        <MessageSquare size={10} style={{ color: '#5eaed4' }} /> Comms Opened
                       </div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                        <div style={{ flex: 1, height: 6, borderRadius: 3, backgroundColor: '#1c2230', overflow: 'hidden' }}>
+                        <div style={{ flex: 1, height: 6, borderRadius: 3, backgroundColor: 'rgba(255,255,255,0.04)', overflow: 'hidden' }}>
                           <div
                             style={{
                               height: '100%',
                               width: `${Math.min((member.communicationsOpened / 22) * 100, 100)}%`,
-                              backgroundColor: '#5eaed4',
+                              background: `linear-gradient(90deg, #5eaed480, #5eaed4)`,
                               borderRadius: 3,
+                              boxShadow: `0 0 8px #5eaed430`,
                             }}
                           />
                         </div>
-                        <span style={{ fontSize: 12, fontWeight: 700, color: '#f0ebe4', fontFamily: 'monospace' }}>
+                        <span style={{ fontSize: 13, fontWeight: 700, color: CREAM, fontFamily: 'monospace' }}>
                           {member.communicationsOpened}
                         </span>
                       </div>
                     </div>
-                    <div style={{ backgroundColor: '#0f1219', borderRadius: 10, padding: 12 }}>
-                      <div style={{ fontSize: 10, color: '#6b6358', marginBottom: 6, display: 'flex', alignItems: 'center', gap: 4 }}>
-                        <Star size={10} /> NPS Score
+
+                    <div
+                      style={{
+                        ...glassCard(`${SAGE}15`),
+                        borderRadius: 12,
+                        padding: 14,
+                      }}
+                    >
+                      <div style={{ fontSize: 10, color: MUTED, marginBottom: 8, display: 'flex', alignItems: 'center', gap: 5 }}>
+                        <Star size={10} style={{ color: SAGE }} /> NPS Score
                       </div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                         <span
                           style={{
-                            fontSize: 20,
+                            fontSize: 22,
                             fontWeight: 800,
                             color: member.npsScore >= 9 ? SAGE : member.npsScore >= 7 ? GOLD : DANGER,
                           }}
                         >
                           {member.npsScore}
                         </span>
-                        <span style={{ fontSize: 11, color: '#6b6358' }}>/10</span>
+                        <span style={{ fontSize: 11, color: '#5a5248' }}>/10</span>
                         <span
                           style={{
                             fontSize: 9,
-                            fontWeight: 600,
-                            padding: '2px 6px',
+                            fontWeight: 700,
+                            padding: '2px 8px',
                             borderRadius: 20,
                             color: member.npsScore >= 9 ? SAGE : member.npsScore >= 7 ? GOLD : DANGER,
-                            backgroundColor: member.npsScore >= 9 ? `rgba(107,143,113,0.12)` : member.npsScore >= 7 ? `rgba(232,180,76,0.12)` : `rgba(224,96,96,0.12)`,
+                            backgroundColor:
+                              member.npsScore >= 9
+                                ? `rgba(107,143,113,0.12)`
+                                : member.npsScore >= 7
+                                  ? `rgba(232,180,76,0.12)`
+                                  : `rgba(224,96,96,0.12)`,
+                            border: `1px solid ${
+                              member.npsScore >= 9
+                                ? 'rgba(107,143,113,0.2)'
+                                : member.npsScore >= 7
+                                  ? 'rgba(232,180,76,0.2)'
+                                  : 'rgba(224,96,96,0.2)'
+                            }`,
                           }}
                         >
                           {member.npsScore >= 9 ? 'Promoter' : member.npsScore >= 7 ? 'Passive' : 'Detractor'}
@@ -779,26 +1661,62 @@ export function MemberHealthView() {
                     </div>
                   </div>
 
-                  {/* Engagement Heatmap */}
-                  <div style={{ backgroundColor: '#0f1219', borderRadius: 10, padding: 12, marginBottom: 12 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+                  {/* Engagement Heatmap + Sparkline */}
+                  <div
+                    style={{
+                      ...glassCard(),
+                      borderRadius: 12,
+                      padding: 14,
+                      marginBottom: 14,
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                       <EngagementHeatmap data={member.engagementByWeek} label="12-Week Engagement Heatmap" />
-                      <MiniSparkline values={member.engagementByWeek} color={scoreColor(member.healthScore)} />
+                      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4 }}>
+                        <TrendSparkline
+                          values={member.engagementByWeek}
+                          color={scoreColor(member.healthScore)}
+                          width={100}
+                          height={32}
+                        />
+                        <span style={{ fontSize: 8, color: '#5a5248' }}>12-week trend</span>
+                      </div>
                     </div>
                   </div>
 
+                  {/* Bottom details */}
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
-                    <div style={{ backgroundColor: '#0f1219', borderRadius: 10, padding: 12 }}>
-                      <div style={{ fontSize: 10, color: '#6b6358', marginBottom: 4 }}>Member Since</div>
-                      <div style={{ fontSize: 13, fontWeight: 600, color: '#f0ebe4' }}>{member.joinDate}</div>
+                    <div
+                      style={{
+                        ...glassCard(),
+                        borderRadius: 12,
+                        padding: 14,
+                      }}
+                    >
+                      <div style={{ fontSize: 10, color: MUTED, marginBottom: 6, fontWeight: 600 }}>Member Since</div>
+                      <div style={{ fontSize: 14, fontWeight: 600, color: CREAM }}>{member.joinDate}</div>
+                      <div style={{ fontSize: 10, color: '#5a5248', marginTop: 2 }}>{member.membershipTier}</div>
                     </div>
-                    <div style={{ backgroundColor: '#0f1219', borderRadius: 10, padding: 12 }}>
-                      <div style={{ fontSize: 10, color: '#6b6358', marginBottom: 4 }}>Renewal Date</div>
-                      <div style={{ fontSize: 13, fontWeight: 600, color: AMBER }}>{member.renewalDate}</div>
+                    <div
+                      style={{
+                        ...glassCard(`${AMBER}15`),
+                        borderRadius: 12,
+                        padding: 14,
+                      }}
+                    >
+                      <div style={{ fontSize: 10, color: MUTED, marginBottom: 6, fontWeight: 600 }}>Renewal Date</div>
+                      <div style={{ fontSize: 14, fontWeight: 600, color: AMBER }}>{member.renewalDate}</div>
+                      <div style={{ fontSize: 10, color: '#5a5248', marginTop: 2 }}>${member.monthlyRate.toLocaleString()}/mo</div>
                     </div>
-                    <div style={{ backgroundColor: '#0f1219', borderRadius: 10, padding: 12 }}>
-                      <div style={{ fontSize: 10, color: '#6b6358', marginBottom: 4 }}>Notes</div>
-                      <div style={{ fontSize: 11, color: '#a09888', lineHeight: 1.4 }}>{member.notes}</div>
+                    <div
+                      style={{
+                        ...glassCard(),
+                        borderRadius: 12,
+                        padding: 14,
+                      }}
+                    >
+                      <div style={{ fontSize: 10, color: MUTED, marginBottom: 6, fontWeight: 600 }}>Notes</div>
+                      <div style={{ fontSize: 11, color: '#b8b0a6', lineHeight: 1.5 }}>{member.notes}</div>
                     </div>
                   </div>
                 </div>
@@ -808,50 +1726,109 @@ export function MemberHealthView() {
         })}
       </div>
 
-      {/* -- Engagement Distribution -- */}
+      {/* ============================================
+          Health Matrix: All Members x All Dimensions
+          ============================================ */}
       <div
-        className="animate-fade-in glow-card"
         style={{
-          backgroundColor: '#131720',
-          border: '1px solid #1e2638',
-          borderRadius: 16,
+          ...glassCard(),
           padding: 24,
           marginTop: 24,
-          animationDelay: '0.35s',
-          opacity: 0,
+          animation: `mh-fade-in-scale 0.6s ${EASE_SPRING} 0.7s both`,
         }}
       >
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 20 }}>
-          <Activity size={16} style={{ color: AMBER }} />
-          <span style={{ fontSize: 14, fontWeight: 700, color: '#f0ebe4' }}>Engagement Distribution</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 20 }}>
+          <div
+            style={{
+              width: 30,
+              height: 30,
+              borderRadius: 8,
+              background: `${VIOLET}12`,
+              border: `1px solid ${VIOLET}20`,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
+          >
+            <BarChart3 size={14} style={{ color: VIOLET }} />
+          </div>
+          <div>
+            <span style={{ fontSize: 14, fontWeight: 700, color: CREAM }}>Health Matrix</span>
+            <span style={{ fontSize: 11, color: '#5a5248', marginLeft: 10 }}>All members across all dimensions</span>
+          </div>
+        </div>
+        <HealthMatrix members={defaultMembers} />
+        {/* Legend */}
+        <div style={{ display: 'flex', gap: 16, marginTop: 16, paddingTop: 14, borderTop: '1px solid rgba(255,255,255,0.04)' }}>
+          {[
+            { label: '80-100', color: SAGE, text: 'Excellent' },
+            { label: '50-79', color: GOLD, text: 'Watch' },
+            { label: '0-49', color: DANGER, text: 'At Risk' },
+          ].map((leg) => (
+            <div key={leg.label} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <div style={{ width: 10, height: 10, borderRadius: 3, backgroundColor: leg.color, opacity: 0.6 }} />
+              <span style={{ fontSize: 10, color: MUTED }}>{leg.text} ({leg.label})</span>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* ============================================
+          Engagement Distribution
+          ============================================ */}
+      <div
+        style={{
+          ...glassCard(),
+          padding: 24,
+          marginTop: 16,
+          animation: `mh-fade-in-scale 0.6s ${EASE_SPRING} 0.8s both`,
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 20 }}>
+          <div
+            style={{
+              width: 30,
+              height: 30,
+              borderRadius: 8,
+              background: `${AMBER}12`,
+              border: `1px solid ${AMBER}20`,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
+          >
+            <Activity size={14} style={{ color: AMBER }} />
+          </div>
+          <span style={{ fontSize: 14, fontWeight: 700, color: CREAM }}>Engagement Distribution</span>
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 24 }}>
           {/* Health Score Distribution */}
           <div>
-            <div style={{ fontSize: 10, color: '#6b6358', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 12 }}>
+            <div style={{ fontSize: 10, color: MUTED, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 14, fontWeight: 700 }}>
               Health Score Bands
             </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
               {[
-                { label: '90-100 (Excellent)', count: defaultMembers.filter(m => m.healthScore >= 90).length, color: SAGE },
-                { label: '80-89 (Good)', count: defaultMembers.filter(m => m.healthScore >= 80 && m.healthScore < 90).length, color: '#5eaed4' },
-                { label: '50-79 (Watch)', count: defaultMembers.filter(m => m.healthScore >= 50 && m.healthScore < 80).length, color: GOLD },
-                { label: '<50 (At Risk)', count: defaultMembers.filter(m => m.healthScore < 50).length, color: DANGER },
+                { label: '90-100 (Excellent)', count: defaultMembers.filter((m) => m.healthScore >= 90).length, color: SAGE },
+                { label: '80-89 (Good)', count: defaultMembers.filter((m) => m.healthScore >= 80 && m.healthScore < 90).length, color: '#5eaed4' },
+                { label: '50-79 (Watch)', count: defaultMembers.filter((m) => m.healthScore >= 50 && m.healthScore < 80).length, color: GOLD },
+                { label: '<50 (At Risk)', count: defaultMembers.filter((m) => m.healthScore < 50).length, color: DANGER },
               ].map((band) => (
                 <div key={band.label} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                   <span style={{ fontSize: 10, color: '#6b6358', width: 110, flexShrink: 0 }}>{band.label}</span>
-                  <div style={{ flex: 1, height: 6, borderRadius: 3, backgroundColor: '#1c2230', overflow: 'hidden' }}>
+                  <div style={{ flex: 1, height: 6, borderRadius: 3, backgroundColor: 'rgba(255,255,255,0.04)', overflow: 'hidden' }}>
                     <div
                       style={{
                         height: '100%',
                         width: `${(band.count / totalMembers) * 100}%`,
-                        backgroundColor: band.color,
+                        background: `linear-gradient(90deg, ${band.color}80, ${band.color})`,
                         borderRadius: 3,
-                        transition: 'width 0.5s ease',
+                        boxShadow: `0 0 6px ${band.color}20`,
+                        transition: `width 0.7s ${EASE_SPRING}`,
                       }}
                     />
                   </div>
-                  <span style={{ fontSize: 11, fontWeight: 700, color: '#f0ebe4', fontFamily: 'monospace', width: 20, textAlign: 'right' }}>
+                  <span style={{ fontSize: 11, fontWeight: 700, color: CREAM, fontFamily: 'monospace', width: 20, textAlign: 'right' }}>
                     {band.count}
                   </span>
                 </div>
@@ -861,22 +1838,38 @@ export function MemberHealthView() {
 
           {/* Membership Tier */}
           <div>
-            <div style={{ fontSize: 10, color: '#6b6358', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 12 }}>
+            <div style={{ fontSize: 10, color: MUTED, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 14, fontWeight: 700 }}>
               Membership Tiers
             </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
               {[
-                { label: 'Individual', count: defaultMembers.filter(m => m.membershipTier === 'Individual').length, rate: '$1,200/mo', color: AMBER },
-                { label: 'Couple', count: defaultMembers.filter(m => m.membershipTier === 'Couple').length, rate: '$1,700/mo', color: VIOLET },
+                { label: 'Individual', count: defaultMembers.filter((m) => m.membershipTier === 'Individual').length, rate: '$1,200/mo', color: AMBER },
+                { label: 'Couple', count: defaultMembers.filter((m) => m.membershipTier === 'Couple').length, rate: '$1,700/mo', color: VIOLET },
               ].map((tier) => (
-                <div key={tier.label} style={{ backgroundColor: '#0f1219', borderRadius: 8, padding: 10 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
-                    <span style={{ fontSize: 12, fontWeight: 600, color: '#f0ebe4' }}>{tier.label}</span>
-                    <span style={{ fontSize: 10, color: AMBER }}>{tier.rate}</span>
+                <div
+                  key={tier.label}
+                  style={{
+                    ...glassCard(`${tier.color}15`),
+                    borderRadius: 10,
+                    padding: 12,
+                    transition: `all 0.3s ${EASE_SPRING}`,
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.borderColor = `${tier.color}30`;
+                    e.currentTarget.style.transform = 'translateY(-1px)';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.borderColor = `${tier.color}15`;
+                    e.currentTarget.style.transform = 'none';
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+                    <span style={{ fontSize: 12, fontWeight: 600, color: CREAM }}>{tier.label}</span>
+                    <span style={{ fontSize: 10, color: AMBER, fontWeight: 600 }}>{tier.rate}</span>
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                    <div style={{ width: 6, height: 6, borderRadius: '50%', backgroundColor: tier.color }} />
-                    <span style={{ fontSize: 11, color: '#a09888' }}>{tier.count} members</span>
+                    <div style={{ width: 6, height: 6, borderRadius: '50%', backgroundColor: tier.color, boxShadow: `0 0 6px ${tier.color}40` }} />
+                    <span style={{ fontSize: 11, color: MUTED }}>{tier.count} members</span>
                   </div>
                 </div>
               ))}
@@ -885,39 +1878,58 @@ export function MemberHealthView() {
 
           {/* NPS Distribution */}
           <div>
-            <div style={{ fontSize: 10, color: '#6b6358', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 12 }}>
+            <div style={{ fontSize: 10, color: MUTED, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 14, fontWeight: 700 }}>
               NPS Breakdown
             </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
               {[
-                { label: 'Promoters (9-10)', count: defaultMembers.filter(m => m.npsScore >= 9).length, color: SAGE },
-                { label: 'Passives (7-8)', count: defaultMembers.filter(m => m.npsScore >= 7 && m.npsScore < 9).length, color: GOLD },
-                { label: 'Detractors (0-6)', count: defaultMembers.filter(m => m.npsScore < 7).length, color: DANGER },
+                { label: 'Promoters (9-10)', count: defaultMembers.filter((m) => m.npsScore >= 9).length, color: SAGE },
+                { label: 'Passives (7-8)', count: defaultMembers.filter((m) => m.npsScore >= 7 && m.npsScore < 9).length, color: GOLD },
+                { label: 'Detractors (0-6)', count: defaultMembers.filter((m) => m.npsScore < 7).length, color: DANGER },
               ].map((seg) => (
                 <div key={seg.label} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                   <span style={{ fontSize: 10, color: '#6b6358', width: 110, flexShrink: 0 }}>{seg.label}</span>
-                  <div style={{ flex: 1, height: 6, borderRadius: 3, backgroundColor: '#1c2230', overflow: 'hidden' }}>
+                  <div style={{ flex: 1, height: 6, borderRadius: 3, backgroundColor: 'rgba(255,255,255,0.04)', overflow: 'hidden' }}>
                     <div
                       style={{
                         height: '100%',
                         width: `${(seg.count / totalMembers) * 100}%`,
-                        backgroundColor: seg.color,
+                        background: `linear-gradient(90deg, ${seg.color}80, ${seg.color})`,
                         borderRadius: 3,
+                        boxShadow: `0 0 6px ${seg.color}20`,
                       }}
                     />
                   </div>
-                  <span style={{ fontSize: 11, fontWeight: 700, color: '#f0ebe4', fontFamily: 'monospace', width: 20, textAlign: 'right' }}>
+                  <span style={{ fontSize: 11, fontWeight: 700, color: CREAM, fontFamily: 'monospace', width: 20, textAlign: 'right' }}>
                     {seg.count}
                   </span>
                 </div>
               ))}
-              <div style={{ marginTop: 8, paddingTop: 8, borderTop: '1px solid #1e2638', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <span style={{ fontSize: 11, color: '#6b6358' }}>Net Promoter Score</span>
-                <span style={{ fontSize: 18, fontWeight: 800, color: SAGE, fontFamily: 'monospace' }}>
+              <div
+                style={{
+                  marginTop: 10,
+                  paddingTop: 12,
+                  borderTop: '1px solid rgba(255,255,255,0.04)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                }}
+              >
+                <span style={{ fontSize: 11, color: MUTED, fontWeight: 600 }}>Net Promoter Score</span>
+                <span
+                  style={{
+                    fontSize: 22,
+                    fontWeight: 800,
+                    color: SAGE,
+                    fontFamily: 'monospace',
+                    filter: `drop-shadow(0 0 8px ${SAGE}40)`,
+                  }}
+                >
                   {Math.round(
-                    ((defaultMembers.filter(m => m.npsScore >= 9).length -
-                      defaultMembers.filter(m => m.npsScore < 7).length) /
-                      totalMembers) * 100
+                    ((defaultMembers.filter((m) => m.npsScore >= 9).length -
+                      defaultMembers.filter((m) => m.npsScore < 7).length) /
+                      totalMembers) *
+                      100,
                   )}
                 </span>
               </div>

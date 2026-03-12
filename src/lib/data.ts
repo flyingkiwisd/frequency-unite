@@ -976,9 +976,9 @@ export const roadmapPhases = [
 
 // ─── View Types ───
 
-export type ViewType = 'dashboard' | 'team' | 'chat' | 'okrs' | 'tasks' | 'governance' | 'roadmap' | 'events' | 'nodes' | 'budget' | 'advisor' | 'leaderboard';
+export type ViewType = 'dashboard' | 'team' | 'chat' | 'okrs' | 'tasks' | 'governance' | 'roadmap' | 'events' | 'nodes' | 'budget' | 'advisor' | 'leaderboard' | 'journal' | 'decisions' | 'agents';
 
-export const viewTypes: ViewType[] = ['dashboard', 'team', 'chat', 'okrs', 'tasks', 'governance', 'roadmap', 'events', 'nodes', 'budget', 'advisor', 'leaderboard'];
+export const viewTypes: ViewType[] = ['dashboard', 'team', 'chat', 'okrs', 'tasks', 'governance', 'roadmap', 'events', 'nodes', 'budget', 'advisor', 'leaderboard', 'journal', 'decisions', 'agents'];
 
 // ─── Export PDF helper ───
 

@@ -33,6 +33,7 @@ import {
   Award,
   Layers,
   PenTool,
+  Trash2,
 } from 'lucide-react';
 import { teamMembers } from '@/lib/data';
 
@@ -92,6 +93,8 @@ interface JournalData {
   weekly: {
     prioritiesReview: string;
     blockers: string;
+    believability: string;
+    higherLevel: string;
   };
 }
 
@@ -266,7 +269,7 @@ function QuickActionCard({ icon: Icon, label, description, color, delay }: {
 }) {
   return (
     <div
-      className="glow-card rounded-xl border p-4 animate-fade-in cursor-pointer group"
+      className="glow-card rounded-xl border p-4 animate-fade-in cursor-pointer group card-interactive"
       style={{
         backgroundColor: '#131720',
         borderColor: '#1e2638',
@@ -739,28 +742,29 @@ export function StewardOSView() {
   const currentJournal: JournalData = journal[selectedId] || {
     morning: { regulationCheck: '', topPriorities: '', whatNotToDo: '' },
     evening: { wins: '', tensionDump: '', cleanupQueue: '' },
-    weekly: { prioritiesReview: '', blockers: '' },
+    weekly: { prioritiesReview: '', blockers: '', believability: '', higherLevel: '' },
   };
 
   /* -- Computed stats -- */
+  const qualities = osData?.qualities && Array.isArray(osData.qualities) ? osData.qualities : [];
+  const risks = osData?.risks && Array.isArray(osData.risks) ? osData.risks : [];
+
   const avgScore = useMemo(() => {
-    if (!osData) return 0;
-    return osData.qualities.reduce((s, q) => s + q.score, 0) / osData.qualities.length;
-  }, [osData]);
+    if (!qualities.length) return 0;
+    return qualities.reduce((s, q) => s + q.score, 0) / qualities.length;
+  }, [qualities]);
 
   const strengthCount = useMemo(() => {
-    if (!osData) return 0;
-    return osData.qualities.filter((q) => q.score >= 4).length;
-  }, [osData]);
+    return qualities.filter((q) => q.score >= 4).length;
+  }, [qualities]);
 
   const criticalRisks = useMemo(() => {
-    if (!osData) return 0;
-    return osData.risks.filter((r) => r.likelihood === 'high' && r.impact === 'high').length;
-  }, [osData]);
+    return risks.filter((r) => r.likelihood === 'high' && r.impact === 'high').length;
+  }, [risks]);
 
   const focusCount = useMemo(() => {
     if (!osData) return 0;
-    return osData.focusAreas.length;
+    return Array.isArray(osData.focusAreas) ? osData.focusAreas.length : 0;
   }, [osData]);
 
   /* -- Render Helpers -- */
@@ -796,7 +800,7 @@ export function StewardOSView() {
       <div className="space-y-6">
         {/* Domains */}
         <div
-          className="glow-card rounded-xl border p-5 animate-fade-in"
+          className="glow-card rounded-xl border p-5 animate-fade-in card-premium"
           style={{ backgroundColor: '#131720', borderColor: '#1e2638', animationDelay: '0.05s', opacity: 0 }}
         >
           <div className="flex items-center gap-2 mb-3">
@@ -821,7 +825,7 @@ export function StewardOSView() {
 
         {/* KPIs */}
         <div
-          className="glow-card rounded-xl border p-5 animate-fade-in"
+          className="glow-card rounded-xl border p-5 animate-fade-in card-premium"
           style={{ backgroundColor: '#131720', borderColor: '#1e2638', animationDelay: '0.12s', opacity: 0 }}
         >
           <div className="flex items-center gap-2 mb-3">
@@ -878,7 +882,7 @@ export function StewardOSView() {
               </span>
             </div>
             <div className="space-y-2">
-              {osData.focusAreas.map((fa, i) => (
+              {(osData?.focusAreas || []).map((fa, i) => (
                 <div
                   key={i}
                   className="flex items-start gap-2 text-sm animate-fade-in"
@@ -1043,14 +1047,14 @@ export function StewardOSView() {
             </span>
           </div>
           <div className="space-y-5">
-            {osData.qualities.map((q, i) => (
+            {qualities.map((q, i) => (
               <div key={i} className="animate-fade-in" style={{ animationDelay: `${0.08 + i * 0.06}s`, opacity: 0 }}>
                 <div className="flex items-center justify-between mb-1.5">
                   <span className="text-sm font-medium text-text-primary">{q.name}</span>
                 </div>
                 {renderScoreBar(q.score)}
                 <p className="text-xs text-text-muted mt-1.5 leading-relaxed">{q.description}</p>
-                {i < osData.qualities.length - 1 && (
+                {i < qualities.length - 1 && (
                   <div className="mt-4" style={{ borderBottom: '1px solid #1e2638' }} />
                 )}
               </div>
@@ -1063,11 +1067,11 @@ export function StewardOSView() {
           {[
             { value: avgScore.toFixed(1), label: 'Avg Score', color: AMBER },
             { value: String(strengthCount), label: 'Strengths', color: SAGE },
-            { value: String(osData.qualities.filter((q) => q.score <= 3).length), label: 'Growth Areas', color: ROSE },
+            { value: String(qualities.filter((q) => q.score <= 3).length), label: 'Growth Areas', color: ROSE },
           ].map((stat, i) => (
             <div
               key={i}
-              className="rounded-xl border p-4 text-center animate-fade-in"
+              className="rounded-xl border p-4 text-center animate-fade-in card-stat"
               style={{ backgroundColor: '#131720', borderColor: '#1e2638', animationDelay: `${0.3 + i * 0.06}s`, opacity: 0 }}
             >
               <div className="text-2xl font-bold" style={{ color: stat.color }}>
@@ -1095,13 +1099,13 @@ export function StewardOSView() {
       <div className="space-y-6">
         {/* Risks */}
         <div className="space-y-3">
-          {osData.risks.map((risk, i) => {
+          {risks.map((risk, i) => {
             const lhCfg = likelihoodConfig[risk.likelihood];
             const impCfg = likelihoodConfig[risk.impact];
             return (
               <div
                 key={i}
-                className="glow-card rounded-xl border p-5 animate-fade-in"
+                className="glow-card rounded-xl border p-5 animate-fade-in card-interactive"
                 style={{ backgroundColor: '#131720', borderColor: '#1e2638', animationDelay: `${0.05 + i * 0.06}s`, opacity: 0 }}
               >
                 <div className="flex items-start justify-between gap-3 mb-3">
@@ -1145,7 +1149,7 @@ export function StewardOSView() {
             </span>
           </div>
           <div className="space-y-2">
-            {osData.redLines.map((line, i) => (
+            {(osData?.redLines || []).map((line, i) => (
               <div key={i} className="flex items-start gap-2 text-sm">
                 <div className="w-1.5 h-1.5 rounded-full mt-1.5 flex-shrink-0" style={{ backgroundColor: ROSE }} />
                 <span className="text-text-secondary font-medium">{line}</span>
@@ -1157,13 +1161,13 @@ export function StewardOSView() {
         {/* Risk Summary */}
         <div className="grid grid-cols-3 gap-3">
           {[
-            { value: osData.risks.filter((r) => r.likelihood === 'high' && r.impact === 'high').length, label: 'Critical', color: ROSE },
-            { value: osData.risks.filter((r) => r.likelihood === 'medium' || r.impact === 'medium').length, label: 'Monitor', color: AMBER },
-            { value: osData.risks.length, label: 'Total Risks', color: SAGE },
+            { value: risks.filter((r) => r.likelihood === 'high' && r.impact === 'high').length, label: 'Critical', color: ROSE },
+            { value: risks.filter((r) => r.likelihood === 'medium' || r.impact === 'medium').length, label: 'Monitor', color: AMBER },
+            { value: risks.length, label: 'Total Risks', color: SAGE },
           ].map((stat, i) => (
             <div
               key={i}
-              className="rounded-xl border p-4 text-center animate-fade-in"
+              className="rounded-xl border p-4 text-center animate-fade-in card-stat"
               style={{ backgroundColor: '#131720', borderColor: '#1e2638', animationDelay: `${0.35 + i * 0.05}s`, opacity: 0 }}
             >
               <div className="text-2xl font-bold" style={{ color: stat.color }}>
@@ -1177,8 +1181,24 @@ export function StewardOSView() {
     );
   }
 
+  function clearJournal() {
+    const updated = { ...journal };
+    updated[selectedId] = {
+      morning: { regulationCheck: '', topPriorities: '', whatNotToDo: '' },
+      evening: { wins: '', tensionDump: '', cleanupQueue: '' },
+      weekly: { prioritiesReview: '', blockers: '', believability: '', higherLevel: '' },
+    };
+    setJournal(updated);
+    try {
+      localStorage.setItem(JOURNAL_STORAGE_KEY, JSON.stringify(updated));
+    } catch { /* ignore */ }
+  }
+
   function renderJournal() {
     const today = getTodayFormatted();
+
+    const textareaClass = "w-full rounded-lg border px-3 py-2 text-sm text-text-primary placeholder:text-text-muted resize-none focus:outline-none focus:ring-1";
+    const textareaStyle = { backgroundColor: '#0b0d14', borderColor: '#1e2638' };
 
     return (
       <div className="space-y-6">
@@ -1206,21 +1226,31 @@ export function StewardOSView() {
           <div>
             <div className="text-sm font-semibold text-text-primary">{today}</div>
             <div className="text-xs text-text-muted">
-              Journal entries for {member.name.split(' ')[0]}
+              Journal for {member.name.split(' ')[0]}
             </div>
           </div>
-          <div className="ml-auto flex items-center gap-1.5">
-            <PenTool size={12} style={{ color: VIOLET }} />
-            <span className="text-[10px] font-medium" style={{ color: VIOLET }}>Auto-saving</span>
+          <div className="ml-auto flex items-center gap-3">
+            <div className="flex items-center gap-1.5">
+              <PenTool size={12} style={{ color: VIOLET }} />
+              <span className="text-[10px] font-medium" style={{ color: VIOLET }}>Auto-saving</span>
+            </div>
+            <button
+              onClick={clearJournal}
+              className="flex items-center gap-1 px-2 py-1 rounded-md text-[10px] font-medium transition-colors hover:bg-red-500/20"
+              style={{ color: ROSE, border: `1px solid ${ROSE}30` }}
+            >
+              <Trash2 size={10} />
+              Clear
+            </button>
           </div>
         </div>
 
-        {/* Morning Journal */}
+        {/* Morning — Embrace Reality */}
         <div
           className="glow-card rounded-xl border p-5 animate-fade-in"
           style={{ backgroundColor: '#131720', borderColor: '#1e2638', animationDelay: '0.08s', opacity: 0 }}
         >
-          <div className="flex items-center gap-2 mb-4">
+          <div className="flex items-center gap-2 mb-1">
             <div
               className="w-8 h-8 rounded-lg flex items-center justify-center"
               style={{ backgroundColor: 'rgba(232, 180, 76, 0.12)' }}
@@ -1229,47 +1259,48 @@ export function StewardOSView() {
             </div>
             <div>
               <span className="text-xs font-semibold uppercase tracking-wider block" style={{ color: '#e8b44c' }}>
-                Morning Journal
+                Morning — Embrace Reality
               </span>
-              <span className="text-[10px] text-text-muted">Start your day with intention</span>
+              <span className="text-[10px] text-text-muted">Truth is the foundation of good outcomes</span>
             </div>
           </div>
+          <div className="text-[10px] text-text-muted mb-4 ml-10 italic">Dalio: Dreams + Reality + Determination = A Successful Life</div>
           <div className="space-y-4">
             <div>
               <label className="text-xs font-medium text-text-muted block mb-1.5">
-                Regulation Check -- How am I arriving today?
+                Reality Check — What is true right now that I might be avoiding?
               </label>
               <textarea
-                className="w-full rounded-lg border px-3 py-2 text-sm text-text-primary placeholder:text-text-muted resize-none focus:outline-none focus:ring-1"
-                style={{ backgroundColor: '#0b0d14', borderColor: '#1e2638' }}
+                className={textareaClass}
+                style={textareaStyle}
                 rows={2}
-                placeholder="How is my energy, body, mind today..."
+                placeholder="Be radically honest: What's my energy? What am I afraid to face? What reality am I not accepting?"
                 value={currentJournal.morning.regulationCheck}
                 onChange={(e) => updateJournal(selectedId, 'morning', 'regulationCheck', e.target.value)}
               />
             </div>
             <div>
               <label className="text-xs font-medium text-text-muted block mb-1.5">
-                Top 3 Priorities
+                Highest-Leverage Goals — What 3 things will produce the most meaningful outcomes?
               </label>
               <textarea
-                className="w-full rounded-lg border px-3 py-2 text-sm text-text-primary placeholder:text-text-muted resize-none focus:outline-none focus:ring-1"
-                style={{ backgroundColor: '#0b0d14', borderColor: '#1e2638' }}
+                className={textareaClass}
+                style={textareaStyle}
                 rows={3}
-                placeholder={"1. \n2. \n3. "}
+                placeholder={"1. The one thing that moves the most important goal forward\n2. The hard conversation or decision I've been putting off\n3. The thing only I can do today"}
                 value={currentJournal.morning.topPriorities}
                 onChange={(e) => updateJournal(selectedId, 'morning', 'topPriorities', e.target.value)}
               />
             </div>
             <div>
               <label className="text-xs font-medium text-text-muted block mb-1.5">
-                What I will NOT do today
+                Protect the Machine — What must I say no to, even when it's uncomfortable?
               </label>
               <textarea
-                className="w-full rounded-lg border px-3 py-2 text-sm text-text-primary placeholder:text-text-muted resize-none focus:outline-none focus:ring-1"
-                style={{ backgroundColor: '#0b0d14', borderColor: '#1e2638' }}
+                className={textareaClass}
+                style={textareaStyle}
                 rows={2}
-                placeholder="Boundary-setting: what am I saying no to today..."
+                placeholder="What distractions, ego traps, or people-pleasing patterns do I need to refuse today?"
                 value={currentJournal.morning.whatNotToDo}
                 onChange={(e) => updateJournal(selectedId, 'morning', 'whatNotToDo', e.target.value)}
               />
@@ -1277,12 +1308,12 @@ export function StewardOSView() {
           </div>
         </div>
 
-        {/* End of Day */}
+        {/* End of Day — Pain + Reflection = Progress */}
         <div
           className="glow-card rounded-xl border p-5 animate-fade-in"
           style={{ backgroundColor: '#131720', borderColor: '#1e2638', animationDelay: '0.14s', opacity: 0 }}
         >
-          <div className="flex items-center gap-2 mb-4">
+          <div className="flex items-center gap-2 mb-1">
             <div
               className="w-8 h-8 rounded-lg flex items-center justify-center"
               style={{ backgroundColor: 'rgba(129, 140, 248, 0.12)' }}
@@ -1291,47 +1322,48 @@ export function StewardOSView() {
             </div>
             <div>
               <span className="text-xs font-semibold uppercase tracking-wider block" style={{ color: '#818cf8' }}>
-                End-of-Day Reflection
+                Evening — Pain + Reflection = Progress
               </span>
-              <span className="text-[10px] text-text-muted">Close the loop on your day</span>
+              <span className="text-[10px] text-text-muted">Every mistake is a puzzle to solve, not a punishment</span>
             </div>
           </div>
+          <div className="text-[10px] text-text-muted mb-4 ml-10 italic">Dalio: If you can develop a reflexive reaction to pain that causes you to reflect rather than react, you will learn faster</div>
           <div className="space-y-4">
             <div>
               <label className="text-xs font-medium text-text-muted block mb-1.5">
-                Wins -- What moved the needle?
+                Outcomes — What did I actually produce today? What worked and why?
               </label>
               <textarea
-                className="w-full rounded-lg border px-3 py-2 text-sm text-text-primary placeholder:text-text-muted resize-none focus:outline-none focus:ring-1"
-                style={{ backgroundColor: '#0b0d14', borderColor: '#1e2638' }}
+                className={textareaClass}
+                style={textareaStyle}
                 rows={2}
-                placeholder="Celebrate what went well..."
+                placeholder="Not activity, but outcomes. What measurable progress was made toward goals?"
                 value={currentJournal.evening.wins}
                 onChange={(e) => updateJournal(selectedId, 'evening', 'wins', e.target.value)}
               />
             </div>
             <div>
               <label className="text-xs font-medium text-text-muted block mb-1.5">
-                Tension Dump -- What am I carrying?
+                Pain Log — Where did I fail or struggle? What mistake patterns am I repeating?
               </label>
               <textarea
-                className="w-full rounded-lg border px-3 py-2 text-sm text-text-primary placeholder:text-text-muted resize-none focus:outline-none focus:ring-1"
-                style={{ backgroundColor: '#0b0d14', borderColor: '#1e2638' }}
+                className={textareaClass}
+                style={textareaStyle}
                 rows={2}
-                placeholder="Unresolved tensions, frustrations, or concerns..."
+                placeholder="Be specific: What went wrong? Is this a recurring pattern? What's the root cause — not the symptom?"
                 value={currentJournal.evening.tensionDump}
                 onChange={(e) => updateJournal(selectedId, 'evening', 'tensionDump', e.target.value)}
               />
             </div>
             <div>
               <label className="text-xs font-medium text-text-muted block mb-1.5">
-                Cleanup Queue -- What needs follow-up?
+                Diagnosis — What's the root cause of today's biggest problem?
               </label>
               <textarea
-                className="w-full rounded-lg border px-3 py-2 text-sm text-text-primary placeholder:text-text-muted resize-none focus:outline-none focus:ring-1"
-                style={{ backgroundColor: '#0b0d14', borderColor: '#1e2638' }}
+                className={textareaClass}
+                style={textareaStyle}
                 rows={2}
-                placeholder="Loose ends, promises made, things to close..."
+                placeholder="Don't treat symptoms. Is it a people problem, a design problem, or am I the bottleneck? What system would prevent this?"
                 value={currentJournal.evening.cleanupQueue}
                 onChange={(e) => updateJournal(selectedId, 'evening', 'cleanupQueue', e.target.value)}
               />
@@ -1339,12 +1371,12 @@ export function StewardOSView() {
           </div>
         </div>
 
-        {/* Weekly */}
+        {/* Weekly — The Machine */}
         <div
           className="glow-card rounded-xl border p-5 animate-fade-in"
           style={{ backgroundColor: '#131720', borderColor: '#1e2638', animationDelay: '0.2s', opacity: 0 }}
         >
-          <div className="flex items-center gap-2 mb-4">
+          <div className="flex items-center gap-2 mb-1">
             <div
               className="w-8 h-8 rounded-lg flex items-center justify-center"
               style={{ backgroundColor: 'rgba(139, 92, 246, 0.12)' }}
@@ -1353,36 +1385,63 @@ export function StewardOSView() {
             </div>
             <div>
               <span className="text-xs font-semibold uppercase tracking-wider block" style={{ color: VIOLET }}>
-                Weekly Review
+                Weekly — Design the Machine
               </span>
-              <span className="text-[10px] text-text-muted">Zoom out and course-correct</span>
+              <span className="text-[10px] text-text-muted">Look down on yourself and your problems as a machine designer</span>
             </div>
           </div>
+          <div className="text-[10px] text-text-muted mb-4 ml-10 italic">Dalio: Goals → Problems → Diagnoses → Designs → Doing</div>
           <div className="space-y-4">
             <div>
               <label className="text-xs font-medium text-text-muted block mb-1.5">
-                Priorities Review -- Did I move the right things?
+                Machine Check — Am I producing the outcomes I want? If not, is it a people problem or a design problem?
               </label>
               <textarea
-                className="w-full rounded-lg border px-3 py-2 text-sm text-text-primary placeholder:text-text-muted resize-none focus:outline-none focus:ring-1"
-                style={{ backgroundColor: '#0b0d14', borderColor: '#1e2638' }}
+                className={textareaClass}
+                style={textareaStyle}
                 rows={3}
-                placeholder="Review of weekly commitments and what actually happened..."
+                placeholder="Compare expected vs. actual outcomes this week. Where is the machine breaking down? What needs redesigning?"
                 value={currentJournal.weekly.prioritiesReview}
                 onChange={(e) => updateJournal(selectedId, 'weekly', 'prioritiesReview', e.target.value)}
               />
             </div>
             <div>
               <label className="text-xs font-medium text-text-muted block mb-1.5">
-                Blockers -- What is in the way?
+                5-Step Audit — Where am I stuck: Goals, Problems, Root Causes, Solutions, or Execution?
               </label>
               <textarea
-                className="w-full rounded-lg border px-3 py-2 text-sm text-text-primary placeholder:text-text-muted resize-none focus:outline-none focus:ring-1"
-                style={{ backgroundColor: '#0b0d14', borderColor: '#1e2638' }}
+                className={textareaClass}
+                style={textareaStyle}
                 rows={2}
-                placeholder="Structural blockers, resource gaps, or dependencies..."
+                placeholder="Identify which step in the 5-step process is where you're getting stuck. Don't mix steps — diagnose clearly."
                 value={currentJournal.weekly.blockers}
                 onChange={(e) => updateJournal(selectedId, 'weekly', 'blockers', e.target.value)}
+              />
+            </div>
+            <div>
+              <label className="text-xs font-medium text-text-muted block mb-1.5">
+                Believability Test — What do the most credible people around me think about my current approach?
+              </label>
+              <textarea
+                className={textareaClass}
+                style={textareaStyle}
+                rows={2}
+                placeholder="Who has earned the right to have an opinion here? What would they tell me that I might not want to hear?"
+                value={currentJournal.weekly.believability}
+                onChange={(e) => updateJournal(selectedId, 'weekly', 'believability', e.target.value)}
+              />
+            </div>
+            <div>
+              <label className="text-xs font-medium text-text-muted block mb-1.5">
+                Higher-Level Thinking — If I were looking at my life from above as a machine, what would I redesign?
+              </label>
+              <textarea
+                className={textareaClass}
+                style={textareaStyle}
+                rows={2}
+                placeholder="Step outside yourself. What habits, roles, or systems are producing suboptimal outcomes? What would the ideal design look like?"
+                value={currentJournal.weekly.higherLevel}
+                onChange={(e) => updateJournal(selectedId, 'weekly', 'higherLevel', e.target.value)}
               />
             </div>
           </div>
@@ -1427,12 +1486,12 @@ export function StewardOSView() {
           </p>
         </div>
 
-        {osData.agentInsights.map((insight, i) => {
+        {(osData?.agentInsights || []).map((insight, i) => {
           const cfg = insightTypeConfig[insight.type];
           return (
             <div
               key={i}
-              className="glow-card rounded-xl border p-5 transition-all animate-fade-in"
+              className="glow-card rounded-xl border p-5 transition-all animate-fade-in card-interactive"
               style={{
                 backgroundColor: '#131720',
                 borderColor: `${cfg.color}30`,
@@ -1483,15 +1542,19 @@ export function StewardOSView() {
     <div className="space-y-6">
       {/* -- Animated Greeting Banner -- */}
       <div
-        className="rounded-xl border p-5 animate-fade-in"
+        className="rounded-xl border p-5 animate-fade-in card-premium"
         style={{
           background: 'linear-gradient(135deg, rgba(212, 165, 116, 0.08) 0%, rgba(139, 92, 246, 0.06) 50%, rgba(107, 143, 113, 0.05) 100%)',
           borderColor: 'rgba(212, 165, 116, 0.2)',
+          position: 'relative',
+          overflow: 'hidden',
         }}
       >
+        <div className="noise-overlay" style={{ position: 'absolute', inset: 0, borderRadius: 'inherit', pointerEvents: 'none' }} />
+        <div className="dot-pattern" style={{ position: 'absolute', inset: 0, borderRadius: 'inherit', pointerEvents: 'none', opacity: 0.3 }} />
         <div className="flex items-center justify-between gap-4">
           <div>
-            <h1 className="text-2xl font-bold tracking-tight mb-0.5">
+            <h1 className="text-2xl font-bold tracking-tight mb-0.5 text-glow">
               <span className="gradient-text">{getGreeting()}, Steward</span>
             </h1>
             <p className="text-sm text-text-secondary">
@@ -1550,7 +1613,7 @@ export function StewardOSView() {
         {/* Dropdown */}
         {dropdownOpen && (
           <div
-            className="absolute z-50 w-full mt-1 rounded-xl border overflow-hidden shadow-xl max-h-80 overflow-y-auto"
+            className="absolute z-50 w-full mt-1 rounded-xl border overflow-hidden shadow-xl max-h-80 overflow-y-auto scrollbar-autohide"
             style={{ backgroundColor: '#131720', borderColor: '#1e2638' }}
           >
             {teamMembers.map((m) => (
@@ -1603,7 +1666,7 @@ export function StewardOSView() {
 
       {/* -- Profile Header with Progress Ring -- */}
       <div
-        className="glow-card rounded-xl border p-5 animate-fade-in"
+        className="glow-card rounded-xl border p-5 animate-fade-in card-premium"
         style={{ backgroundColor: '#131720', borderColor: '#1e2638', animationDelay: '0.06s', opacity: 0 }}
       >
         <div className="flex items-start gap-4">
@@ -1616,7 +1679,7 @@ export function StewardOSView() {
           </div>
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 flex-wrap mb-1">
-              <h2 className="text-xl font-bold text-text-primary">{member.name}</h2>
+              <h2 className="text-xl font-bold text-text-primary text-glow">{member.name}</h2>
               <span
                 className="text-[10px] font-semibold px-2 py-0.5 rounded-full"
                 style={{ backgroundColor: status.bg, color: status.text }}
@@ -1666,7 +1729,7 @@ export function StewardOSView() {
             return (
               <div
                 key={i}
-                className="glow-card rounded-xl border p-4 animate-fade-in"
+                className="glow-card rounded-xl border p-4 animate-fade-in card-stat"
                 style={{ backgroundColor: '#131720', borderColor: '#1e2638', animationDelay: `${0.1 + i * 0.04}s`, opacity: 0 }}
               >
                 <div className="flex items-center gap-2 mb-2">
@@ -1721,7 +1784,7 @@ export function StewardOSView() {
 
       {/* -- Tab Navigation -- */}
       <div
-        className="flex gap-1 overflow-x-auto pb-1 animate-fade-in"
+        className="flex gap-1 overflow-x-auto pb-1 animate-fade-in scrollbar-autohide"
         style={{ animationDelay: '0.16s', opacity: 0 }}
       >
         {TAB_CONFIG.map((tab) => {
